@@ -10,8 +10,8 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/yu_ai_code_mother
-    username: root
-    password: root
+    username: yu_ai_code_mother_user
+    password: 12345678
   # redis
   data:
     redis:
@@ -22,10 +22,17 @@ spring:
       ttl: 3600
   profiles:
     active: local
+    #SpringAIAlibaba
+  ai:
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: deepseek-v3.2
 server:
-  port: 8125
+  port: 8126
   servlet:
-    context-path: /api
+    context-path: /
     # 30 days expire
     session:
       cookie:
@@ -51,7 +58,7 @@ langchain4j:
     reasoning-streaming-chat-model:
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
       api-key: ${AI_DASHSCOPE_API_KEY}
-      model-name: deepseek-v3.2
+      model-name: qwen3-max
       max-tokens: 32768
       temperature: 0.1
       log-requests: true
@@ -60,10 +67,13 @@ langchain4j:
     routing-chat-model:
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
       api-key: ${AI_DASHSCOPE_API_KEY}
-      model-name: deepseek-v3.2
+      model-name: qwen3-max
       max-tokens: 100
       log-requests: true
       log-responses: true
+
+
+
 # springdoc-openapi
 springdoc:
   group-configs:
@@ -76,15 +86,28 @@ knife4j:
     language: zh_cn
 # Dubbo
 dubbo:
+  application:
+  # 👇 必须加上这几行来解决冲突
+    qos-enable: true
+    qos-port: 55555  # 随便改个不一样的，比如 33333
+    qos-accept-foreign-ip: false
   registry:
-    address: nacos://127.0.0.1:8848?username=nacos&password=nacos
+    address: nacos://localhost:8848?username=nacos&password=nacos
     register-mode: instance
-    parameters:
-      ${NACOS_SERVER_IDENTITY_STANDALONE_KEY}: ${NACOS_SERVER_IDENTITY_STANDALONE_VALUE}
+#    parameters:
+#      ${NACOS_SERVER_IDENTITY_STANDALONE_KEY}: ${NACOS_SERVER_IDENTITY_STANDALONE_VALUE}
   protocol:
     name: tri
     port: 50053
+    host: localhost
   consumer:
     timeout: 120000
   provider:
     timeout: 120000
+code:
+  # 1. 本地部署域名 (不要带最后的斜杠)
+  deploy-host: http://localhost:8126
+  # 2. Node 地址 (填回环地址，仅在远程构建模式下使用)
+  node-builder-url: http://node-builder:3000/build
+  # 3. 构建模式：local（本地构建，使用本地 npm 命令）| remote（远程构建，调用 node-builder 服务）
+  build-mode: local

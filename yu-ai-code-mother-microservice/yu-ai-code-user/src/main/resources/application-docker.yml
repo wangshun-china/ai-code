@@ -1,0 +1,40 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:mysql}:${DB_PORT:3306}/${DB_NAME:yu_ai_code_mother}
+    username: ${DB_USER:yu_ai_code_mother_user}
+    password: ${DB_PASSWORD:12345678}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      password: ${REDIS_PASSWORD:}
+  session:
+    store-type: redis
+    timeout: 2592000
+server:
+  servlet:
+    session:
+      cookie:
+        max-age: 2592000
+dubbo:
+  registry:
+    address: nacos://${NACOS_HOST:nacos}:${NACOS_PORT:8848}?username=nacos&password=nacos
+    register-mode: instance
+  protocol:
+    name: tri
+    port: 50051
+    host: ${DUBBO_HOST:localhost}
+  consumer:
+    timeout: 60000
+  provider:
+    timeout: 60000
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always

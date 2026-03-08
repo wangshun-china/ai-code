@@ -7,7 +7,7 @@
 - Vue 3.x（组合式 API）
 - Vite
 - Vue Router 4.x
-- Node.js 18+ 兼容
+- Node.js 20+ 兼容
 
 ## 项目结构
 

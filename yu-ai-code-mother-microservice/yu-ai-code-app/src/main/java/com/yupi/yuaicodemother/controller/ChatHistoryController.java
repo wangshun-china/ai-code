@@ -22,10 +22,10 @@ import java.time.LocalDateTime;
 /**
  * 对话历史 控制层。
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
+ * @author yu-ai-code-mother
  */
 @RestController
-@RequestMapping("/chatHistory")
+@RequestMapping("/api/chatHistory")
 public class ChatHistoryController {
 
     @Resource

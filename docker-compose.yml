@@ -1,0 +1,295 @@
+version: '3.8'
+
+
+
+services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: yu-ai-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: yu_ai_code_mother
+      MYSQL_USER: yu_ai_code_mother_user
+      MYSQL_PASSWORD: 12345678
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/create_table.sql:/docker-entrypoint-initdb.d/create_table.sql
+      - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/nacos-schema.sql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - yu-ai-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: yu-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - yu-ai-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nacos服务发现和配置中心
+  nacos:
+    image: nacos/nacos-server:v2.5.2
+    container_name: yu-ai-nacos
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m "
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: yu-ai-mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: yu_ai_code_mother
+      MYSQL_SERVICE_USER: yu_ai_code_mother_user
+      MYSQL_SERVICE_PASSWORD: 12345678
+      NACOS_AUTH_ENABLE: "false"
+      NACOS_AUTH_USERNAME: nacos
+      NACOS_AUTH_PASSWORD: nacos
+      NACOS_AUTH_TOKEN: U2VjcmV0S2V5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    volumes:
+      - nacos_logs:/home/nacos/logs
+      - nacos_data:/home/nacos/data
+    networks:
+      - yu-ai-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/ns/instance/list?serviceName=nacos"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Node构建器服务（用于Vue项目构建）
+  node-builder:
+    build:
+      context: ./node-builder
+      dockerfile: Dockerfile
+    container_name: yu-ai-node-builder
+    ports:
+      - "3000:3000"
+    volumes:
+      - code_output:/tmp/code_output
+      - code_deploy:/tmp/code_deploy
+    networks:
+      - yu-ai-network
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - mysql
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 用户微服务
+  user-service:
+    build:
+      context: ./yu-ai-code-mother-microservice
+      dockerfile: Dockerfile.user
+    container_name: yu-ai-user-service
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m -XX:+UseG1GC"
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: yu_ai_code_mother
+      DB_USER: yu_ai_code_mother_user
+      DB_PASSWORD: 12345678
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      AI_DASHSCOPE_API_KEY: ${AI_DASHSCOPE_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      COS_SECRET_ID: ${COS_SECRET_ID:-}
+      COS_SECRET_KEY: ${COS_SECRET_KEY:-}
+    ports:
+      - "8124:8124"
+    volumes:
+      - code_output:/tmp/code_output
+      - code_deploy:/tmp/code_deploy
+      - ./logs/user:/logs
+    networks:
+      - yu-ai-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8124/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 主应用微服务
+  app-service:
+    build:
+      context: ./yu-ai-code-mother-microservice
+      dockerfile: Dockerfile.app
+    container_name: yu-ai-app-service
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m -XX:+UseG1GC"
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: yu_ai_code_mother
+      DB_USER: yu_ai_code_mother_user
+      DB_PASSWORD: 12345678
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      AI_DASHSCOPE_API_KEY: ${AI_DASHSCOPE_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      COS_SECRET_ID: ${COS_SECRET_ID:-}
+      COS_SECRET_KEY: ${COS_SECRET_KEY:-}
+      NODE_BUILDER_URL: http://node-builder:3000/build
+      DEPLOY_HOST: ${DEPLOY_HOST:-http://localhost}
+      SPRING_MVC_SERVLET_PATH: /
+    ports:
+      - "8126:8126"
+    volumes:
+      - code_output:/tmp/code_output
+      - code_deploy:/tmp/code_deploy
+      - ./logs/app:/logs
+    networks:
+      - yu-ai-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      node-builder:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8126/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 截图微服务
+  screenshot-service:
+    build:
+      context: ./yu-ai-code-mother-microservice
+      dockerfile: Dockerfile.screenshot
+    container_name: yu-ai-screenshot-service
+    shm_size: '2gb'
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m -XX:+UseG1GC"
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: yu_ai_code_mother
+      DB_USER: yu_ai_code_mother_user
+      DB_PASSWORD: 12345678
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      NACOS_HOST: nacos
+      NACOS_PORT: 8848
+      COS_SECRET_ID: ${COS_SECRET_ID:-}
+      COS_SECRET_KEY: ${COS_SECRET_KEY:-}
+      COS_REGION: ${COS_REGION:-}
+      COS_BUCKET: ${COS_BUCKET:-}
+      COS_HOST: ${COS_HOST:-}
+    ports:
+      - "8127:8127"
+    volumes:
+      - code_output:/tmp/code_output
+      - code_deploy:/tmp/code_deploy
+      - ./logs/screenshot:/logs
+    networks:
+      - yu-ai-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8127/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 前端构建（静态文件）
+  frontend:
+    build:
+      context: ./yu-ai-code-mother-frontend
+      dockerfile: Dockerfile
+    container_name: yu-ai-frontend
+    volumes:
+      - frontend_dist:/usr/share/nginx/html/dist
+    networks:
+      - yu-ai-network
+    depends_on:
+      - app-service
+      - user-service
+
+  # Nginx反向代理和负载均衡
+  nginx:
+    image: nginx:alpine
+    container_name: yu-ai-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - frontend_dist:/usr/share/nginx/html/dist
+      - code_deploy:/usr/share/nginx/html/deploy
+      - ./nginx/logs:/var/log/nginx
+      - code_output:/usr/share/nginx/html/output
+    networks:
+      - yu-ai-network
+    depends_on:
+      - frontend
+      - user-service
+      - app-service
+      - screenshot-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+  redis_data:
+  nacos_logs:
+  nacos_data:
+  code_output:
+  code_deploy:
+  frontend_dist:
+
+networks:
+  yu-ai-network:
+    driver: bridge

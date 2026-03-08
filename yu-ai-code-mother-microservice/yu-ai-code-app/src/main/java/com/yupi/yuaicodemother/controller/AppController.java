@@ -41,10 +41,10 @@ import java.util.Map;
 /**
  * 应用 控制层。
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
+ *
  */
 @RestController
-@RequestMapping("/app")
+@RequestMapping("/api/app")
 public class AppController {
 
     @Resource
@@ -280,6 +280,7 @@ public class AppController {
         // 数据封装
         Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
         List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
+        System.out.println(appVOList);
         appVOPage.setRecords(appVOList);
         return ResultUtils.success(appVOPage);
     }

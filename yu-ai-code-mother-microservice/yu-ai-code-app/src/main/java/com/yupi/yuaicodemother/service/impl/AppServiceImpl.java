@@ -12,6 +12,7 @@ import com.yupi.yuaicodemother.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.yupi.yuaicodemother.constant.AppConstant;
 import com.yupi.yuaicodemother.core.AiCodeGeneratorFacade;
 import com.yupi.yuaicodemother.core.builder.VueProjectBuilder;
+import com.yupi.yuaicodemother.core.builder.VueProjectBuilderProd;
 import com.yupi.yuaicodemother.core.handler.StreamHandlerExecutor;
 import com.yupi.yuaicodemother.exception.BusinessException;
 import com.yupi.yuaicodemother.exception.ErrorCode;
@@ -32,6 +33,7 @@ import com.yupi.yuaicodemother.service.ChatHistoryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -49,14 +51,19 @@ import java.util.stream.Collectors;
 /**
  * 应用 服务层实现。
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
+ *
  */
 @Service
 @Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
+    //本地开发用locolhost
     @Value("${code.deploy-host:http://localhost}")
     private String deployHost;
+
+    // 构建模式：local（本地构建）| remote（远程构建）
+    @Value("${code.build-mode:local}")
+    private String buildMode;
 
     @DubboReference
     private InnerUserService userService;
@@ -78,6 +85,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     @Resource
     private AiCodeGenTypeRoutingServiceFactory aiCodeGenTypeRoutingServiceFactory;
+    @Autowired
+    private VueProjectBuilderProd vueProjectBuilderProd;
 
     @Override
     public Flux<String> chatToGenCode(Long appId, String message, User loginUser) {
@@ -158,7 +167,14 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenType);
         if (codeGenTypeEnum == CodeGenTypeEnum.VUE_PROJECT) {
             // Vue 项目需要构建
-            boolean buildSuccess = vueProjectBuilder.buildProject(sourceDirPath);
+            boolean buildSuccess;
+            if ("remote".equalsIgnoreCase(buildMode)) {
+                log.info("使用远程构建模式构建 Vue 项目");
+                buildSuccess = vueProjectBuilderProd.buildProject(sourceDirPath);
+            } else {
+                log.info("使用本地构建模式构建 Vue 项目");
+                buildSuccess = vueProjectBuilder.buildProject(sourceDirPath);
+            }
             ThrowUtils.throwIf(!buildSuccess, ErrorCode.SYSTEM_ERROR, "Vue 项目构建失败，请重试");
             // 检查 dist 目录是否存在
             File distDir = new File(sourceDirPath, "dist");
