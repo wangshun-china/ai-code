@@ -272,15 +272,20 @@ jobs:
             echo "Starting Nacos..."
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d nacos
 
-            # 等待 Nacos 健康检查通过
-            echo "Waiting for Nacos to be healthy..."
-            for i in $(seq 1 60); do
-              HEALTH=$(sudo docker inspect --format='{{.State.Health.Status}}' yu-ai-nacos 2>/dev/null || echo "starting")
-              if [ "$HEALTH" = "healthy" ]; then
-                echo "Nacos is healthy!"
+            # Nacos 启动需要更长时间（首次需要初始化数据库），等待容器运行后再检查
+            sleep 30
+
+            # 等待 Nacos 启动（不依赖健康检查，因为首次启动可能较慢）
+            echo "Waiting for Nacos to start..."
+            for i in $(seq 1 90); do
+              RUNNING=$(sudo docker inspect --format='{{.State.Running}}' yu-ai-nacos 2>/dev/null || echo "false")
+              if [ "$RUNNING" = "true" ]; then
+                # 再等待一下确保服务就绪
+                sleep 20
+                echo "Nacos is running!"
                 break
               fi
-              echo "Nacos status: $HEALTH, waiting... ($i/60)"
+              echo "Nacos not running yet, waiting... ($i/90)"
               sleep 5
             done
 

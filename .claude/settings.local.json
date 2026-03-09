@@ -5,7 +5,8 @@
       "Bash(dir:*)",
       "Bash(find:*)",
       "Bash(docker-compose logs:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git add:*)"
     ]
   }
 }

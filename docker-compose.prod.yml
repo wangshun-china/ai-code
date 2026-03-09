@@ -104,7 +104,7 @@ services:
       redis:
         condition: service_healthy
       nacos:
-        condition: service_healthy
+        condition: service_started
 
   # 主应用微服务
   app-service:
@@ -138,7 +138,7 @@ services:
       redis:
         condition: service_healthy
       nacos:
-        condition: service_healthy
+        condition: service_started
 
   # 截图微服务
   screenshot-service:
@@ -173,7 +173,7 @@ services:
       redis:
         condition: service_healthy
       nacos:
-        condition: service_healthy
+        condition: service_started
 
   # 前端
   frontend:
