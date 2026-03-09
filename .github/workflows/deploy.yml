@@ -250,11 +250,16 @@ jobs:
             # 启动 MySQL
             echo "Starting MySQL..."
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d mysql
-            sleep 15
 
-            # 检查 MySQL
-            until sudo docker exec yu-ai-mysql mysql -uroot -proot123456 -e "SELECT 1" 2>/dev/null; do
-              echo "Waiting for MySQL..."
+            # 等待 MySQL 健康检查通过
+            echo "Waiting for MySQL to be healthy..."
+            for i in $(seq 1 60); do
+              HEALTH=$(sudo docker inspect --format='{{.State.Health.Status}}' yu-ai-mysql 2>/dev/null || echo "starting")
+              if [ "$HEALTH" = "healthy" ]; then
+                echo "MySQL is healthy!"
+                break
+              fi
+              echo "MySQL status: $HEALTH, waiting... ($i/60)"
               sleep 5
             done
 
@@ -266,11 +271,16 @@ jobs:
             # 启动 Nacos
             echo "Starting Nacos..."
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d nacos
-            sleep 15
 
-            # 检查 Nacos
-            until sudo docker exec yu-ai-nacos curl -f http://localhost:8848/nacos/v1/ns/instance/list?serviceName=nacos 2>/dev/null; do
-              echo "Waiting for Nacos..."
+            # 等待 Nacos 健康检查通过
+            echo "Waiting for Nacos to be healthy..."
+            for i in $(seq 1 60); do
+              HEALTH=$(sudo docker inspect --format='{{.State.Health.Status}}' yu-ai-nacos 2>/dev/null || echo "starting")
+              if [ "$HEALTH" = "healthy" ]; then
+                echo "Nacos is healthy!"
+                break
+              fi
+              echo "Nacos status: $HEALTH, waiting... ($i/60)"
               sleep 5
             done
 
