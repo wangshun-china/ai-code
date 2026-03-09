@@ -1,0 +1,39 @@
+# 生产环境用户服务 Dockerfile
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# 创建非root用户
+RUN addgroup -S spring && adduser -S spring -G spring
+
+# 创建必要的目录并设置权限
+RUN mkdir -p /logs && \
+    chown -R spring:spring /logs
+
+USER spring:spring
+
+# 复制构建好的jar文件
+COPY user-service.jar app.jar
+
+# 环境变量 - 使用 GitHub Secrets 或默认值
+ENV SPRING_PROFILES_ACTIVE=docker
+ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
+ENV DB_HOST=${DB_HOST:-mysql}
+ENV DB_PORT=${DB_PORT:-3306}
+ENV DB_NAME=${DB_NAME:-yu_ai_code_mother}
+ENV DB_USER=${DB_USER:-yu_ai_code_mother_user}
+ENV DB_PASSWORD=${DB_PASSWORD:-12345678}
+ENV REDIS_HOST=${REDIS_HOST:-redis}
+ENV REDIS_PORT=${REDIS_PORT:-6379}
+ENV NACOS_HOST=${NACOS_HOST:-nacos}
+ENV NACOS_PORT=${NACOS_PORT:-8848}
+
+# 暴露端口
+EXPOSE 8124
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8124/api/actuator/health || exit 1
+
+# 启动应用
+ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]
