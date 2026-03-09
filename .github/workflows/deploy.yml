@@ -156,7 +156,6 @@ jobs:
             -----END OPENSSH PRIVATE KEY-----
           source: "docker-compose.prod.yml,nginx.conf,.env.prod"
           target: "/root/yu-ai-code-prod"
-          mkdir: true
           command_timeout: 1m
 
       # Step 10: 远程部署 - 安全清理并顺序启动
@@ -226,21 +225,15 @@ jobs:
             echo "=== Directory contents ==="
             ls -la
 
-            # 检查必需文件
-            echo "=== Checking required files ==="
-            ls -la docker-compose.prod.yml nginx.conf .env.prod 2>&1 || true
-
-            # 如果文件不存在，创建空文件
-            if [ ! -f docker-compose.prod.yml ]; then
-              echo "ERROR: docker-compose.prod.yml not found!"
-              exit 1
-            fi
+            # 使用 -f 指定配置文件
+            COMPOSE_FILE="-f docker-compose.prod.yml"
+            ENV_FILE="--env-file .env.prod"
 
             echo "=== Step 1: 登录 ACR ==="
             echo "${{ env.ACR_PASSWORD }}" | sudo docker login ${{ env.REGISTRY }} -u aliyun4384550071 --password-stdin
 
             echo "=== Step 2: 停止 yu-ai 相关容器 ==="
-            sudo docker compose --env-file .env.prod down
+            sudo docker compose $COMPOSE_FILE $ENV_FILE down || true
 
             echo "=== Step 3: 删除 yu-ai 旧镜像 ==="
             sudo docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | \
@@ -251,12 +244,12 @@ jobs:
             echo "Old yu-ai images removed (if any)"
 
             echo "=== Step 4: 拉取最新镜像 ==="
-            sudo docker compose --env-file .env.prod pull
+            sudo docker compose $COMPOSE_FILE $ENV_FILE pull
 
             echo "=== Step 5: 顺序启动服务 ==="
             # 启动 MySQL
             echo "Starting MySQL..."
-            sudo docker compose --env-file .env.prod up -d mysql
+            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d mysql
             sleep 15
 
             # 检查 MySQL
@@ -267,12 +260,12 @@ jobs:
 
             # 启动 Redis
             echo "Starting Redis..."
-            sudo docker compose --env-file .env.prod up -d redis
+            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d redis
             sleep 5
 
             # 启动 Nacos
             echo "Starting Nacos..."
-            sudo docker compose --env-file .env.prod up -d nacos
+            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d nacos
             sleep 15
 
             # 检查 Nacos
@@ -283,12 +276,12 @@ jobs:
 
             # 启动后端服务
             echo "Starting Backend Services..."
-            sudo docker compose --env-file .env.prod up -d user-service app-service screenshot-service
+            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d user-service app-service screenshot-service
             sleep 10
 
             # 启动前端
             echo "Starting Frontend..."
-            sudo docker compose --env-file .env.prod up -d frontend nginx
+            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d frontend nginx
 
             echo "=== Step 6: 验证状态 ==="
             sudo docker ps | grep yu-ai
