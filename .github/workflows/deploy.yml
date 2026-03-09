@@ -37,7 +37,7 @@ jobs:
 
       # Step 3: 全量构建后端 - 生成 Fat JAR
       - name: Build backend with Maven
-        run: mvn clean package -DskipTests
+        run: cd yu-ai-code-mother-microservice && mvn clean package -DskipTests
 
       # Step 4: 安装 Node.js 并构建前端
       - name: Set up Node.js
