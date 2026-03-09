@@ -156,6 +156,7 @@ jobs:
             -----END OPENSSH PRIVATE KEY-----
           source: "docker-compose.prod.yml,nginx.conf,.env.prod"
           target: "/root/yu-ai-code-prod"
+          mkdir: true
           command_timeout: 1m
 
       # Step 10: 远程部署 - 安全清理并顺序启动
@@ -216,7 +217,24 @@ jobs:
             WxkqMYb/rbEAAAAGZGVwbG95AQIDBAU=
             -----END OPENSSH PRIVATE KEY-----
           script: |
+            # 创建目标目录（如果不存在）
+            mkdir -p /root/yu-ai-code-prod
+
             cd /root/yu-ai-code-prod
+
+            # 调试：列出目录内容
+            echo "=== Directory contents ==="
+            ls -la
+
+            # 检查必需文件
+            echo "=== Checking required files ==="
+            ls -la docker-compose.prod.yml nginx.conf .env.prod 2>&1 || true
+
+            # 如果文件不存在，创建空文件
+            if [ ! -f docker-compose.prod.yml ]; then
+              echo "ERROR: docker-compose.prod.yml not found!"
+              exit 1
+            fi
 
             echo "=== Step 1: 登录 ACR ==="
             echo "${{ env.ACR_PASSWORD }}" | sudo docker login ${{ env.REGISTRY }} -u aliyun4384550071 --password-stdin
