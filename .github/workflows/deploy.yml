@@ -71,7 +71,7 @@ jobs:
       - name: Copy frontend dist to root
         run: |
           cp -r yu-ai-code-mother-frontend/dist .
-          cp yu-ai-code-mother-frontend/nginx.conf .
+          cp nginx.conf .
 
       # Step 7: 构建并推送后端服务镜像
       # 7.1 User Service
