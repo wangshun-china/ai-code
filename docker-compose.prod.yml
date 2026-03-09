@@ -11,7 +11,7 @@ services:
       MYSQL_USER: yu_ai_code_mother_user
       MYSQL_PASSWORD: 12345678
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./sql/create_table.sql:/docker-entrypoint-initdb.d/create_table.sql
