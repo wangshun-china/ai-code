@@ -180,6 +180,8 @@ services:
   frontend:
     image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:frontend
     container_name: yu-ai-frontend
+    volumes:
+      - ./dist:/usr/share/nginx/html/dist
     networks:
       - yu-ai-network
     depends_on:
@@ -196,7 +198,6 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
       - code_deploy:/usr/share/nginx/html/deploy
-      - ./nginx/logs:/var/log/nginx
     networks:
       - yu-ai-network
     depends_on:
