@@ -7,6 +7,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 // 本地开发环境配置（微服务架构）
 // 微服务架构：不同API路由代理到不同服务
 export default defineConfig({
+  base: '/',
   plugins: [vue(), vueDevTools()],
   resolve: {
     alias: {
