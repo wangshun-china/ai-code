@@ -306,11 +306,28 @@ jobs:
             # 启动后端服务
             echo "Starting Backend Services..."
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d user-service app-service screenshot-service
-            sleep 10
 
-            # 启动前端和nginx
-            echo "Starting Frontend and Nginx..."
-            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d frontend nginx
+            # 等待后端服务健康
+            echo "Waiting for backend services to be healthy..."
+            for i in $(seq 1 30); do
+              USER_STATUS=$(sudo docker inspect --format='{{.State.Health.Status}}' yu-ai-user-service 2>/dev/null || echo "starting")
+              APP_STATUS=$(sudo docker inspect --format='{{.State.Health.Status}}' yu-ai-app-service 2>/dev/null || echo "starting")
+              if [ "$USER_STATUS" = "healthy" ] && [ "$APP_STATUS" = "healthy" ]; then
+                echo "Backend services are healthy!"
+                break
+              fi
+              echo "User: $USER_STATUS, App: $APP_STATUS, waiting... ($i/30)"
+              sleep 5
+            done
+
+            # 先启动前端
+            echo "Starting Frontend..."
+            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d frontend
+            sleep 5
+
+            # 最后启动nginx（等前端就绪）
+            echo "Starting Nginx..."
+            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d nginx
 
             echo "=== Step 7: 验证容器状态 ==="
             sudo docker ps | grep yu-ai
