@@ -77,11 +77,11 @@ jobs:
           cp yu-ai-code-mother-microservice/yu-ai-code-app/target/*.jar ./app-service.jar
           cp yu-ai-code-mother-microservice/yu-ai-code-screenshot/target/*.jar ./screenshot-service.jar
 
-      # Step 6.1: 复制前端 dist 到根目录
+      # Step 6.1: 复制前端 dist 和配置文件到根目录
       - name: Copy frontend files to root
         run: |
           cp -r yu-ai-code-mother-frontend/dist .
-          # nginx.conf 已在根目录，不需要复制
+          cp nginx.frontend.conf .
 
       # Step 7: 构建并推送后端服务镜像
       # 7.1 User Service
@@ -165,7 +165,7 @@ jobs:
             /LkuHynIHYlZjDivJ7xPUqQSInnn5DT82Y4AHSWkjciwrc2uFnYot0pyhGzNDYieP/q67U
             WxkqMYb/rbEAAAAGZGVwbG95AQIDBAU=
             -----END OPENSSH PRIVATE KEY-----
-          source: "docker-compose.prod.yml,nginx.conf,.env.prod,mysql-init,sql"
+          source: "docker-compose.prod.yml,nginx.conf,nginx.frontend.conf,.env.prod,mysql-init,sql"
           target: "/root/yu-ai-code-prod"
           command_timeout: 1m
 
