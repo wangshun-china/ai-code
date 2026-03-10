@@ -282,9 +282,9 @@ jobs:
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d redis
             sleep 5
 
-            # 启动 Nacos
-            echo "Starting Nacos..."
-            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d nacos
+            # 启动 Nacos（需要同时启动 nacos-db-init 初始化容器）
+            echo "Starting Nacos and init container..."
+            sudo docker compose $COMPOSE_FILE $ENV_FILE up -d nacos-db-init nacos
 
             # Nacos 启动需要更长时间（首次需要初始化数据库），等待容器运行后再检查
             sleep 30

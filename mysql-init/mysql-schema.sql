@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+-- 创建 nacos 数据库
+CREATE DATABASE IF NOT EXISTS nacos DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+USE nacos;
+
 /******************************************/
 /*   表名称 = config_info                  */
 /******************************************/
