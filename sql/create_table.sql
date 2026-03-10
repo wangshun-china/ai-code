@@ -7,6 +7,10 @@ create database if not exists yu_ai_code_mother;
 -- 切换库
 use yu_ai_code_mother;
 
+-- 授权给 yu_ai_code_mother_user 用户访问业务数据库
+GRANT ALL PRIVILEGES ON yu_ai_code_mother.* TO 'yu_ai_code_mother_user'@'%';
+FLUSH PRIVILEGES;
+
 -- 用户表
 -- 以下是建表语句
 

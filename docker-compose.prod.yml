@@ -12,7 +12,8 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./sql/create_table.sql:/docker-entrypoint-initdb.d/create_table.sql
+      - ./sql/create_table.sql:/docker-entrypoint-initdb.d/1_create_table.sql
+      - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/2_nacos_schema.sql
     command: --default-authentication-plugin=mysql_native_password
     networks:
       - yu-ai-network
@@ -48,7 +49,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root123456
     volumes:
-      - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./sql/create_table.sql:/docker-entrypoint-initdb.d/1_create_table.sql
+      - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/2_nacos_schema.sql
     networks:
       - yu-ai-network
     restart: "no"
@@ -59,8 +61,9 @@ services:
         until mysql -h mysql -uroot -proot123456 -e 'SELECT 1' 2>/dev/null; do
           sleep 2;
         done;
-        echo 'MySQL is ready, executing init script...';
-        mysql -h mysql -uroot -proot123456 < /docker-entrypoint-initdb.d/init.sql;
+        echo 'MySQL is ready, executing init scripts...';
+        mysql -h mysql -uroot -proot123456 < /docker-entrypoint-initdb.d/1_create_table.sql;
+        mysql -h mysql -uroot -proot123456 < /docker-entrypoint-initdb.d/2_nacos_schema.sql;
         echo 'Initialization completed, exiting...'
       "
     depends_on:
