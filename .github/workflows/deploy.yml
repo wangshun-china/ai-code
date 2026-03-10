@@ -254,7 +254,7 @@ jobs:
             echo "Old yu-ai images removed"
 
             echo "=== Step 4: 强制拉取最新镜像 ==="
-            sudo docker compose $COMPOSE_FILE $ENV_FILE pull --force-recreate
+            sudo docker compose $COMPOSE_FILE $ENV_FILE pull
 
             echo "=== Step 5: 清理任何残留容器 ==="
             sudo docker compose $COMPOSE_FILE $ENV_FILE down --remove-orphans || true

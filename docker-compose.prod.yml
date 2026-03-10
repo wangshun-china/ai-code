@@ -52,6 +52,17 @@ services:
     networks:
       - yu-ai-network
     restart: "no"
+    # 执行完 SQL 后立即退出
+    command: >
+      sh -c "
+        echo 'Waiting for MySQL...';
+        until mysql -h mysql -uroot -proot123456 -e 'SELECT 1' 2>/dev/null; do
+          sleep 2;
+        done;
+        echo 'MySQL is ready, executing init script...';
+        mysql -h mysql -uroot -proot123456 < /docker-entrypoint-initdb.d/init.sql;
+        echo 'Initialization completed, exiting...'
+      "
     depends_on:
       mysql:
         condition: service_healthy
