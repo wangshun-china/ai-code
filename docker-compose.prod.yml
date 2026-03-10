@@ -191,8 +191,16 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - app-service
-      - user-service
+      app-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
 
   # Nginx反向代理和负载均衡
   nginx:
@@ -208,10 +216,20 @@ services:
     networks:
       - yu-ai-network
     depends_on:
-      - frontend
-      - user-service
-      - app-service
-      - screenshot-service
+      frontend:
+        condition: service_started
+      user-service:
+        condition: service_started
+      app-service:
+        condition: service_started
+      screenshot-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
 
 volumes:
   mysql_data:
