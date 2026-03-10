@@ -17,6 +17,7 @@ services:
     command: --default-authentication-plugin=mysql_native_password
     networks:
       - yu-ai-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123456"]
       interval: 10s
@@ -34,6 +35,7 @@ services:
       - redis_data:/data
     networks:
       - yu-ai-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -66,6 +68,7 @@ services:
       - nacos_data:/home/nacos/data
     networks:
       - yu-ai-network
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
@@ -98,6 +101,7 @@ services:
       - "8124:8124"
     networks:
       - yu-ai-network
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
@@ -132,6 +136,7 @@ services:
       - "8126:8126"
     networks:
       - yu-ai-network
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
@@ -167,6 +172,7 @@ services:
       - "8127:8127"
     networks:
       - yu-ai-network
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
@@ -179,6 +185,7 @@ services:
   frontend:
     image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:frontend
     container_name: yu-ai-frontend
+    restart: unless-stopped
     volumes:
       - ./dist:/usr/share/nginx/html/dist
     networks:
@@ -191,6 +198,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: yu-ai-nginx
+    restart: unless-stopped
     ports:
       - "8888:80"
       - "443:443"

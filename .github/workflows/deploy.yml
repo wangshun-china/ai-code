@@ -154,7 +154,7 @@ jobs:
             /LkuHynIHYlZjDivJ7xPUqQSInnn5DT82Y4AHSWkjciwrc2uFnYot0pyhGzNDYieP/q67U
             WxkqMYb/rbEAAAAGZGVwbG95AQIDBAU=
             -----END OPENSSH PRIVATE KEY-----
-          source: "docker-compose.prod.yml,nginx.conf,.env.prod"
+          source: "docker-compose.prod.yml,nginx.conf,.env.prod,mysql-init,sql"
           target: "/root/yu-ai-code-prod"
           command_timeout: 1m
 
