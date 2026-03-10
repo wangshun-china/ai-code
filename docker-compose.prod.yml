@@ -186,10 +186,10 @@ services:
     image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:frontend
     container_name: yu-ai-frontend
     restart: unless-stopped
-    volumes:
-      - ./dist:/usr/share/nginx/html/dist
     networks:
       - yu-ai-network
+    ports:
+      - "8080:80"
     depends_on:
       - app-service
       - user-service
