@@ -77,11 +77,10 @@ jobs:
           cp yu-ai-code-mother-microservice/yu-ai-code-app/target/*.jar ./app-service.jar
           cp yu-ai-code-mother-microservice/yu-ai-code-screenshot/target/*.jar ./screenshot-service.jar
 
-      # Step 6.1: 复制前端 dist 和配置文件到根目录
+      # Step 6.1: 复制前端 dist 到根目录（配置文件已在仓库根目录）
       - name: Copy frontend files to root
         run: |
           cp -r yu-ai-code-mother-frontend/dist .
-          cp nginx.frontend.conf .
 
       # Step 7: 构建并推送后端服务镜像
       # 7.1 User Service
