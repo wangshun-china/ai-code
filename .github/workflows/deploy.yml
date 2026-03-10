@@ -242,21 +242,24 @@ jobs:
             echo "=== Step 1: 登录 ACR ==="
             echo "${{ env.ACR_PASSWORD }}" | sudo docker login ${{ env.REGISTRY }} -u aliyun4384550071 --password-stdin
 
-            echo "=== Step 2: 停止 yu-ai 相关容器 ==="
-            sudo docker compose $COMPOSE_FILE $ENV_FILE down || true
+            echo "=== Step 2: 强制停止并删除所有 yu-ai 容器 ==="
+            # 强制停止所有运行的 yu-ai 容器
+            sudo docker ps -a --filter "name=yu-ai-" -q | xargs -r sudo docker rm -f || true
 
-            echo "=== Step 3: 删除 yu-ai 旧镜像 ==="
-            sudo docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | \
+            echo "=== Step 3: 删除 yu-ai 旧镜像（强制） ==="
+            # 先删除容器，再删除镜像
+            sudo docker images --format "{{.Repository}}:{{.Tag}}" | \
               grep "wangshun_build/yu-ai-code-mother" | \
-              awk '{print $2}' | \
-              sort -u | \
               xargs -r sudo docker rmi -f 2>/dev/null || true
-            echo "Old yu-ai images removed (if any)"
+            echo "Old yu-ai images removed"
 
-            echo "=== Step 4: 拉取最新镜像 ==="
-            sudo docker compose $COMPOSE_FILE $ENV_FILE pull
+            echo "=== Step 4: 强制拉取最新镜像 ==="
+            sudo docker compose $COMPOSE_FILE $ENV_FILE pull --force-recreate
 
-            echo "=== Step 5: 顺序启动服务 ==="
+            echo "=== Step 5: 清理任何残留容器 ==="
+            sudo docker compose $COMPOSE_FILE $ENV_FILE down --remove-orphans || true
+
+            echo "=== Step 6: 顺序启动服务 ==="
             # 启动 MySQL
             echo "Starting MySQL..."
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d mysql
@@ -304,9 +307,17 @@ jobs:
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d user-service app-service screenshot-service
             sleep 10
 
-            # 启动前端
-            echo "Starting Frontend..."
+            # 启动前端和nginx
+            echo "Starting Frontend and Nginx..."
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d frontend nginx
+
+            echo "=== Step 7: 验证容器状态 ==="
+            sudo docker ps | grep yu-ai
+
+            echo "=== Step 8: 清理虚悬镜像 ==="
+            sudo docker image prune -f
+
+            echo "Deployment completed!"
 
             echo "=== Step 6: 验证状态 ==="
             sudo docker ps | grep yu-ai
