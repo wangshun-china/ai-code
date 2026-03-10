@@ -189,7 +189,7 @@ services:
     networks:
       - yu-ai-network
     ports:
-      - "8080:80"
+      - "8082:80"
     depends_on:
       app-service:
         condition: service_started
