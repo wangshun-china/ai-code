@@ -50,7 +50,7 @@ jobs:
           cd yu-ai-code-mother-frontend
           npm install -g pnpm
           pnpm install
-          pnpm run build-only
+          pnpm run build
 
       # Step 5: 登录阿里云仓库
       - name: Login to Aliyun ACR
