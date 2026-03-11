@@ -5,8 +5,11 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.ScreenshotType;
+import com.microsoft.playwright.options.WaitUntilState;
 import com.yupi.yuaicodemother.exception.BusinessException;
 import com.yupi.yuaicodemother.exception.ErrorCode;
 import jakarta.annotation.PreDestroy;
@@ -61,8 +64,8 @@ public class WebScreenshotUtils {
         try {
             playwright = Playwright.create();
             browser = playwright.chromium().launch(
-                    new Browser.NewContextOptions()
-                            .setViewportSize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT)
+                    new BrowserType.LaunchOptions()
+                            .setHeadless(true)
             );
             log.info("Playwright 浏览器初始化成功");
         } catch (Exception e) {
@@ -120,15 +123,17 @@ public class WebScreenshotUtils {
 
         Page page = null;
         try {
-            // 创建新页面
-            page = browser.newPage();
+            // 创建新页面（设置视口大小）
+            page = browser.newPage(new Browser.NewPageOptions()
+                    .setViewportSize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT));
 
             // 设置超时
             page.setDefaultTimeout(PAGE_TIMEOUT);
 
             // 访问网页
             log.info("正在访问网页: {}", webUrl);
-            page.navigate(webUrl, new Page.NavigateOptions().setWaitUntil("networkidle"));
+            page.navigate(webUrl, new Page.NavigateOptions()
+                    .setWaitUntil(WaitUntilState.NETWORKIDLE));
 
             // 等待页面加载
             page.waitForTimeout(2000);
@@ -136,7 +141,7 @@ public class WebScreenshotUtils {
             // 截图
             byte[] screenshotBytes = page.screenshot(new Page.ScreenshotOptions()
                     .setFullPage(false)
-                    .setType(Page.ScreenshotType.PNG));
+                    .setType(ScreenshotType.PNG));
 
             // 保存原始图片
             String imageSavePath = rootPath + File.separator + RandomUtil.randomNumbers(5) + ".png";
