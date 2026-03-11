@@ -185,3 +185,9 @@ CREATE TABLE `permissions` (
                                UNIQUE INDEX `uk_role_permission` (`role`,`resource`,`action`) USING BTREE
 );
 
+-- 插入默认 nacos 用户（密码为 nacos，bcrypt 加密）
+INSERT IGNORE INTO `users` (`username`, `password`, `enabled`) VALUES ('nacos', '$2a$10$EuWPZHzz32dJN7jexM34MOeYirDdFAZm2kuWj7VEOJhhZkDrxfvUu', TRUE);
+
+-- 插入默认角色
+INSERT IGNORE INTO `roles` (`username`, `role`) VALUES ('nacos', 'ROLE_ADMIN');
+
