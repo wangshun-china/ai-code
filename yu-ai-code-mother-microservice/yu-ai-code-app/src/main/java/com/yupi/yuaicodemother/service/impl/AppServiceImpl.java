@@ -197,8 +197,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         boolean updateResult = this.updateById(updateApp);
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
         // 10. 构建应用访问 URL
-        String appDeployUrl = String.format("%s/%s/", deployHost, deployKey);        // 11. 异步生成截图并且更新应用封面
-        generateAppScreenshotAsync(appId, appDeployUrl);
+        String appDeployUrl = String.format("%s/%s/", deployHost, deployKey);
+        // 暂时禁用自动截图功能（Chrome 内存占用过高）
+        // generateAppScreenshotAsync(appId, appDeployUrl);
         return appDeployUrl;
     }
 

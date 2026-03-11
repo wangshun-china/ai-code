@@ -48,11 +48,29 @@ const visible = computed({
 
 const handleCopyUrl = async () => {
   try {
-    await navigator.clipboard.writeText(props.deployUrl)
-    message.success('链接已复制到剪贴板')
+    // 尝试使用 Clipboard API（仅 HTTPS 或 localhost 可用）
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(props.deployUrl)
+      message.success('链接已复制到剪贴板')
+    } else {
+      // HTTP 环境下使用备用方案
+      const textArea = document.createElement('textarea')
+      textArea.value = props.deployUrl
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand('copy')
+        message.success('链接已复制到剪贴板')
+      } catch (err) {
+        message.warning('HTTP 环境下复制受限，请手动选择复制')
+      }
+      document.body.removeChild(textArea)
+    }
   } catch (error) {
     console.error('复制失败：', error)
-    message.error('复制失败')
+    message.warning('复制失败，请手动选择链接复制')
   }
 }
 
