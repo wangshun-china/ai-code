@@ -230,7 +230,7 @@ const toggleFeatured = async (app: API.AppVO) => {
     })
 
     if (res.data.code === 0) {
-      message.success(newPriority === 99 ? '已设为精选' : '已取消精选')
+      message.success(newPriority === 99 ? '已设为精选，首页约5分钟后更新' : '已取消精选，首页约5分钟后更新')
       // 刷新数据
       fetchData()
     } else {
