@@ -1,29 +1,40 @@
 package com.yupi.yuaicodemother.core.builder;
 
-import cn.hutool.core.util.RuntimeUtil;
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 
+import com.yupi.yuaicodemother.constant.AppConstant;
+
 /**
- * 构建 Vue 项目
+ * 构建 Vue 项目（通过远程 Node.js 构建服务）
  */
 @Slf4j
 @Component
 public class VueProjectBuilder {
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final int BUILD_TIMEOUT_SECONDS = 900; // 15分钟超时
+
     /**
      * 异步构建 Vue 项目
      *
-     * @param projectPath
+     * @param projectPath 项目路径（目录名，如 vue_project_123）
      */
     public void buildProjectAsync(String projectPath) {
+        // 从完整路径中提取目录名
+        String projectDirName = new File(projectPath).getName();
+
         Thread.ofVirtual().name("vue-builder-" + System.currentTimeMillis())
                 .start(() -> {
                     try {
-                        buildProject(projectPath);
+                        buildProject(projectDirName);
                     } catch (Exception e) {
                         log.error("异步构建 Vue 项目时发生异常: {}", e.getMessage(), e);
                     }
@@ -31,119 +42,100 @@ public class VueProjectBuilder {
     }
 
     /**
-     * 构建 Vue 项目
+     * 构建 Vue 项目（同步执行）
      *
-     * @param projectPath 项目根目录路径
+     * @param projectDirName 项目目录名（如 vue_project_123）
      * @return 是否构建成功
      */
-    public boolean buildProject(String projectPath) {
-        File projectDir = new File(projectPath);
-        if (!projectDir.exists() || !projectDir.isDirectory()) {
-            log.error("项目目录不存在：{}", projectPath);
-            return false;
-        }
-        // 检查是否有 package.json 文件
-        File packageJsonFile = new File(projectDir, "package.json");
-        if (!packageJsonFile.exists()) {
-            log.error("项目目录中没有 package.json 文件：{}", projectPath);
-            return false;
-        }
-        log.info("开始构建 Vue 项目：{}", projectPath);
-        // 执行 npm install
-        if (!executeNpmInstall(projectDir)) {
-            log.error("npm install 执行失败：{}", projectPath);
-            return false;
-        }
-        // 执行 npm run build
-        if (!executeNpmBuild(projectDir)) {
-            log.error("npm run build 执行失败：{}", projectPath);
-            return false;
-        }
-        // 验证 dist 目录是否生成
-        File distDir = new File(projectDir, "dist");
-        if (!distDir.exists() || !distDir.isDirectory()) {
-            log.error("构建完成但 dist 目录未生成：{}", projectPath);
-            return false;
-        }
-        log.info("Vue 项目构建成功，dist 目录：{}", projectPath);
-        return true;
-    }
+    public boolean buildProject(String projectDirName) {
+        log.info("开始构建 Vue 项目：{}", projectDirName);
 
-    /**
-     * 执行 npm install 命令
-     */
-    private boolean executeNpmInstall(File projectDir) {
-        log.info("执行 npm install...");
-        String command = String.format("%s install", buildCommand("npm"));
-        return executeCommand(projectDir, command, 300); // 5分钟超时
-    }
-
-    /**
-     * 执行 npm run build 命令
-     */
-    private boolean executeNpmBuild(File projectDir) {
-        log.info("执行 npm run build...");
-        String command = String.format("%s run build", buildCommand("npm"));
-        return executeCommand(projectDir, command, 180); // 3分钟超时
-    }
-
-    /**
-     * 根据操作系统构造命令
-     *
-     * @param baseCommand
-     * @return
-     */
-    private String buildCommand(String baseCommand) {
-        if (isWindows()) {
-            return baseCommand + ".cmd";
-        }
-        return baseCommand;
-    }
-
-    /**
-     * 操作系统检测
-     *
-     * @return
-     */
-    private boolean isWindows() {
-        return System.getProperty("os.name").toLowerCase().contains("windows");
-    }
-
-    /**
-     * 执行命令
-     *
-     * @param workingDir     工作目录
-     * @param command        命令字符串
-     * @param timeoutSeconds 超时时间（秒）
-     * @return 是否执行成功
-     */
-    private boolean executeCommand(File workingDir, String command, int timeoutSeconds) {
         try {
-            log.info("在目录 {} 中执行命令: {}", workingDir.getAbsolutePath(), command);
-            Process process = RuntimeUtil.exec(
-                    null,
-                    workingDir,
-                    command.split("\\s+") // 命令分割为数组
-            );
-            // 等待进程完成，设置超时
-            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-            if (!finished) {
-                log.error("命令执行超时（{}秒），强制终止进程", timeoutSeconds);
-                process.destroyForcibly();
+            // 检查项目目录是否存在
+            String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "/" + projectDirName;
+            File projectDir = new File(projectPath);
+            if (!projectDir.exists() || !projectDir.isDirectory()) {
+                log.error("项目目录不存在：{}", projectPath);
                 return false;
             }
-            int exitCode = process.exitValue();
-            if (exitCode == 0) {
-                log.info("命令执行成功: {}", command);
-                return true;
+
+            // 检查 package.json 是否存在
+            File packageJsonFile = new File(projectDir, "package.json");
+            if (!packageJsonFile.exists()) {
+                log.error("项目目录中没有 package.json 文件：{}", projectPath);
+                return false;
+            }
+
+            // 调用远程 Node.js 构建服务
+            boolean success = callRemoteBuildService(projectDirName);
+
+            if (success) {
+                // 验证 dist 目录是否生成
+                File distDir = new File(projectPath, "dist");
+                if (!distDir.exists() || !distDir.isDirectory()) {
+                    log.error("构建完成但 dist 目录未生成：{}", projectPath);
+                    return false;
+                }
+                log.info("Vue 项目构建成功，dist 目录：{}", projectPath);
             } else {
-                log.error("命令执行失败，退出码: {}", exitCode);
+                log.error("Vue 项目构建失败：{}", projectDirName);
+            }
+
+            return success;
+        } catch (Exception e) {
+            log.error("构建 Vue 项目时发生异常: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * 调用远程 Node.js 构建服务
+     *
+     * @param projectDirName 项目目录名
+     * @return 是否构建成功
+     */
+    private boolean callRemoteBuildService(String projectDirName) {
+        String buildUrl = AppConstant.NODE_BUILDER_URL + "/build";
+        log.info("调用远程构建服务: {}", buildUrl);
+
+        try {
+            String requestBody = String.format("{\"projectDirName\":\"%s\"}", projectDirName);
+
+            HttpResponse response = HttpRequest.post(buildUrl)
+                    .header("Content-Type", "application/json")
+                    .body(requestBody)
+                    .timeout(BUILD_TIMEOUT_SECONDS * 1000)
+                    .execute();
+
+            if (response.isSuccess()) {
+                String body = response.body();
+                log.info("构建服务响应: {}", body);
+
+                try {
+                    JsonNode jsonNode = objectMapper.readTree(body);
+                    boolean success = jsonNode.has("success") && jsonNode.get("success").asBoolean();
+
+                    if (success) {
+                        log.info("项目 {} 构建成功", projectDirName);
+                        return true;
+                    } else {
+                        String message = jsonNode.has("message") ? jsonNode.get("message").asText() : "未知错误";
+                        log.error("项目 {} 构建失败: {}", projectDirName, message);
+                        return false;
+                    }
+                } catch (Exception e) {
+                    log.error("解析构建响应失败: {}", e.getMessage());
+                    // 如果响应成功且body包含success字段，尝试其他判断方式
+                    return response.getStatus() == 200 && body.contains("success");
+                }
+            } else {
+                log.error("远程构建服务调用失败，HTTP状态码: {}, 响应: {}",
+                        response.getStatus(), response.body());
                 return false;
             }
         } catch (Exception e) {
-            log.error("执行命令失败: {}, 错误信息: {}", command, e.getMessage());
+            log.error("调用远程构建服务异常: {}", e.getMessage(), e);
             return false;
         }
     }
-
 }

@@ -30,4 +30,11 @@ public interface AppConstant {
      * 应用部署域名
      */
     String CODE_DEPLOY_HOST = "http://localhost";
+
+    /**
+     * Node.js 构建服务地址（用于构建 Vue 项目）
+     */
+    String NODE_BUILDER_URL = System.getenv("NODE_BUILDER_URL") != null
+            ? System.getenv("NODE_BUILDER_URL")
+            : "http://node-builder:3000";
 }
