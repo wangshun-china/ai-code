@@ -106,7 +106,7 @@ public class VueProjectBuilder {
                     .timeout(BUILD_TIMEOUT_SECONDS * 1000)
                     .execute();
 
-            if (response.isSuccess()) {
+            if (response.isOk()) {
                 String body = response.body();
                 log.info("构建服务响应: {}", body);
 
