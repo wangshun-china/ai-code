@@ -6,7 +6,17 @@
       "Bash(find:*)",
       "Bash(docker-compose logs:*)",
       "Bash(ls:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(ssh root@120.26.186.0 \"sudo journalctl -u sshd --since '10 minutes ago' -n 50 --no-pager\")",
+      "Bash(ssh root@120.26.186.0 \"cat /root/.ssh/authorized_keys\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://120.26.186.0:8888/)",
+      "Bash(curl -v http://120.26.186.0:8888/ 2>&1 | head -30)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://120.26.186.0:8090/)",
+      "Bash(curl -v http://120.26.186.0:8090/ 2>&1 | head -20)",
+      "Bash(curl http://localhost:8090 2>&1)",
+      "Bash(docker exec:*)"
     ]
   }
 }

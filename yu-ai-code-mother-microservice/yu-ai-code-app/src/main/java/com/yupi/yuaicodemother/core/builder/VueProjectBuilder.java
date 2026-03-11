@@ -94,7 +94,8 @@ public class VueProjectBuilder {
      * @return 是否构建成功
      */
     private boolean callRemoteBuildService(String projectDirName) {
-        String buildUrl = AppConstant.NODE_BUILDER_URL + "/build";
+        // 直接使用完整 URL（已包含 /build 路径）
+        String buildUrl = AppConstant.NODE_BUILDER_URL;
         log.info("调用远程构建服务: {}", buildUrl);
 
         try {

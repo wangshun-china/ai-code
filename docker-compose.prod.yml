@@ -162,11 +162,12 @@ services:
       COS_SECRET_ID: ${COS_SECRET_ID:-}
       COS_SECRET_KEY: ${COS_SECRET_KEY:-}
       DEPLOY_HOST: ${DEPLOY_HOST:-http://localhost}
-      NODE_BUILDER_URL: http://node-builder:3000
+      NODE_BUILDER_URL: http://node-builder:3000/build
     ports:
       - "8126:8126"
     volumes:
       - code_output:/tmp/code_output
+      - code_deploy:/tmp/code_deploy
     networks:
       - yu-ai-network
     restart: unless-stopped
@@ -218,22 +219,13 @@ services:
 
   # Node.js 构建服务（用于构建 Vue 项目）
   node-builder:
-    image: node:20-alpine
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:node-builder
     container_name: yu-ai-node-builder
     working_dir: /app
     volumes:
-      - ./node-builder:/app
       - code_output:/tmp/code_output
     environment:
       NODE_ENV: production
-    command: >
-      sh -c "
-        sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories &&
-        apk add --no-cache git &&
-        npm install --registry=https://registry.npmmirror.com &&
-        node index.js
-      "
-    # 使用3001端口避免冲突
     ports:
       - "3001:3000"
     networks:
@@ -243,7 +235,7 @@ services:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
-      start_period: 30s
+      start_period: 10s
       retries: 3
 
   # 前端

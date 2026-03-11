@@ -33,8 +33,9 @@ public interface AppConstant {
 
     /**
      * Node.js 构建服务地址（用于构建 Vue 项目）
+     * 注意：需要包含完整路径，如 http://node-builder:3000/build
      */
     String NODE_BUILDER_URL = System.getenv("NODE_BUILDER_URL") != null
             ? System.getenv("NODE_BUILDER_URL")
-            : "http://node-builder:3000";
+            : "http://node-builder:3000/build";
 }

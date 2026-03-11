@@ -1,3 +1,4 @@
+# 生产环境 Node Builder Dockerfile
 FROM node:24-alpine
 
 WORKDIR /app
@@ -9,8 +10,8 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN apk add --no-cache git
 
 # 复制 package.json 和源码
-COPY package*.json ./
-COPY index.js ./
+COPY node-builder/package*.json ./
+COPY node-builder/index.js ./
 
 # 安装生产依赖
 RUN npm install --production --registry=https://registry.npmmirror.com
