@@ -13,8 +13,8 @@ RUN apt-get update && \
 RUN groupadd -r spring && useradd -r -g spring spring
 
 # 创建必要的目录并设置权限
-RUN mkdir -p /tmp/screenshots /logs && \
-    chown -R spring:spring /tmp/screenshots /logs
+RUN mkdir -p /tmp/screenshots /logs /home/spring/.dubbo && \
+    chown -R spring:spring /tmp/screenshots /logs /home/spring
 
 USER spring:spring
 

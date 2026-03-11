@@ -28,7 +28,7 @@ RUN apt-get update && \
 RUN groupadd -r spring && useradd -r -g spring spring
 
 # 创建必要的目录
-RUN mkdir -p /tmp/code_output /tmp/code_deploy /logs /home/spring /tmp/screenshots && \
+RUN mkdir -p /tmp/code_output /tmp/code_deploy /logs /home/spring /tmp/screenshots /home/spring/.dubbo && \
     chown -R spring:spring /tmp/code_output /tmp/code_deploy /logs /home/spring /tmp/screenshots
 
 USER spring:spring
