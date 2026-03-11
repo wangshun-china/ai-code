@@ -198,29 +198,44 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
         // 10. 构建应用访问 URL
         String appDeployUrl = String.format("%s/%s/", deployHost, deployKey);
-        // 暂时禁用自动截图功能（Chrome 内存占用过高）
-        // generateAppScreenshotAsync(appId, appDeployUrl);
+        // 异步生成截图（失败不影响部署结果）
+        generateAppScreenshotAsync(appId, appDeployUrl);
         return appDeployUrl;
     }
 
     /**
      * 异步生成应用截图并更新封面
+     * 注意：截图失败不影响部署结果，仅记录日志
      *
      * @param appId  应用ID
      * @param appUrl 应用访问URL
      */
     @Override
     public void generateAppScreenshotAsync(Long appId, String appUrl) {
-        // 使用虚拟线程并执行
+        // 使用虚拟线程异步执行
         Thread.startVirtualThread(() -> {
-            // 调用截图服务生成截图并上传
-            String screenshotUrl = screenshotService.generateAndUploadScreenshot(appUrl);
-            // 更新数据库的封面
-            App updateApp = new App();
-            updateApp.setId(appId);
-            updateApp.setCover(screenshotUrl);
-            boolean updated = this.updateById(updateApp);
-            ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新应用封面字段失败");
+            try {
+                log.info("开始生成应用截图，appId: {}, url: {}", appId, appUrl);
+                // 调用截图服务生成截图并上传（只尝试一次，不重试）
+                String screenshotUrl = screenshotService.generateAndUploadScreenshot(appUrl);
+                if (StrUtil.isNotBlank(screenshotUrl)) {
+                    // 更新数据库的封面
+                    App updateApp = new App();
+                    updateApp.setId(appId);
+                    updateApp.setCover(screenshotUrl);
+                    boolean updated = this.updateById(updateApp);
+                    if (updated) {
+                        log.info("应用截图更新成功，appId: {}, cover: {}", appId, screenshotUrl);
+                    } else {
+                        log.warn("应用截图更新失败，appId: {}", appId);
+                    }
+                } else {
+                    log.warn("截图生成失败，返回URL为空，appId: {}", appId);
+                }
+            } catch (Exception e) {
+                // 捕获所有异常，防止影响其他功能
+                log.error("生成应用截图异常，appId: {}, 错误: {}", appId, e.getMessage(), e);
+            }
         });
     }
 

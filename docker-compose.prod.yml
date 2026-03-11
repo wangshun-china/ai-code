@@ -181,13 +181,13 @@ services:
       node-builder:
         condition: service_started
 
-  # 截图微服务
+  # 截图微服务（基于 Playwright，比 Selenium 更轻量）
   screenshot-service:
     image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:screenshot-service
     container_name: yu-ai-screenshot-service
-    shm_size: '2gb'
+    shm_size: '512mb'
     environment:
-      JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m -XX:+UseG1GC"
+      JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
       SPRING_PROFILES_ACTIVE: docker
       DB_HOST: mysql
       DB_PORT: 3306
@@ -204,6 +204,12 @@ services:
       COS_REGION: ${COS_REGION:-}
       COS_BUCKET: ${COS_BUCKET:-}
       COS_HOST: ${COS_HOST:-}
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
     ports:
       - "8127:8127"
     networks:

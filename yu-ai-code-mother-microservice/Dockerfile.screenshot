@@ -12,48 +12,22 @@ COPY . .
 RUN mvn clean package -pl yu-ai-code-screenshot -am -DskipTests
 
 # ==========================================
-# 阶段 2: 运行 (Runtime)
+# 阶段 2: 运行 (Runtime) - 使用 Playwright 官方镜像
 # ==========================================
-FROM eclipse-temurin:21-jre
+FROM mcr.microsoft.com/playwright/java:v1.49.0-noble
 
 WORKDIR /app
 
-# ▼▼▼ 第一步：安装基础工具 (走代理，速度很快) ▼▼▼
-# 🔥【关键修改 1】配置阿里云源 + 强制直连 (unset proxy)
-# 这一步会自动屏蔽掉外部传入的代理，直接连阿里云，速度极快！
-RUN unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy && \
-    echo "正在配置阿里云源..." && \
-    echo "deb https://mirrors.aliyun.com/ubuntu/ noble main restricted universe multiverse" > /etc/apt/sources.list && \
-    echo "deb https://mirrors.aliyun.com/ubuntu/ noble-security main restricted universe multiverse" >> /etc/apt/sources.list && \
-    echo "deb https://mirrors.aliyun.com/ubuntu/ noble-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
-    echo "deb https://mirrors.aliyun.com/ubuntu/ noble-backports main restricted universe multiverse" >> /etc/apt/sources.list && \
-    rm -f /etc/apt/sources.list.d/ubuntu.sources && \
-    apt-get update && \
+# 安装中文字体
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    wget gnupg ca-certificates unzip curl jq \
     fonts-wqy-microhei fonts-wqy-zenhei xfonts-wqy \
-    && rm -rf /var/lib/apt/lists/*
-
-# 🔥【关键修改 2】安装 Chrome (自动恢复代理)
-# Docker 的每一个 RUN 指令都会重新加载构建参数，所以这一步会自动用回代理，正好用来连 Google
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | awk -F. '{print $1}') \
-    && echo "Installed Chrome Version: $CHROME_VERSION" \
-    && CHROMEDRIVER_URL=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_$CHROME_VERSION" | xargs -I {} echo "https://storage.googleapis.com/chrome-for-testing-public/{}/linux64/chromedriver-linux64.zip") \
-    && echo "Downloading driver from: $CHROMEDRIVER_URL" \
-    && wget -q -O /tmp/chromedriver.zip "$CHROMEDRIVER_URL" \
-    && unzip /tmp/chromedriver.zip -d /tmp/ \
-    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf /tmp/chromedriver.zip /tmp/chromedriver-linux64 \
     && rm -rf /var/lib/apt/lists/*
 
 # 创建非root用户
 RUN groupadd -r spring && useradd -r -g spring spring
-# 确保这个路径 /tmp/screenshots 和你 Java 代码里写的一模一样
+
+# 创建必要的目录
 RUN mkdir -p /tmp/code_output /tmp/code_deploy /logs /home/spring /tmp/screenshots && \
     chown -R spring:spring /tmp/code_output /tmp/code_deploy /logs /home/spring /tmp/screenshots
 
@@ -64,7 +38,7 @@ COPY --from=builder /app/yu-ai-code-screenshot/target/*.jar app.jar
 
 # 环境变量
 ENV SPRING_PROFILES_ACTIVE=docker
-ENV JAVA_OPTS="-Xmx1g -Xms512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
+ENV JAVA_OPTS="-Xmx512m -Xms256m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
 
 EXPOSE 8127
 
