@@ -243,7 +243,7 @@ services:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
-      start-period: 30s
+      start_period: 30s
       retries: 3
 
   # 前端
