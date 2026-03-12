@@ -17,15 +17,22 @@ public interface AppConstant {
 
     /**
      * 应用生成目录
+     * 优先使用环境变量，其次使用系统临时目录
+     * Windows: 可设置 CODE_OUTPUT_DIR 环境变量，如 G:\tmp\code_output
+     * Docker: 使用 /tmp/code_output
      */
-//    String CODE_OUTPUT_ROOT_DIR = System.getProperty("user.dir") + "/tmp/code_output";
-    String CODE_OUTPUT_ROOT_DIR = "/tmp/code_output";
+    String CODE_OUTPUT_ROOT_DIR = System.getenv("CODE_OUTPUT_DIR") != null
+            ? System.getenv("CODE_OUTPUT_DIR")
+            : System.getProperty("java.io.tmpdir") + "/code_output";
 
     /**
      * 应用部署目录
+     * 优先使用环境变量，其次使用系统临时目录
      */
-//    String CODE_DEPLOY_ROOT_DIR = System.getProperty("user.dir") + "/tmp/code_deploy";
-    String CODE_DEPLOY_ROOT_DIR = "/tmp/code_deploy";
+    String CODE_DEPLOY_ROOT_DIR = System.getenv("CODE_DEPLOY_DIR") != null
+            ? System.getenv("CODE_DEPLOY_DIR")
+            : System.getProperty("java.io.tmpdir") + "/code_deploy";
+
     /**
      * 应用部署域名
      */
@@ -33,9 +40,10 @@ public interface AppConstant {
 
     /**
      * Node.js 构建服务地址（用于构建 Vue 项目）
-     * 注意：需要包含完整路径，如 http://node-builder:3000/build
+     * 本地开发: http://localhost:3000/build
+     * Docker: http://node-builder:3000/build
      */
     String NODE_BUILDER_URL = System.getenv("NODE_BUILDER_URL") != null
             ? System.getenv("NODE_BUILDER_URL")
-            : "http://node-builder:3000/build";
+            : "http://localhost:3000/build";
 }

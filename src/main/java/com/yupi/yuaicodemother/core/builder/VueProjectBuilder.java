@@ -95,7 +95,7 @@ public class VueProjectBuilder {
      * @return 是否构建成功
      */
     private boolean callRemoteBuildService(String projectDirName) {
-        String buildUrl = AppConstant.NODE_BUILDER_URL + "/build";
+        String buildUrl = AppConstant.NODE_BUILDER_URL;
         log.info("调用远程构建服务: {}", buildUrl);
 
         try {
@@ -107,7 +107,7 @@ public class VueProjectBuilder {
                     .timeout(BUILD_TIMEOUT_SECONDS * 1000)
                     .execute();
 
-            if (response.isSuccess()) {
+            if (response.isOk()) {
                 String body = response.body();
                 log.info("构建服务响应: {}", body);
 
