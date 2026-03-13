@@ -33,3 +33,4 @@ dubbo:
     timeout: 120000
   provider:
     timeout: 120000
+    executor: virtual-thread

@@ -2,6 +2,7 @@ package com.yupi.yuaicodemother.service.impl;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.yupi.yuaicodemother.exception.BusinessException;
 import com.yupi.yuaicodemother.exception.ErrorCode;
 import com.yupi.yuaicodemother.exception.ThrowUtils;
 import com.yupi.yuaicodemother.manager.CosManager;
@@ -25,17 +26,34 @@ public class ScreenshotServiceImpl implements ScreenshotService {
 
     @Override
     public String generateAndUploadScreenshot(String webUrl) {
+        log.info("========== 截图服务开始 ==========");
+        log.info("接收到的URL: {}", webUrl);
+
         // 参数校验
         ThrowUtils.throwIf(StrUtil.isBlank(webUrl), ErrorCode.PARAMS_ERROR, "截图的网址不能为空");
-        log.info("开始生成网页截图，URL：{}", webUrl);
+        log.info("参数校验通过");
+
         // 本地截图
+        log.info("调用 WebScreenshotUtils 进行本地截图...");
         String localScreenshotPath = WebScreenshotUtils.saveWebPageScreenshot(webUrl);
-        ThrowUtils.throwIf(StrUtil.isBlank(localScreenshotPath), ErrorCode.OPERATION_ERROR, "生成网页截图失败");
+
+        if (StrUtil.isBlank(localScreenshotPath)) {
+            log.error("【截图失败】本地截图返回路径为空，请检查 WebScreenshotUtils 日志获取详细错误信息");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                "生成网页截图失败 - 可能原因: 1)Playwright浏览器未安装 2)目标网页无法访问 3)网络超时。请查看详细日志");
+        }
+        log.info("本地截图成功，文件路径: {}", localScreenshotPath);
+
         // 上传图片到 COS
         try {
+            log.info("开始上传截图到对象存储...");
             String cosUrl = uploadScreenshotToCos(localScreenshotPath);
-            ThrowUtils.throwIf(StrUtil.isBlank(cosUrl), ErrorCode.OPERATION_ERROR, "上传截图到对象存储失败");
-            log.info("截图上传成功，URL：{}", cosUrl);
+            if (StrUtil.isBlank(cosUrl)) {
+                log.error("【截图失败】上传到对象存储返回URL为空");
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "上传截图到对象存储失败");
+            }
+            log.info("========== 截图服务完成 ==========");
+            log.info("最终截图URL: {}", cosUrl);
             return cosUrl;
         } finally {
             // 清理本地文件

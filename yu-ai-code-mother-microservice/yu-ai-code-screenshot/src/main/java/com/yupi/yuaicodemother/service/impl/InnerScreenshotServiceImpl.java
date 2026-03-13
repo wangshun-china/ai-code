@@ -1,10 +1,12 @@
 package com.yupi.yuaicodemother.service.impl;
 
+import com.yupi.yuaicodemother.exception.BusinessException;
 import com.yupi.yuaicodemother.innerservice.InnerScreenshotService;
 import com.yupi.yuaicodemother.service.ScreenshotService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboService;
+
 @Slf4j
 @DubboService
 public class InnerScreenshotServiceImpl implements InnerScreenshotService {
@@ -14,12 +16,27 @@ public class InnerScreenshotServiceImpl implements InnerScreenshotService {
 
     @Override
     public String generateAndUploadScreenshot(String webUrl) {
+        log.info("========== [Dubbo服务] 截图服务被调用 ==========");
+        log.info("调用方传入URL: {}", webUrl);
         try {
-        return screenshotService.generateAndUploadScreenshot(webUrl);
+            String result = screenshotService.generateAndUploadScreenshot(webUrl);
+            log.info("[Dubbo服务] 截图服务执行成功，返回URL: {}", result);
+            return result;
+        } catch (BusinessException e) {
+            // 业务异常，直接抛出
+            log.error("[Dubbo服务] 业务异常 - 错误码: {}, 消息: {}", e.getCode(), e.getMessage());
+            throw new RuntimeException("截图服务调用失败: " + e.getMessage());
+        } catch (com.microsoft.playwright.PlaywrightException e) {
+            // Playwright 特定异常
+            log.error("[Dubbo服务] Playwright异常 - 这通常表示浏览器驱动未安装或系统依赖缺失");
+            log.error("解决方案: 请执行 'playwright install chromium' 安装浏览器驱动");
+            log.error("Playwright异常详情: ", e);
+            throw new RuntimeException("截图服务调用失败(Playwright): " + e.getMessage() + " - 请检查浏览器驱动是否安装");
         } catch (Exception e) {
-            // 🔥 关键点：捕获所有异常，打印日志，并转换成简单的 RuntimeException
-            // 这样做可以剥离掉可能导致序列化失败的复杂异常对象
-            log.error("截图服务执行失败, URL: {}", webUrl, e);
+            // 其他异常
+            log.error("[Dubbo服务] 截图服务执行失败 - URL: {}, 异常类型: {}, 消息: {}",
+                    webUrl, e.getClass().getName(), e.getMessage());
+            log.error("异常堆栈: ", e);
             throw new RuntimeException("截图服务调用失败: " + e.getMessage());
         }
     }

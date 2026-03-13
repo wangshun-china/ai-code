@@ -59,17 +59,29 @@ public class WebScreenshotUtils {
      */
     private static synchronized void initBrowser() {
         if (browser != null) {
+            log.info("浏览器已存在，跳过初始化");
             return;
         }
+        log.info("========== 开始初始化 Playwright 浏览器 ==========");
         try {
+            log.info("步骤1: 创建 Playwright 实例...");
             playwright = Playwright.create();
+            log.info("Playwright 实例创建成功");
+
+            log.info("步骤2: 启动 Chromium 浏览器 (headless模式)...");
             browser = playwright.chromium().launch(
                     new BrowserType.LaunchOptions()
                             .setHeadless(true)
             );
-            log.info("Playwright 浏览器初始化成功");
+            log.info("========== Playwright 浏览器初始化成功 ==========");
+            log.info("浏览器版本: {}", browser.version());
+        } catch (com.microsoft.playwright.PlaywrightException e) {
+            log.error("【初始化失败】Playwright异常 - 可能原因: 浏览器驱动未安装");
+            log.error("请执行命令安装浏览器: mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args=\"install chromium\"");
+            log.error("Playwright异常详情: ", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Playwright 浏览器初始化失败，请先安装浏览器驱动: " + e.getMessage());
         } catch (Exception e) {
-            log.error("Playwright 浏览器初始化失败", e);
+            log.error("【初始化失败】未知异常 - 类型: {}, 消息: {}", e.getClass().getName(), e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "Playwright 浏览器初始化失败: " + e.getMessage());
         }
     }
@@ -95,13 +107,18 @@ public class WebScreenshotUtils {
      * @return 压缩后的截图文件路径，失败返回 null
      */
     public static String saveWebPageScreenshot(String webUrl) {
+        log.info("========== 开始网页截图流程 ==========");
+        log.info("目标URL: {}", webUrl);
+        log.info("操作系统: {}, 临时目录: {}", System.getProperty("os.name"), TEMP_DIR_PATH);
+
         // 非空校验
         if (StrUtil.isBlank(webUrl)) {
-            log.error("网页截图失败，url为空");
+            log.error("【截图失败】URL为空");
             return null;
         }
 
         // Docker 环境下替换 localhost 为 nginx 容器名
+        String originalUrl = webUrl;
         if (!IS_WINDOWS) {
             if (webUrl.contains("localhost")) {
                 webUrl = webUrl.replace("localhost", "yu-ai-nginx");
@@ -113,35 +130,58 @@ public class WebScreenshotUtils {
         }
 
         // 确保浏览器已初始化
+        log.info("检查浏览器初始化状态...");
         if (browser == null) {
-            initBrowser();
+            log.warn("浏览器未初始化，尝试初始化...");
+            try {
+                initBrowser();
+            } catch (Exception e) {
+                log.error("【截图失败】浏览器初始化异常 - 类型: {}, 消息: {}", e.getClass().getName(), e.getMessage(), e);
+                return null;
+            }
         }
+        log.info("浏览器状态: {}", browser != null ? "已初始化" : "初始化失败");
 
         // 创建临时目录
         String rootPath = TEMP_DIR_PATH + UUID.randomUUID().toString().substring(0, 8);
-        FileUtil.mkdir(rootPath);
+        try {
+            FileUtil.mkdir(rootPath);
+            log.info("临时目录创建成功: {}", rootPath);
+        } catch (Exception e) {
+            log.error("【截图失败】临时目录创建失败 - 路径: {}, 错误: {}", rootPath, e.getMessage(), e);
+            return null;
+        }
 
         Page page = null;
         try {
             // 创建新页面（设置视口大小）
+            log.info("创建浏览器页面...");
             page = browser.newPage(new Browser.NewPageOptions()
                     .setViewportSize(SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT));
+            log.info("页面创建成功，视口大小: {}x{}", SCREENSHOT_WIDTH, SCREENSHOT_HEIGHT);
 
             // 设置超时
             page.setDefaultTimeout(PAGE_TIMEOUT);
+            log.info("页面超时设置: {}ms", PAGE_TIMEOUT);
 
             // 访问网页
-            log.info("正在访问网页: {}", webUrl);
+            log.info("开始访问网页: {}", webUrl);
+            long navigateStart = System.currentTimeMillis();
             page.navigate(webUrl, new Page.NavigateOptions()
                     .setWaitUntil(WaitUntilState.NETWORKIDLE));
+            log.info("网页访问成功，耗时: {}ms", System.currentTimeMillis() - navigateStart);
 
             // 等待页面加载
+            log.info("等待页面渲染...");
             page.waitForTimeout(2000);
+            log.info("页面渲染等待完成");
 
             // 截图
+            log.info("开始截图...");
             byte[] screenshotBytes = page.screenshot(new Page.ScreenshotOptions()
                     .setFullPage(false)
                     .setType(ScreenshotType.PNG));
+            log.info("截图成功，图片大小: {} bytes", screenshotBytes.length);
 
             // 保存原始图片
             String imageSavePath = rootPath + File.separator + RandomUtil.randomNumbers(5) + ".png";
@@ -156,17 +196,26 @@ public class WebScreenshotUtils {
             // 删除原始图片
             FileUtil.del(imageSavePath);
 
+            log.info("========== 网页截图流程完成 ==========");
             return compressedImagePath;
+        } catch (com.microsoft.playwright.PlaywrightException e) {
+            log.error("【截图失败】Playwright异常 - URL: {}, 错误类型: {}, 消息: {}",
+                    originalUrl, e.getClass().getSimpleName(), e.getMessage());
+            log.error("Playwright异常详情: ", e);
+            return null;
         } catch (Exception e) {
-            log.error("网页截图失败：{}", webUrl, e);
+            log.error("【截图失败】未知异常 - URL: {}, 异常类型: {}, 消息: {}",
+                    originalUrl, e.getClass().getName(), e.getMessage());
+            log.error("异常详情: ", e);
             return null;
         } finally {
             // 关闭页面，释放资源
             if (page != null) {
                 try {
                     page.close();
+                    log.info("浏览器页面已关闭");
                 } catch (Exception e) {
-                    log.warn("关闭页面失败", e);
+                    log.warn("关闭页面失败: {}", e.getMessage());
                 }
             }
         }
