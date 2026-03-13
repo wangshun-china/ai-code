@@ -34,7 +34,6 @@ public class AuthInterceptor {
         HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
         // 获取当前登录用户
         User loginUser = InnerUserService.getLoginUser(request);
-        System.out.println(loginUser);
         UserRoleEnum mustRoleEnum = UserRoleEnum.getEnumByValue(mustRole);
         // 不需要权限，直接放行
         if (mustRoleEnum == null) {
@@ -47,9 +46,6 @@ public class AuthInterceptor {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         // 要求必须有管理员权限，但当前登录用户没有
-        System.out.println(userRoleEnum);
-        System.out.println(mustRoleEnum);
-        System.out.println(UserRoleEnum.ADMIN);
         if (UserRoleEnum.ADMIN.equals(mustRoleEnum) && !UserRoleEnum.ADMIN.equals(userRoleEnum)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
@@ -57,28 +53,3 @@ public class AuthInterceptor {
         return joinPoint.proceed();
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

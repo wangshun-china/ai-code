@@ -280,7 +280,6 @@ public class AppController {
         // 数据封装
         Page<AppVO> appVOPage = new Page<>(pageNum, pageSize, appPage.getTotalRow());
         List<AppVO> appVOList = appService.getAppVOList(appPage.getRecords());
-        System.out.println(appVOList);
         appVOPage.setRecords(appVOList);
         return ResultUtils.success(appVOPage);
     }

@@ -1,13 +1,23 @@
 spring:
   application:
     name: yu-ai-code-screenshot
-  profiles:
-    active: local
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:yu_ai_code_mother}?serverTimezone=Asia/Shanghai&useLegacyDatetimeCode=false
+    username: ${DB_USER:yu_ai_code_mother_user}
+    password: ${DB_PASSWORD:12345678}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      password: ${REDIS_PASSWORD:}
+
 server:
   port: 8127
   servlet:
     context-path: /api
-# 添加 COS 对象存储配置（需要从腾讯云获取）
+
 cos:
   client:
     host: ${COS_HOST:}
@@ -15,22 +25,30 @@ cos:
     secretKey: ${COS_SECRET_KEY:}
     region: ${COS_REGION:}
     bucket: ${COS_BUCKET:}
-# Dubbo
+
 dubbo:
   application:
-    # 👇 必须加上这几行来解决冲突
     qos-enable: true
-    qos-port: 33333  # 随便改个不一样的，比如 33333
+    qos-port: 33333
     qos-accept-foreign-ip: false
   registry:
-    address: nacos://localhost:8848?username=nacos&password=nacos
+    address: nacos://${NACOS_HOST:localhost}:${NACOS_PORT:8848}?username=nacos&password=nacos
     register-mode: instance
   protocol:
     name: tri
     port: 50052
-    host: localhost
+    host: ${DUBBO_HOST:localhost}
   consumer:
     timeout: 120000
   provider:
     timeout: 120000
     executor: virtual-thread
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always

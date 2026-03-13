@@ -114,7 +114,6 @@ services:
     container_name: yu-ai-user-service
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC"
-      SPRING_PROFILES_ACTIVE: docker
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: yu_ai_code_mother
@@ -146,7 +145,6 @@ services:
     container_name: yu-ai-app-service
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx1024m -Xms512m -XX:+UseG1GC"
-      SPRING_PROFILES_ACTIVE: docker
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: yu_ai_code_mother
@@ -188,7 +186,6 @@ services:
     shm_size: '512mb'
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
-      SPRING_PROFILES_ACTIVE: docker
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: yu_ai_code_mother
