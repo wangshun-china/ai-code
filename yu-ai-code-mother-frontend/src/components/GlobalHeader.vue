@@ -6,7 +6,7 @@
         <RouterLink to="/">
           <div class="header-left">
             <img class="logo" src="@/assets/logo.png" alt="Logo" />
-            <h1 class="site-title">应用生成</h1>
+            <h1 class="site-title">AI 应用生成</h1>
           </div>
         </RouterLink>
       </a-col>
@@ -17,6 +17,7 @@
           mode="horizontal"
           :items="menuItems"
           @click="handleMenuClick"
+          class="nav-menu"
         />
       </a-col>
       <!-- 右侧：用户操作区域 -->
@@ -24,22 +25,24 @@
         <div class="user-login-status">
           <div v-if="loginUserStore.loginUser.id">
             <a-dropdown>
-              <a-space>
-                <a-avatar :src="loginUserStore.loginUser.userAvatar" />
-                {{ loginUserStore.loginUser.userName ?? '无名' }}
+              <a-space class="user-info">
+                <a-avatar :src="loginUserStore.loginUser.userAvatar" class="user-avatar" />
+                <span class="user-name">{{ loginUserStore.loginUser.userName ?? '无名' }}</span>
               </a-space>
               <template #overlay>
-                <a-menu>
-                  <a-menu-item @click="doLogout">
+                <a-menu class="user-dropdown">
+                  <a-menu-item @click="doLogout" class="logout-item">
                     <LogoutOutlined />
-                    退出登录
+                    <span>退出登录</span>
                   </a-menu-item>
                 </a-menu>
               </template>
             </a-dropdown>
           </div>
           <div v-else>
-            <a-button type="primary" href="/user/login">登录</a-button>
+            <a-button type="primary" href="/user/login" class="login-btn">
+              登录
+            </a-button>
           </div>
         </div>
       </a-col>
@@ -133,8 +136,15 @@ const doLogout = async () => {
 
 <style scoped>
 .header {
-  background: #fff;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   padding: 0 24px;
+  box-shadow: var(--glass-shadow);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-left {
@@ -144,14 +154,104 @@ const doLogout = async () => {
 }
 
 .logo {
-  height: 48px;
-  width: 48px;
+  height: 40px;
+  width: 40px;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.logo:hover {
+  transform: scale(1.05);
 }
 
 .site-title {
   margin: 0;
   font-size: 18px;
-  color: #1890ff;
+  font-weight: 600;
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nav-menu {
+  background: transparent;
+  border-bottom: none !important;
+}
+
+.nav-menu :deep(.ant-menu-item) {
+  border-radius: 8px;
+  margin: 0 4px;
+  transition: var(--transition);
+}
+
+.nav-menu :deep(.ant-menu-item:hover) {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.nav-menu :deep(.ant-menu-item-selected) {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+  font-weight: 500;
+}
+
+.nav-menu :deep(.ant-menu-item-selected::after) {
+  border-bottom: 2px solid transparent;
+  background: var(--primary-gradient);
+  height: 2px;
+}
+
+.user-info {
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 20px;
+  transition: var(--transition);
+}
+
+.user-info:hover {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.user-avatar {
+  border: 2px solid transparent;
+  background: var(--primary-gradient);
+  padding: 2px;
+}
+
+.user-name {
+  font-weight: 500;
+  color: #1a1a2e;
+}
+
+.user-dropdown {
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+}
+
+.logout-item {
+  transition: var(--transition);
+}
+
+.logout-item:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+}
+
+.login-btn {
+  border-radius: 20px;
+  padding: 4px 24px;
+  height: auto;
+  font-weight: 500;
+  background: var(--primary-gradient);
+  border: none;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  transition: var(--transition);
+}
+
+.login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
 }
 
 .ant-menu-horizontal {

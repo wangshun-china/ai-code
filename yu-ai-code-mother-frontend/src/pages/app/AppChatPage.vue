@@ -9,13 +9,14 @@
         </a-tag>
       </div>
       <div class="header-right">
-        <a-button type="default" @click="showAppDetail">
+        <a-button type="default" class="header-btn" @click="showAppDetail">
           <template #icon><InfoCircleOutlined /></template>
           应用详情
         </a-button>
         <a-button
           type="primary"
           ghost
+          class="header-btn"
           @click="downloadCode"
           :loading="downloading"
           :disabled="!isOwner"
@@ -23,7 +24,7 @@
           <template #icon><DownloadOutlined /></template>
           下载代码
         </a-button>
-        <a-button type="primary" @click="deployApp" :loading="deploying">
+        <a-button type="primary" class="header-btn primary" @click="deployApp" :loading="deploying">
           <template #icon><CloudUploadOutlined /></template>
           部署
         </a-button>
@@ -44,12 +45,12 @@
           <div v-for="(message, index) in messages" :key="index" class="message-item">
             <div v-if="message.type === 'user'" class="user-message">
               <div class="message-content">{{ message.content }}</div>
-              <div class="message-avatar">
+              <div class="message-avatar user-avatar">
                 <a-avatar :src="loginUserStore.loginUser.userAvatar" />
               </div>
             </div>
             <div v-else class="ai-message">
-              <div class="message-avatar">
+              <div class="message-avatar ai-avatar">
                 <a-avatar :src="aiAvatar" />
               </div>
               <div class="message-content">
@@ -107,6 +108,7 @@
                 :maxlength="1000"
                 @keydown.enter.prevent="handleSendMessage"
                 :disabled="isGenerating || !isOwner"
+                class="chat-input"
               />
             </a-tooltip>
             <a-textarea
@@ -117,9 +119,10 @@
               :maxlength="1000"
               @keydown.enter.prevent="handleSendMessage"
               :disabled="isGenerating"
+              class="chat-input"
             />
             <div class="input-actions">
-              <a-button type="primary" @click="handleSendMessage" :loading="isGenerating" :disabled="!isOwner">
+              <a-button type="primary" @click="handleSendMessage" :loading="isGenerating" :disabled="!isOwner" class="send-btn">
                 <template #icon><SendOutlined /></template>
               </a-button>
             </div>
@@ -138,12 +141,12 @@
               :danger="isEditMode"
               @click="toggleEditMode"
               :class="{ 'edit-mode-active': isEditMode }"
-              style="padding: 0; height: auto; margin-right: 12px"
+              class="edit-btn"
             >
               <template #icon><EditOutlined /></template>
               {{ isEditMode ? '退出编辑' : '编辑模式' }}
             </a-button>
-            <a-button v-if="previewUrl" type="link" @click="openInNewTab">
+            <a-button v-if="previewUrl" type="link" @click="openInNewTab" class="open-btn">
               <template #icon><ExportOutlined /></template>
               新窗口打开
             </a-button>
@@ -158,13 +161,14 @@
             <a-spin size="large" />
             <p>正在生成网站...</p>
           </div>
-          <iframe
-            v-else
-            :src="previewUrl"
-            class="preview-iframe"
-            frameborder="0"
-            @load="onIframeLoad"
-          ></iframe>
+          <div v-else class="iframe-wrapper">
+            <iframe
+              :src="previewUrl"
+              class="preview-iframe"
+              frameborder="0"
+              @load="onIframeLoad"
+            ></iframe>
+          </div>
         </div>
       </div>
     </div>
@@ -210,7 +214,6 @@ import {
 
 const loginUserStore = useLoginUserStore()
 
-// 使用 composable
 const {
   appInfo,
   messages,
@@ -240,7 +243,6 @@ const {
   deleteApp,
 } = useAppChat()
 
-// 可视化编辑相关
 const isEditMode = ref(false)
 const selectedElementInfo = ref<ElementInfo | null>(null)
 const visualEditor = new VisualEditor({
@@ -249,7 +251,6 @@ const visualEditor = new VisualEditor({
   },
 })
 
-// 处理发送消息
 const handleSendMessage = async () => {
   await sendMessage(selectedElementInfo.value)
   if (selectedElementInfo.value) {
@@ -260,7 +261,6 @@ const handleSendMessage = async () => {
   }
 }
 
-// iframe加载完成
 const onIframeLoad = () => {
   previewReady.value = true
   const iframe = document.querySelector('.preview-iframe') as HTMLIFrameElement
@@ -270,7 +270,6 @@ const onIframeLoad = () => {
   }
 }
 
-// 可视化编辑相关函数
 const toggleEditMode = () => {
   const iframe = document.querySelector('.preview-iframe') as HTMLIFrameElement
   if (!iframe || !previewReady.value) {
@@ -292,7 +291,6 @@ const getInputPlaceholder = () => {
   return '请描述你想生成的网站，越详细效果越好哦'
 }
 
-// 页面加载时获取应用信息
 onMounted(() => {
   fetchAppInfo()
   window.addEventListener('message', (event) => {
@@ -300,7 +298,6 @@ onMounted(() => {
   })
 })
 
-// 清理资源
 onUnmounted(() => {
   // EventSource 会在组件卸载时自动清理
 })
@@ -312,7 +309,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   padding: 16px;
-  background: #fdfdfd;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
 }
 
 /* 顶部栏 */
@@ -321,6 +318,10 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
+  background: var(--glass-bg);
+  border-radius: var(--border-radius-sm);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
 }
 
 .header-left {
@@ -331,13 +332,17 @@ onUnmounted(() => {
 
 .code-gen-type-tag {
   font-size: 12px;
+  border-radius: 12px;
 }
 
 .app-name {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .header-right {
@@ -345,12 +350,28 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.header-btn {
+  border-radius: 20px;
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.header-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.header-btn.primary {
+  background: var(--primary-gradient);
+  border: none;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
 /* 主要内容区域 */
 .main-content {
   flex: 1;
   display: flex;
   gap: 16px;
-  padding: 8px;
   overflow: hidden;
 }
 
@@ -359,9 +380,9 @@ onUnmounted(() => {
   flex: 2;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--glass-bg);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glass-shadow);
   overflow: hidden;
 }
 
@@ -373,44 +394,55 @@ onUnmounted(() => {
 }
 
 .message-item {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .user-message {
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
 
 .ai-message {
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
 
 .message-content {
   max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 12px;
-  line-height: 1.5;
+  padding: 14px 18px;
+  border-radius: 18px;
+  line-height: 1.6;
   word-wrap: break-word;
 }
 
 .user-message .message-content {
-  background: #1890ff;
+  background: var(--primary-gradient);
   color: white;
+  border-bottom-right-radius: 4px;
 }
 
 .ai-message .message-content {
-  background: #f5f5f5;
-  color: #1a1a1a;
-  padding: 8px 12px;
+  background: #f1f5f9;
+  color: #1a1a2e;
+  border-bottom-left-radius: 4px;
 }
 
 .message-avatar {
   flex-shrink: 0;
+}
+
+.user-avatar :deep(.ant-avatar) {
+  background: var(--primary-gradient);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.ai-avatar :deep(.ant-avatar) {
+  background: var(--secondary-gradient);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
 .loading-indicator {
@@ -420,7 +452,6 @@ onUnmounted(() => {
   color: #666;
 }
 
-/* 加载更多按钮 */
 .load-more-container {
   text-align: center;
   padding: 8px 0;
@@ -431,20 +462,44 @@ onUnmounted(() => {
 .input-container {
   padding: 16px;
   background: white;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .input-wrapper {
   position: relative;
 }
 
-.input-wrapper .ant-input {
-  padding-right: 50px;
+.chat-input {
+  border-radius: var(--border-radius-sm);
+  border: 2px solid #e8e8e8;
+  padding-right: 60px;
+  transition: var(--transition);
+}
+
+.chat-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .input-actions {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
+  bottom: 10px;
+  right: 10px;
+}
+
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--primary-gradient);
+  border: none;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  transition: var(--transition);
+}
+
+.send-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 /* 右侧预览区域 */
@@ -452,9 +507,9 @@ onUnmounted(() => {
   flex: 3;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--glass-bg);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glass-shadow);
   overflow: hidden;
 }
 
@@ -462,14 +517,16 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e8e8e8;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .preview-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+  color: #1a1a2e;
 }
 
 .preview-actions {
@@ -477,13 +534,25 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.edit-btn, .open-btn {
+  border-radius: 16px;
+  transition: var(--transition);
+}
+
+.edit-mode-active {
+  background-color: #52c41a !important;
+  border-color: #52c41a !important;
+  color: white !important;
+}
+
 .preview-content {
   flex: 1;
   position: relative;
   overflow: hidden;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
 }
 
-.preview-placeholder {
+.preview-placeholder, .preview-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -493,36 +562,49 @@ onUnmounted(() => {
 }
 
 .placeholder-icon {
-  font-size: 48px;
+  font-size: 56px;
   margin-bottom: 16px;
+  animation: float 3s ease-in-out infinite;
 }
 
-.preview-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #666;
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-15px); }
 }
 
 .preview-loading p {
   margin-top: 16px;
+  font-size: 15px;
+}
+
+.iframe-wrapper {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  margin: 12px;
+  width: calc(100% - 24px);
+  height: calc(100% - 24px);
 }
 
 .preview-iframe {
   width: 100%;
   height: 100%;
   border: none;
+  background: white;
+  border-radius: 8px;
 }
 
 .selected-element-alert {
   margin: 0 16px;
+  border-radius: var(--border-radius-sm);
+  border: none;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
 }
 
-/* 选中元素信息样式 */
 .selected-element-info {
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .element-header {
@@ -536,49 +618,26 @@ onUnmounted(() => {
 .element-item {
   margin-bottom: 4px;
   font-size: 13px;
-}
-
-.element-item:last-child {
-  margin-bottom: 0;
+  color: #666;
 }
 
 .element-tag {
   font-family: 'Monaco', 'Menlo', monospace;
   font-size: 14px;
   font-weight: 600;
-  color: #007bff;
+  color: #667eea;
 }
 
-.element-id {
-  color: #28a745;
-  margin-left: 4px;
-}
-
-.element-class {
-  color: #ffc107;
-  margin-left: 4px;
-}
+.element-id { color: #10b981; margin-left: 4px; }
+.element-class { color: #f59e0b; margin-left: 4px; }
 
 .element-selector-code {
   font-family: 'Monaco', 'Menlo', monospace;
-  background: #f6f8fa;
-  padding: 2px 4px;
-  border-radius: 3px;
+  background: rgba(102, 126, 234, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
   font-size: 12px;
-  color: #d73a49;
-  border: 1px solid #e1e4e8;
-}
-
-/* 编辑模式按钮样式 */
-.edit-mode-active {
-  background-color: #52c41a !important;
-  border-color: #52c41a !important;
-  color: white !important;
-}
-
-.edit-mode-active:hover {
-  background-color: #73d13d !important;
-  border-color: #73d13d !important;
+  color: #667eea;
 }
 
 /* 响应式设计 */
@@ -587,8 +646,7 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
-  .chat-section,
-  .preview-section {
+  .chat-section, .preview-section {
     flex: none;
     height: 50vh;
   }
@@ -596,16 +654,18 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
   .header-bar {
-    padding: 12px 16px;
+    padding: 12px;
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
   .app-name {
     font-size: 16px;
   }
 
-  .main-content {
-    padding: 8px;
-    gap: 8px;
+  .header-btn {
+    font-size: 13px;
+    padding: 4px 12px;
   }
 
   .message-content {
