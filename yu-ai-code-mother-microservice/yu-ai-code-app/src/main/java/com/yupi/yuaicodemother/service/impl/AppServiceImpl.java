@@ -173,7 +173,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 buildSuccess = vueProjectBuilderProd.buildProject(sourceDirPath);
             } else {
                 log.info("使用本地构建模式构建 Vue 项目");
-                buildSuccess = vueProjectBuilder.buildProject(sourceDirPath);
+                buildSuccess = vueProjectBuilder.buildProject(sourceDirName);
             }
             ThrowUtils.throwIf(!buildSuccess, ErrorCode.SYSTEM_ERROR, "Vue 项目构建失败，请重试");
             // 检查 dist 目录是否存在
