@@ -252,6 +252,9 @@ jobs:
             # 强制停止所有运行的 code-craft 容器
             sudo docker ps -a --filter "name=code-craft-" -q | xargs -r sudo docker rm -f || true
 
+            echo "=== Step 2.1: 删除旧的 yu-ai 容器（兼容旧版本）==="
+            sudo docker ps -a --filter "name=yu-ai-" -q | xargs -r sudo docker rm -f || true
+
             echo "=== Step 3: 删除 yu-ai 旧镜像（强制） ==="
             # 先删除容器，再删除镜像
             sudo docker images --format "{{.Repository}}:{{.Tag}}" | \
