@@ -160,6 +160,8 @@ services:
       COS_SECRET_ID: ${COS_SECRET_ID:-}
       COS_SECRET_KEY: ${COS_SECRET_KEY:-}
       DEPLOY_HOST: ${DEPLOY_HOST:-http://localhost}
+      CODE_OUTPUT_DIR: /tmp/code_output
+      CODE_DEPLOY_DIR: /tmp/code_deploy
       NODE_BUILDER_URL: http://node-builder:3000/build
     ports:
       - "8126:8126"
