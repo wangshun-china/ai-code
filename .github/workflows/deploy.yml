@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com
-  IMAGE_NAME: wangshun_build/yu-ai-code-mother
+  IMAGE_NAME: wangshun_build/code-craft-ai
   ACR_PASSWORD: wangshun817
   SERVER_HOST: 120.26.186.0
   AI_DASHSCOPE_API_KEY: sk-814d2907354744f4a69661e19ab043bc
@@ -37,7 +37,7 @@ jobs:
 
       # Step 3: 全量构建后端 - 生成 Fat JAR
       - name: Build backend with Maven
-        run: cd yu-ai-code-mother-microservice && mvn clean package -DskipTests
+        run: cd code-craft-microservice && mvn clean package -DskipTests
 
       # Step 4: 安装 Node.js 并构建前端
       - name: Set up Node.js
@@ -47,7 +47,7 @@ jobs:
 
       - name: Build frontend
         run: |
-          cd yu-ai-code-mother-frontend
+          cd code-craft-frontend
           npm install -g pnpm
           pnpm install
           pnpm run build
@@ -56,11 +56,11 @@ jobs:
       # 检查 dist 目录是否有内容
       - name: Verify dist exists
         run: |
-          if [ ! -d "yu-ai-code-mother-frontend/dist" ] || [ -z "$(ls -A yu-ai-code-mother-frontend/dist)" ]; then
+          if [ ! -d "code-craft-frontend/dist" ] || [ -z "$(ls -A code-craft-frontend/dist)" ]; then
             echo "Error: dist directory is empty or does not exist!"
             exit 1
           fi
-          echo "dist directory contains: $(ls -la yu-ai-code-mother-frontend/dist)"
+          echo "dist directory contains: $(ls -la code-craft-frontend/dist)"
 
       # Step 5: 登录阿里云仓库
       - name: Login to Aliyun ACR
@@ -73,14 +73,14 @@ jobs:
       # Step 6: 复制 JAR 文件到根目录 (Dockerfile 需要从根目录 COPY)
       - name: Copy JAR files to root
         run: |
-          cp yu-ai-code-mother-microservice/yu-ai-code-user/target/*.jar ./user-service.jar
-          cp yu-ai-code-mother-microservice/yu-ai-code-app/target/*.jar ./app-service.jar
-          cp yu-ai-code-mother-microservice/yu-ai-code-screenshot/target/*.jar ./screenshot-service.jar
+          cp code-craft-microservice/code-craft-user/target/*.jar ./user-service.jar
+          cp code-craft-microservice/code-craft-app/target/*.jar ./app-service.jar
+          cp code-craft-microservice/code-craft-screenshot/target/*.jar ./screenshot-service.jar
 
       # Step 6.1: 复制前端 dist 到根目录（配置文件已在仓库根目录）
       - name: Copy frontend files to root
         run: |
-          cp -r yu-ai-code-mother-frontend/dist .
+          cp -r code-craft-frontend/dist .
 
       # Step 7: 构建并推送后端服务镜像
       # 7.1 User Service
@@ -171,7 +171,7 @@ jobs:
             WxkqMYb/rbEAAAAGZGVwbG95AQIDBAU=
             -----END OPENSSH PRIVATE KEY-----
           source: "docker-compose.prod.yml,nginx.conf,nginx.frontend.conf,.env.prod,mysql-init,sql,node-builder"
-          target: "/root/yu-ai-code-prod"
+          target: "/root/code-craft-prod"
           command_timeout: 1m
 
       # Step 10: 远程部署 - 安全清理并顺序启动
@@ -233,9 +233,9 @@ jobs:
             -----END OPENSSH PRIVATE KEY-----
           script: |
             # 创建目标目录（如果不存在）
-            mkdir -p /root/yu-ai-code-prod
+            mkdir -p /root/code-craft-prod
 
-            cd /root/yu-ai-code-prod
+            cd /root/code-craft-prod
 
             # 调试：列出目录内容
             echo "=== Directory contents ==="
@@ -248,14 +248,14 @@ jobs:
             echo "=== Step 1: 登录 ACR ==="
             echo "${{ env.ACR_PASSWORD }}" | sudo docker login ${{ env.REGISTRY }} -u aliyun4384550071 --password-stdin
 
-            echo "=== Step 2: 强制停止并删除所有 yu-ai 容器 ==="
-            # 强制停止所有运行的 yu-ai 容器
-            sudo docker ps -a --filter "name=yu-ai-" -q | xargs -r sudo docker rm -f || true
+            echo "=== Step 2: 强制停止并删除所有 code-craft 容器 ==="
+            # 强制停止所有运行的 code-craft 容器
+            sudo docker ps -a --filter "name=code-craft-" -q | xargs -r sudo docker rm -f || true
 
             echo "=== Step 3: 删除 yu-ai 旧镜像（强制） ==="
             # 先删除容器，再删除镜像
             sudo docker images --format "{{.Repository}}:{{.Tag}}" | \
-              grep "wangshun_build/yu-ai-code-mother" | \
+              grep "wangshun_build/code-craft-ai" | \
               xargs -r sudo docker rmi -f 2>/dev/null || true
             echo "Old yu-ai images removed"
 
@@ -273,7 +273,7 @@ jobs:
             # 等待 MySQL 健康检查通过
             echo "Waiting for MySQL to be healthy..."
             for i in $(seq 1 60); do
-              HEALTH=$(sudo docker inspect --format='{{.State.Health.Status}}' yu-ai-mysql 2>/dev/null || echo "starting")
+              HEALTH=$(sudo docker inspect --format='{{.State.Health.Status}}' code-craft-mysql 2>/dev/null || echo "starting")
               if [ "$HEALTH" = "healthy" ]; then
                 echo "MySQL is healthy!"
                 break
@@ -297,7 +297,7 @@ jobs:
             # 等待 Nacos 启动（不依赖健康检查，因为首次启动可能较慢）
             echo "Waiting for Nacos to start..."
             for i in $(seq 1 90); do
-              RUNNING=$(sudo docker inspect --format='{{.State.Running}}' yu-ai-nacos 2>/dev/null || echo "false")
+              RUNNING=$(sudo docker inspect --format='{{.State.Running}}' code-craft-nacos 2>/dev/null || echo "false")
               if [ "$RUNNING" = "true" ]; then
                 # 再等待一下确保服务就绪
                 sleep 20
@@ -315,8 +315,8 @@ jobs:
             # 等待后端服务健康
             echo "Waiting for backend services to be healthy..."
             for i in $(seq 1 30); do
-              USER_STATUS=$(sudo docker inspect --format='{{.State.Health.Status}}' yu-ai-user-service 2>/dev/null || echo "starting")
-              APP_STATUS=$(sudo docker inspect --format='{{.State.Health.Status}}' yu-ai-app-service 2>/dev/null || echo "starting")
+              USER_STATUS=$(sudo docker inspect --format='{{.State.Health.Status}}' code-craft-user-service 2>/dev/null || echo "starting")
+              APP_STATUS=$(sudo docker inspect --format='{{.State.Health.Status}}' code-craft-app-service 2>/dev/null || echo "starting")
               if [ "$USER_STATUS" = "healthy" ] && [ "$APP_STATUS" = "healthy" ]; then
                 echo "Backend services are healthy!"
                 break
@@ -335,7 +335,7 @@ jobs:
             sudo docker compose $COMPOSE_FILE $ENV_FILE up -d nginx
 
             echo "=== Step 7: 验证容器状态 ==="
-            sudo docker ps | grep yu-ai
+            sudo docker ps | grep code-craft
 
             echo "=== Step 8: 清理虚悬镜像 ==="
             sudo docker image prune -f

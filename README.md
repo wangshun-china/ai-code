@@ -32,7 +32,7 @@
 
 | 技术点 | 可选方案 | 最终选择 | 选择理由 |
 |--------|----------|----------|----------|
-| AI 框架 | LangChain4j / Spring AI / 原生 SDK | LangChain4j + Spring AI Alibaba | LangChain4j 提供完整的 AI Agent 能力，Spring AI Alibaba 支持阿里云模型 |
+| AI 框架 | LangChain4j / 原生 SDK | LangChain4j | LangChain4j 提供完整的 AI Agent 能力，Tool Calling、对话记忆开箱即用 |
 | 微服务框架 | Spring Cloud Netflix / Spring Cloud Alibaba | Spring Cloud Alibaba | 国内生态更好，Nacos 一站式解决注册+配置 |
 | RPC 框架 | Feign / Dubbo / gRPC | Dubbo 3.3 | 性能更优，支持 Triple 协议，云原生友好 |
 | ORM 框架 | MyBatis / MyBatis-Plus / MyBatis-Flex | MyBatis-Flex | 更轻量，性能更好，支持多表关联 |
@@ -276,42 +276,42 @@ yu-ai-code-mother-microservice/
 | 分类 | 技术 | 版本 | 选型理由 |
 |------|------|------|----------|
 | **核心框架** | Java | 21 LTS | 最新长期支持版，支持虚拟线程、Record、模式匹配 |
-| | Spring Boot | 3.5.4 | 最新版本，AOT 编译、Observability 内置支持 |
+| | Spring Boot | 3.5.x | 最新版本，AOT 编译、Observability 内置支持 |
 | | Spring Cloud Alibaba | 2023.0.1.0 | 国内生态成熟，文档丰富 |
 | **微服务** | Dubbo | 3.3.0 | 高性能 RPC，支持 Triple 协议，云原生 |
-| | Nacos | 2.5.2 | 注册中心+配置中心二合一 |
-| **数据访问** | MyBatis-Flex | 1.11.1 | 比 MyBatis-Plus 更轻量，性能更优 |
+| | Nacos | 2.5.x | 注册中心+配置中心二合一 |
+| **数据访问** | MyBatis-Flex | 1.11.x | 比 MyBatis-Plus 更轻量，性能更优 |
 | | MySQL | 8.0 | 主数据库，支持 JSON 类型 |
-| | HikariCP | 4.0.3 | 高性能连接池 |
+| | HikariCP | 4.x | 高性能连接池 |
 | **缓存** | Redis | 7.x | 分布式缓存、会话、限流、分布式锁 |
-| | Redisson | 3.50.0 | Redis 客户端，丰富的分布式对象 |
+| | Redisson | 3.50+ | Redis 客户端，丰富的分布式对象 |
 | | Caffeine | - | 本地缓存，与 Redis 组成二级缓存 |
 | **AI 框架** | LangChain4j | 1.1.0 | Java 版 LangChain，AI 应用开发首选 |
-| | LangGraph4j | 1.6.0-rc2 | AI 工作流引擎，构建复杂 Agent |
-| | Spring AI Alibaba | 1.1.0.0-RC2 | 阿里云 AI 框架，支持通义千问 |
+| | LangGraph4j | 1.6.0 | AI 工作流引擎，构建复杂 Agent |
 | | DashScope SDK | 2.21.1 | 阿里云大模型 API |
-| **工具库** | Hutool | 5.8.38 | Java 工具类库 |
-| | Lombok | 1.18.36 | 简化代码 |
-| **文档** | Knife4j | 4.4.0 | OpenAPI 3.0 文档生成 |
+| | DeepSeek SDK | - | DeepSeek API 接入 |
+| **工具库** | Hutool | 5.8.x | Java 工具类库 |
+| | Lombok | 1.18.x | 简化代码 |
+| **文档** | Knife4j | 4.x | OpenAPI 3.0 文档生成 |
 | **监控** | Actuator | - | Spring Boot 监控端点 |
 | | Prometheus | - | 指标采集 |
 | | Grafana | - | 可视化监控大盘 |
-| **其他** | Selenium | 4.33.0 | 网页自动化 |
-| | 腾讯云 COS | 5.6.227 | 对象存储 |
+| **其他** | Selenium | 4.33+ | 网页自动化截图 |
+| | 腾讯云 COS | 5.6.x | 对象存储 |
 
 ### 3.2 前端技术栈
 
 | 技术 | 版本 | 说明 |
 |------|------|------|
-| Vue | 3.5.17 | Composition API，性能优化 |
+| Vue | 3.5.x | Composition API，性能优化 |
 | TypeScript | 5.8 | 类型安全 |
-| Vite | 7.0 | 极速构建 |
-| Ant Design Vue | 4.2.6 | 企业级 UI |
-| Pinia | 3.0.3 | 状态管理 |
-| Vue Router | 4.5.1 | 路由 |
-| Axios | 1.11.0 | HTTP 客户端 |
-| Markdown-it | 14.1.0 | Markdown 渲染 |
-| Highlight.js | 11.11.1 | 代码高亮 |
+| Vite | 7.x | 极速构建 |
+| Ant Design Vue | 4.x | 企业级 UI |
+| Pinia | 3.x | 状态管理 |
+| Vue Router | 4.x | 路由 |
+| Axios | 1.x | HTTP 客户端 |
+| Markdown-it | 14.x | Markdown 渲染 |
+| Highlight.js | 11.x | 代码高亮 |
 
 ### 3.3 运维部署
 
@@ -1078,7 +1078,7 @@ JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m -XX:+UseG1GC"
 1. **抽象层级**：LangChain4j 提供了 AI Service 抽象，通过注解即可定义 AI 接口，无需手动处理 Prompt 模板
 2. **Tool Calling**：内置完整的工具调用机制，自动处理工具选择和参数解析
 3. **对话记忆**：开箱即用的多轮对话支持，支持多种存储后端
-4. **模型切换**：一套代码支持多种 LLM（OpenAI、通义千问、DeepSeek），切换只需改配置
+4. **模型切换**：一套代码支持多种 LLM（通义千问、DeepSeek、OpenAI），切换只需改配置
 5. **结构化输出**：自动将 AI 响应映射为 Java 对象，无需手动解析 JSON
 
 ### Q2: 流式输出如何保证数据一致性？
@@ -1149,32 +1149,36 @@ JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m -XX:+UseG1GC"
 
 ### 8.1 环境要求
 
-| 环境 | 版本 |
-|------|------|
-| JDK | 21+ |
-| Node.js | 18+ |
-| Docker | 24+ |
-| MySQL | 8.0+ |
-| Redis | 7+ |
+| 环境 | 版本 | 说明 |
+|------|------|------|
+| JDK | 21+ | 必须，支持虚拟线程特性 |
+| Maven | 3.9+ | 必须，项目构建工具 |
+| Node.js | 18+ | 必须，前端运行环境 |
+| MySQL | 8.0+ | 必须，主数据存储 |
+| Redis | 7+ | 必须，缓存与会话 |
+| Nacos | 2.5+ | 必须，注册中心与配置中心 |
+| Docker | 24+ | 可选，容器化部署 |
 
 ### 8.2 本地启动
+
+#### 方式一：单体模式（推荐开发使用）
 
 ```bash
 # 1. 克隆项目
 git clone https://github.com/your-repo/yu-ai-code-mother.git
 cd yu-ai-code-mother
 
-# 2. 启动基础设施
+# 2. 启动基础设施（MySQL、Redis、Nacos）
 docker-compose up -d mysql redis nacos
 
 # 3. 配置环境变量
-cp .env.local.example .env.local
+cp yu-ai-code-mother-microservice/.env.local.example yu-ai-code-mother-microservice/.env.local
 # 编辑 .env.local，配置:
-# - AI_DASHSCOPE_API_KEY (阿里云通义千问)
-# - DEEPSEEK_API_KEY (可选)
-# - COS 配置 (可选)
+# - DASHSCOPE_API_KEY（阿里云通义千问）
+# - DEEPSEEK_API_KEY（可选）
+# - 数据库/Redis 连接信息
 
-# 4. 启动后端
+# 4. 启动后端（单体模式）
 mvn spring-boot:run
 
 # 5. 启动前端
@@ -1185,16 +1189,71 @@ npm run dev
 # 访问 http://localhost:5173
 ```
 
-### 8.3 Docker 一键部署
+#### 方式二：微服务模式
 
 ```bash
-# 配置环境变量
-cp .env.example .env
+# 1. 启动基础设施
+docker-compose up -d mysql redis nacos
 
-# 一键启动
-docker-compose up -d
+# 2. 启动用户服务
+cd yu-ai-code-mother-microservice/yu-ai-code-user
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+
+# 3. 启动应用服务
+cd ../yu-ai-code-app
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+
+# 4. 启动截图服务
+cd ../yu-ai-code-screenshot
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+
+# 5. 启动前端
+cd ../../yu-ai-code-mother-frontend
+npm install && npm run dev
+```
+
+### 8.3 后端构建
+
+```bash
+# 完整构建（跳过测试）
+mvn clean install -DskipTests
+
+# 单独模块构建
+cd yu-ai-code-mother-microservice/yu-ai-code-app
+mvn clean install -DskipTests
+```
+
+### 8.4 Docker 一键部署
+
+```bash
+# 1. 配置环境变量
+cp docker-compose/.env.example docker-compose/.env
+# 编辑 .env，配置 AI API 密钥和其他必要参数
+
+# 2. 使用生产配置启动
+docker-compose -f docker-compose/docker-compose.prod.yml up -d
+
+# 3. 查看服务状态
+docker-compose -f docker-compose/docker-compose.prod.yml ps
 
 # 访问 http://localhost
+```
+
+### 8.5 前端独立构建
+
+```bash
+cd yu-ai-code-mother-frontend
+
+# 安装依赖
+npm install
+
+# 开发模式
+npm run dev
+
+# 生产构建
+npm run build
+
+# 构建产物位于 dist/ 目录
 ```
 
 ---

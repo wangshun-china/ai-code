@@ -14,11 +14,11 @@ services:
   # MySQL 数据库
   mysql:
     image: mysql:8.0
-    container_name: yu-ai-mysql
+    container_name: code-craft-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root123456
-      MYSQL_DATABASE: yu_ai_code_mother
-      MYSQL_USER: yu_ai_code_mother_user
+      MYSQL_DATABASE: ai_code_gen
+      MYSQL_USER: ai_code_gen_user
       MYSQL_PASSWORD: 12345678
     ports:
       - "3306:3306"
@@ -28,7 +28,7 @@ services:
       - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/2_nacos_schema.sql
     command: --default-authentication-plugin=mysql_native_password
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123456"]
@@ -40,13 +40,13 @@ services:
   # Redis 缓存
   redis:
     image: redis:7-alpine
-    container_name: yu-ai-redis
+    container_name: code-craft-redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -57,14 +57,14 @@ services:
   # Nacos 数据库初始化容器（一次性执行）
   nacos-db-init:
     image: mysql:8.0
-    container_name: yu-ai-nacos-db-init
+    container_name: code-craft-nacos-db-init
     environment:
       MYSQL_ROOT_PASSWORD: root123456
     volumes:
       - ./sql/create_table.sql:/docker-entrypoint-initdb.d/1_create_table.sql
       - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/2_nacos_schema.sql
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: "no"
     command: >
       sh -c "
@@ -84,7 +84,7 @@ services:
   # Nacos 服务发现和配置中心
   nacos:
     image: nacos/nacos-server:v2.5.2
-    container_name: yu-ai-nacos
+    container_name: code-craft-nacos
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m"
       MODE: standalone
@@ -92,7 +92,7 @@ services:
       MYSQL_SERVICE_HOST: mysql
       MYSQL_SERVICE_PORT: 3306
       MYSQL_SERVICE_DB_NAME: nacos
-      MYSQL_SERVICE_USER: yu_ai_code_mother_user
+      MYSQL_SERVICE_USER: ai_code_gen_user
       MYSQL_SERVICE_PASSWORD: 12345678
       NACOS_AUTH_ENABLE: "false"
       NACOS_AUTH_USERNAME: nacos
@@ -106,7 +106,7 @@ services:
       - nacos_logs:/home/nacos/logs
       - nacos_data:/home/nacos/data
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     depends_on:
       mysql:
@@ -125,7 +125,7 @@ services:
     build:
       context: ./node-builder
       dockerfile: Dockerfile
-    container_name: yu-ai-node-builder
+    container_name: code-craft-node-builder
     working_dir: /app
     ports:
       - "3000:3000"
@@ -135,7 +135,7 @@ services:
     environment:
       NODE_ENV: production
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
@@ -151,5 +151,5 @@ volumes:
   nacos_data:
 
 networks:
-  yu-ai-network:
+  code-craft-network:
     driver: bridge

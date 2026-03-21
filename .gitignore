@@ -1,4 +1,5 @@
 ### CUSTOM ###
+.env
 application-local.yml
 application-prod.yml
 tmp
@@ -38,3 +39,8 @@ build/
 .vscode/
 .claude
 CLAUDE.md
+AGENTS.md
+
+### Node.js ###
+node_modules/
+*.log

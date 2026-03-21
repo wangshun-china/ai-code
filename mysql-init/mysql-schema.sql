@@ -18,8 +18,8 @@
 CREATE DATABASE IF NOT EXISTS nacos DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 USE nacos;
 
--- 授权给 yu_ai_code_mother_user 用户访问 nacos 数据库
-GRANT ALL PRIVILEGES ON nacos.* TO 'yu_ai_code_mother_user'@'%';
+-- 授权给 ai_code_gen_user 用户访问 nacos 数据库
+GRANT ALL PRIVILEGES ON nacos.* TO 'ai_code_gen_user'@'%';
 FLUSH PRIVILEGES;
 
 /******************************************/

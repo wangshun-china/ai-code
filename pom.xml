@@ -8,11 +8,11 @@
         <version>3.5.4</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.yupi</groupId>
-    <artifactId>yu-ai-code-mother</artifactId>
+    <groupId>com.ws</groupId>
+    <artifactId>code-craft-ai</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>yu-ai-code-mother</name>
-    <description>yu-ai-code-mother</description>
+    <name>code-craft-ai</name>
+    <description>code-craft-ai</description>
     <url/>
     <licenses>
         <license/>

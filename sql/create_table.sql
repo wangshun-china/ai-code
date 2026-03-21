@@ -2,13 +2,13 @@
 # AI 零代码应用生成平台
 
 -- 创建库
-create database if not exists yu_ai_code_mother;
+create database if not exists ai_code_gen;
 
 -- 切换库
-use yu_ai_code_mother;
+use ai_code_gen;
 
--- 授权给 yu_ai_code_mother_user 用户访问业务数据库
-GRANT ALL PRIVILEGES ON yu_ai_code_mother.* TO 'yu_ai_code_mother_user'@'%';
+-- 授权给 ai_code_gen_user 用户访问业务数据库
+GRANT ALL PRIVILEGES ON ai_code_gen.* TO 'ai_code_gen_user'@'%';
 FLUSH PRIVILEGES;
 
 -- 用户表

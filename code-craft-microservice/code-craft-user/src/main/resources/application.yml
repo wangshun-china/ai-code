@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: code-craft-user
+  session:
+    store-type: redis
+    timeout: 2592000
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3307}/${DB_NAME:ai_code_gen}?serverTimezone=Asia/Shanghai&useLegacyDatetimeCode=false
+    username: ${DB_USER:ai_code_gen_user}
+    password: ${DB_PASSWORD:12345678}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      password: ${REDIS_PASSWORD:}
+
+server:
+  port: 8124
+  servlet:
+    context-path: /api
+    session:
+      cookie:
+        max-age: 2592000
+
+springdoc:
+  group-configs:
+    - group: 'default'
+      packages-to-scan: com.ws.codecraftuser.controller
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+dubbo:
+  registry:
+    address: nacos://${NACOS_HOST:localhost}:${NACOS_PORT:8848}?username=nacos&password=nacos
+    register-mode: instance
+  protocol:
+    name: tri
+    port: 50051
+    host: ${DUBBO_HOST:localhost}
+  consumer:
+    timeout: 60000
+  provider:
+    timeout: 60000
+    executor: virtual-thread
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always

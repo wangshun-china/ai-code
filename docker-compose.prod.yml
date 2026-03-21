@@ -2,11 +2,11 @@ services:
   # MySQL数据库
   mysql:
     image: mysql:8.0
-    container_name: yu-ai-mysql
+    container_name: code-craft-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root123456
-      MYSQL_DATABASE: yu_ai_code_mother
-      MYSQL_USER: yu_ai_code_mother_user
+      MYSQL_DATABASE: ai_code_gen
+      MYSQL_USER: ai_code_gen_user
       MYSQL_PASSWORD: 12345678
     ports:
       - "3307:3306"
@@ -16,7 +16,7 @@ services:
       - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/2_nacos_schema.sql
     command: --default-authentication-plugin=mysql_native_password
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123456"]
@@ -28,13 +28,13 @@ services:
   # Redis缓存
   redis:
     image: redis:7-alpine
-    container_name: yu-ai-redis
+    container_name: code-craft-redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -45,14 +45,14 @@ services:
   # Nacos数据库初始化容器（一次性执行）
   nacos-db-init:
     image: mysql:8.0
-    container_name: yu-ai-nacos-db-init
+    container_name: code-craft-nacos-db-init
     environment:
       MYSQL_ROOT_PASSWORD: root123456
     volumes:
       - ./sql/create_table.sql:/docker-entrypoint-initdb.d/1_create_table.sql
       - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/2_nacos_schema.sql
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: "no"
     # 执行完 SQL 后立即退出
     command: >
@@ -73,7 +73,7 @@ services:
   # Nacos服务发现和配置中心
   nacos:
     image: nacos/nacos-server:v2.5.2
-    container_name: yu-ai-nacos
+    container_name: code-craft-nacos
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx4g -Xms2g -Xss4m "
       MODE: standalone
@@ -81,7 +81,7 @@ services:
       MYSQL_SERVICE_HOST: mysql
       MYSQL_SERVICE_PORT: 3306
       MYSQL_SERVICE_DB_NAME: nacos
-      MYSQL_SERVICE_USER: yu_ai_code_mother_user
+      MYSQL_SERVICE_USER: ai_code_gen_user
       MYSQL_SERVICE_PASSWORD: 12345678
       NACOS_AUTH_ENABLE: "false"
       NACOS_AUTH_USERNAME: nacos
@@ -95,7 +95,7 @@ services:
       - nacos_logs:/home/nacos/logs
       - nacos_data:/home/nacos/data
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     depends_on:
       mysql:
@@ -110,14 +110,14 @@ services:
 
   # 用户微服务
   user-service:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:user-service
-    container_name: yu-ai-user-service
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:user-service
+    container_name: code-craft-user-service
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC"
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: yu_ai_code_mother
-      DB_USER: yu_ai_code_mother_user
+      DB_NAME: ai_code_gen
+      DB_USER: ai_code_gen_user
       DB_PASSWORD: 12345678
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -129,7 +129,7 @@ services:
     ports:
       - "8124:8124"
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     depends_on:
       mysql:
@@ -141,14 +141,14 @@ services:
 
   # 主应用微服务
   app-service:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:app-service
-    container_name: yu-ai-app-service
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:app-service
+    container_name: code-craft-app-service
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx1024m -Xms512m -XX:+UseG1GC"
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: yu_ai_code_mother
-      DB_USER: yu_ai_code_mother_user
+      DB_NAME: ai_code_gen
+      DB_USER: ai_code_gen_user
       DB_PASSWORD: 12345678
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -167,7 +167,7 @@ services:
       - code_output:/tmp/code_output
       - code_deploy:/tmp/code_deploy
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     depends_on:
       mysql:
@@ -181,15 +181,15 @@ services:
 
   # 截图微服务（基于 Playwright，比 Selenium 更轻量）
   screenshot-service:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:screenshot-service
-    container_name: yu-ai-screenshot-service
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:screenshot-service
+    container_name: code-craft-screenshot-service
     shm_size: '512mb'
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: yu_ai_code_mother
-      DB_USER: yu_ai_code_mother_user
+      DB_NAME: ai_code_gen
+      DB_USER: ai_code_gen_user
       DB_PASSWORD: 12345678
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -210,7 +210,7 @@ services:
     ports:
       - "8127:8127"
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     depends_on:
       mysql:
@@ -222,8 +222,8 @@ services:
 
   # Node.js 构建服务（用于构建 Vue 项目）
   node-builder:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:node-builder
-    container_name: yu-ai-node-builder
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:node-builder
+    container_name: code-craft-node-builder
     working_dir: /app
     volumes:
       - code_output:/tmp/code_output
@@ -231,7 +231,7 @@ services:
       NODE_ENV: production
     # 不需要对外暴露端口，只在内部网络使用
     networks:
-      - yu-ai-network
+      - code-craft-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
@@ -242,11 +242,11 @@ services:
 
   # 前端
   frontend:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/yu-ai-code-mother:frontend
-    container_name: yu-ai-frontend
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:frontend
+    container_name: code-craft-frontend
     restart: unless-stopped
     networks:
-      - yu-ai-network
+      - code-craft-network
     ports:
       - "8090:80"
     depends_on:
@@ -264,7 +264,7 @@ services:
   # Nginx反向代理和负载均衡
   nginx:
     image: nginx:alpine
-    container_name: yu-ai-nginx
+    container_name: code-craft-nginx
     restart: unless-stopped
     ports:
       - "8888:80"
@@ -273,7 +273,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf
       - code_deploy:/usr/share/nginx/html/deploy
     networks:
-      - yu-ai-network
+      - code-craft-network
     depends_on:
       frontend:
         condition: service_started
@@ -299,5 +299,5 @@ volumes:
   code_output:
 
 networks:
-  yu-ai-network:
+  code-craft-network:
     driver: bridge
