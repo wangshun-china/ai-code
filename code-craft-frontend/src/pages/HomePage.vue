@@ -6,15 +6,16 @@ import { useLoginUserStore } from '@/stores/loginUser'
 import { addApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
 import { getDeployUrl } from '@/config/env'
 import AppCard from '@/components/AppCard.vue'
+import { ThunderboltOutlined, AppstoreOutlined, StarOutlined, MailOutlined, GithubOutlined, HomeOutlined, SettingOutlined, UserOutlined, LogoutOutlined, BarChartOutlined } from '@ant-design/icons-vue'
+import { userLogout } from '@/api/userController'
+import { PlusOutlined } from '@ant-design/icons-vue'
 
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
 
-// 用户提示词
 const userPrompt = ref('')
 const creating = ref(false)
 
-// 我的应用数据
 const myApps = ref<API.AppVO[]>([])
 const myAppsPage = reactive({
   current: 1,
@@ -22,7 +23,6 @@ const myAppsPage = reactive({
   total: 0,
 })
 
-// 精选应用数据
 const featuredApps = ref<API.AppVO[]>([])
 const featuredAppsPage = reactive({
   current: 1,
@@ -30,12 +30,10 @@ const featuredAppsPage = reactive({
   total: 0,
 })
 
-// 设置提示词
 const setPrompt = (prompt: string) => {
   userPrompt.value = prompt
 }
 
-// 创建应用
 const createApp = async () => {
   if (!userPrompt.value.trim()) {
     message.warning('请输入应用描述')
@@ -69,7 +67,6 @@ const createApp = async () => {
   }
 }
 
-// 加载我的应用
 const loadMyApps = async () => {
   if (!loginUserStore.loginUser.id) {
     return
@@ -92,7 +89,6 @@ const loadMyApps = async () => {
   }
 }
 
-// 加载精选应用
 const loadFeaturedApps = async () => {
   try {
     const res = await listGoodAppVoByPage({
@@ -111,14 +107,12 @@ const loadFeaturedApps = async () => {
   }
 }
 
-// 查看对话
 const viewChat = (appId: string | number | undefined) => {
   if (appId) {
     router.push(`/app/chat/${appId}?view=1`)
   }
 }
 
-// 查看作品
 const viewWork = (app: API.AppVO) => {
   if (app.deployKey) {
     const url = getDeployUrl(app.deployKey)
@@ -126,484 +120,738 @@ const viewWork = (app: API.AppVO) => {
   }
 }
 
-// 页面加载时获取数据
+const doLogout = async () => {
+  const res = await userLogout()
+  if (res.data.code === 0) {
+    loginUserStore.setLoginUser({ userName: '未登录' })
+    message.success('退出登录成功')
+    await router.push('/user/login')
+  } else {
+    message.error('退出登录失败')
+  }
+}
+
 onMounted(() => {
   loadMyApps()
   loadFeaturedApps()
-
-  // 鼠标跟随光效
-  const handleMouseMove = (e: MouseEvent) => {
-    const { clientX, clientY } = e
-    const { innerWidth, innerHeight } = window
-    const x = (clientX / innerWidth) * 100
-    const y = (clientY / innerHeight) * 100
-
-    document.documentElement.style.setProperty('--mouse-x', `${x}%`)
-    document.documentElement.style.setProperty('--mouse-y', `${y}%`)
-  }
-
-  document.addEventListener('mousemove', handleMouseMove)
-
-  return () => {
-    document.removeEventListener('mousemove', handleMouseMove)
-  }
 })
 </script>
 
 <template>
-  <div id="homePage">
-    <div class="container">
-      <!-- 网站标题和描述 -->
-      <div class="hero-section">
-        <h1 class="hero-title">
-          <span class="title-text">AI 应用生成平台</span>
-        </h1>
-        <p class="hero-description">一句话轻松创建网站应用</p>
-      </div>
-
-      <!-- 用户提示词输入框 -->
-      <div class="input-section">
-        <a-textarea
-          v-model:value="userPrompt"
-          placeholder="帮我创建个人博客网站"
-          :rows="4"
-          :maxlength="1000"
-          class="prompt-input"
-        />
-        <div class="input-actions">
-          <a-button type="primary" size="large" @click="createApp" :loading="creating" class="create-btn">
-            <template #icon>
-              <span>↑</span>
-            </template>
-          </a-button>
+  <div class="home-layout">
+    <!-- 左侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor" fill-opacity="0.2"/>
+              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="logo-text">CraftAI</span>
         </div>
+        <p class="logo-desc">AI 应用生成平台</p>
       </div>
 
-      <!-- 快捷按钮 -->
-      <div class="quick-actions">
-        <a-button
-          type="default"
-          @click="setPrompt('创建一个现代化的个人博客网站，包含文章列表、详情页、分类标签、搜索功能、评论系统和个人简介页面。采用简洁的设计风格，支持响应式布局，文章支持Markdown格式，首页展示最新文章和热门推荐。')"
-          class="quick-btn"
-        >
-          <template #icon><span>📝</span></template>
-          个人博客网站
+      <nav class="sidebar-nav">
+        <RouterLink to="/" class="nav-item active">
+          <HomeOutlined />
+          <span>首页</span>
+        </RouterLink>
+        <template v-if="loginUserStore.loginUser.userRole === 'admin'">
+          <a href="/admin/userManage" class="nav-item">
+            <SettingOutlined />
+            <span>用户管理</span>
+          </a>
+          <a href="/admin/appManage" class="nav-item">
+            <AppstoreOutlined />
+            <span>应用管理</span>
+          </a>
+          <a href="/admin/chatManage" class="nav-item">
+            <MailOutlined />
+            <span>对话管理</span>
+          </a>
+          <a href="/admin/statistics" class="nav-item">
+            <BarChartOutlined />
+            <span>AI使用统计</span>
+          </a>
+        </template>
+      </nav>
+
+      <!-- 用户信息 / 登录按钮 -->
+      <div class="user-box" v-if="loginUserStore.loginUser.id">
+        <div class="user-info">
+          <a-avatar :src="loginUserStore.loginUser.userAvatar" class="user-avatar">
+            {{ loginUserStore.loginUser.userName?.charAt(0) || 'U' }}
+          </a-avatar>
+          <div class="user-detail">
+            <span class="user-name">{{ loginUserStore.loginUser.userName }}</span>
+            <span class="user-role">{{ loginUserStore.loginUser.userRole === 'admin' ? '管理员' : '用户' }}</span>
+          </div>
+        </div>
+        <a-button type="text" size="small" @click="doLogout" class="logout-btn">
+          退出
         </a-button>
-        <a-button
-          type="default"
-          @click="setPrompt('设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图、产品展示卡片、团队介绍、客户案例展示，支持多语言切换和在线客服功能。')"
-          class="quick-btn"
-        >
-          <template #icon><span>🏢</span></template>
-          企业官网
-        </a-button>
-        <a-button
-          type="default"
-          @click="setPrompt('构建一个功能完整的在线商城，包含商品展示、购物车、用户注册登录、订单管理、支付结算等功能。设计现代化的商品卡片布局，支持商品搜索筛选、用户评价、优惠券系统和会员积分功能。')"
-          class="quick-btn"
-        >
-          <template #icon><span>🛒</span></template>
-          在线商城
-        </a-button>
-        <a-button
-          type="default"
-          @click="setPrompt('制作一个精美的作品展示网站，适合设计师、摄影师、艺术家等创作者。包含作品画廊、项目详情页、个人简历、联系方式等模块。采用瀑布流或网格布局展示作品，支持图片放大预览和作品分类筛选。')"
-          class="quick-btn"
-        >
-          <template #icon><span>🎨</span></template>
-          作品展示网站
+      </div>
+      <div class="user-box" v-else>
+        <a-button type="primary" block href="/user/login" class="login-btn-sidebar">
+          登录
         </a-button>
       </div>
 
-      <!-- 提示信息 -->
-      <div class="notice-section">
-        <a-alert type="info" show-icon class="notice-alert">
-          <template #icon><span>📢</span></template>
-          <template #message>
-            <div class="notice-content">
-              本项目运行在阿里云免费云服务器，速度有限敬请见谅。使用阿里百炼平台免费 token，并且已打开免费额度用完即止功能，如不能创建应用，请及时联系作者
-              <a href="mailto:2606209307@qq.com" class="contact-link">2606209307@qq.com</a>
+      <!-- 联系信息 - 放在侧边栏显眼位置 -->
+      <div class="contact-box">
+        <div class="contact-header">
+          <MailOutlined />
+          <span>联系方式</span>
+        </div>
+        <p class="contact-text">
+          本项目运行在阿里云服务器<br>
+          使用阿里百炼平台 API<br>
+          如遇到问题请联系：
+        </p>
+        <a href="mailto:2606209307@qq.com" class="contact-email">
+          2606209307@qq.com
+        </a>
+      </div>
+
+      <div class="sidebar-footer">
+        <a href="https://github.com/xixi-box" target="_blank" class="github-link">
+          <GithubOutlined />
+          <span>GitHub</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 创建区域 - 左右分栏 -->
+      <section class="create-section">
+        <div class="create-left">
+          <div class="section-badge">
+            <ThunderboltOutlined />
+            <span>AI 驱动</span>
+          </div>
+          <h1 class="create-title">
+            描述你的想法<br>
+            <span class="highlight">我们帮你实现</span>
+          </h1>
+          <p class="create-desc">
+            输入你想要的网站或应用描述，AI 将自动生成完整的代码项目
+          </p>
+        </div>
+
+        <div class="create-right">
+          <div class="input-box">
+            <a-textarea
+              v-model:value="userPrompt"
+              placeholder="例如：帮我创建一个极简风格的个人博客网站，要有文章列表、分类标签和关于页面..."
+              :rows="5"
+              :maxlength="1000"
+              class="prompt-textarea"
+            />
+            <a-button
+              type="primary"
+              size="large"
+              @click="createApp"
+              :loading="creating"
+              class="submit-btn"
+              block
+            >
+              <template #icon><PlusOutlined /></template>
+              开始创建
+            </a-button>
+          </div>
+
+          <!-- 快捷模板 -->
+          <div class="templates">
+            <span class="templates-label">快速选择：</span>
+            <div class="template-tags">
+              <button
+                class="tag-btn"
+                @click="setPrompt('创建一个现代化的个人博客网站，包含文章列表、详情页、分类标签、搜索功能和个人简介页面。采用简洁的设计风格，支持响应式布局。')"
+              >
+                个人博客
+              </button>
+              <button
+                class="tag-btn"
+                @click="setPrompt('设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图和产品展示。')"
+              >
+                企业官网
+              </button>
+              <button
+                class="tag-btn"
+                @click="setPrompt('构建一个功能完整的在线商城，包含商品展示、购物车、用户注册登录、订单管理等功能。设计现代化的商品卡片布局。')"
+              >
+                在线商城
+              </button>
+              <button
+                class="tag-btn"
+                @click="setPrompt('制作一个精美的作品展示网站，适合设计师、摄影师等创作者。包含作品画廊、项目详情页、个人简历等模块。')"
+              >
+                作品集
+              </button>
             </div>
-          </template>
-        </a-alert>
-      </div>
+          </div>
+        </div>
+      </section>
 
-      <!-- 我的作品 -->
-      <div class="section" v-if="loginUserStore.loginUser.id">
-        <h2 class="section-title">
-          <span class="title-icon">🚀</span>
-          我的作品
-        </h2>
-        <div class="app-grid" v-if="myApps.length > 0">
-          <AppCard
-            v-for="app in myApps"
-            :key="app.id"
-            :app="app"
-            @view-chat="viewChat"
-            @view-work="viewWork"
-          />
-        </div>
-        <div v-else class="empty-state">
-          <span class="empty-icon">✨</span>
-          <p>还没有作品，快来创建第一个吧！</p>
-        </div>
-        <div class="pagination-wrapper" v-if="myAppsPage.total > myAppsPage.pageSize">
-          <a-pagination
-            v-model:current="myAppsPage.current"
-            v-model:page-size="myAppsPage.pageSize"
-            :total="myAppsPage.total"
-            :show-size-changer="false"
-            :show-total="(total: number) => `共 ${total} 个应用`"
-            @change="loadMyApps"
-          />
-        </div>
-      </div>
+      <!-- 应用展示区域 -->
+      <div class="content-grid">
+        <!-- 我的应用 -->
+        <section class="content-section" v-if="loginUserStore.loginUser.id">
+          <div class="section-header">
+            <div class="section-title">
+              <AppstoreOutlined />
+              <h2>我的应用</h2>
+            </div>
+            <a-pagination
+              v-if="myAppsPage.total > myAppsPage.pageSize"
+              v-model:current="myAppsPage.current"
+              v-model:page-size="myAppsPage.pageSize"
+              :total="myAppsPage.total"
+              :show-size-changer="false"
+              size="small"
+              @change="loadMyApps"
+            />
+          </div>
 
-      <!-- 精选案例 -->
-      <div class="section">
-        <h2 class="section-title">
-          <span class="title-icon">⭐</span>
-          精选案例
-        </h2>
-        <div class="featured-grid" v-if="featuredApps.length > 0">
-          <AppCard
-            v-for="app in featuredApps"
-            :key="app.id"
-            :app="app"
-            :featured="true"
-            @view-chat="viewChat"
-            @view-work="viewWork"
-          />
-        </div>
-        <div v-else class="empty-state">
-          <span class="empty-icon">🌟</span>
-          <p>暂无精选案例</p>
-        </div>
-        <div class="pagination-wrapper" v-if="featuredAppsPage.total > featuredAppsPage.pageSize">
-          <a-pagination
-            v-model:current="featuredAppsPage.current"
-            v-model:page-size="featuredAppsPage.pageSize"
-            :total="featuredAppsPage.total"
-            :show-size-changer="false"
-            :show-total="(total: number) => `共 ${total} 个案例`"
-            @change="loadFeaturedApps"
-          />
-        </div>
+          <div v-if="myApps.length > 0" class="app-list">
+            <AppCard
+              v-for="app in myApps"
+              :key="app.id"
+              :app="app"
+              @view-chat="viewChat"
+              @view-work="viewWork"
+            />
+          </div>
+
+          <div v-else class="empty-box">
+            <AppstoreOutlined class="empty-icon" />
+            <p>还没有应用，快来创建第一个吧</p>
+          </div>
+        </section>
+
+        <!-- 精选案例 -->
+        <section class="content-section">
+          <div class="section-header">
+            <div class="section-title">
+              <StarOutlined />
+              <h2>精选案例</h2>
+            </div>
+            <a-pagination
+              v-if="featuredAppsPage.total > featuredAppsPage.pageSize"
+              v-model:current="featuredAppsPage.current"
+              v-model:page-size="featuredAppsPage.pageSize"
+              :total="featuredAppsPage.total"
+              :show-size-changer="false"
+              size="small"
+              @change="loadFeaturedApps"
+            />
+          </div>
+
+          <div v-if="featuredApps.length > 0" class="app-list">
+            <AppCard
+              v-for="app in featuredApps"
+              :key="app.id"
+              :app="app"
+              :featured="true"
+              @view-chat="viewChat"
+              @view-work="viewWork"
+            />
+          </div>
+
+          <div v-else class="empty-box">
+            <StarOutlined class="empty-icon" />
+            <p>暂无精选案例</p>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   </div>
 </template>
 
 <style scoped>
-#homePage {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  background:
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 8%, #e2e8f0 20%, #cbd5e1 100%),
-    radial-gradient(circle at 20% 80%, rgba(102, 126, 234, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(118, 75, 162, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 40% 40%, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
-  position: relative;
-  overflow: hidden;
-}
-
-#homePage::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image:
-    linear-gradient(rgba(102, 126, 234, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(102, 126, 234, 0.05) 1px, transparent 1px),
-    linear-gradient(rgba(118, 75, 162, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(118, 75, 162, 0.04) 1px, transparent 1px);
-  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
-  pointer-events: none;
-  animation: gridFloat 20s ease-in-out infinite;
-}
-
-#homePage::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(
-    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(102, 126, 234, 0.1) 0%,
-    rgba(118, 75, 162, 0.08) 40%,
-    transparent 80%
-  );
-  pointer-events: none;
-}
-
-@keyframes gridFloat {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(5px, 5px); }
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* 英雄区域 */
-.hero-section {
-  text-align: center;
-  padding: 80px 0 60px;
-  margin-bottom: 28px;
-  position: relative;
-}
-
-.hero-section::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 500px;
-  height: 300px;
-  background: radial-gradient(ellipse, rgba(102, 126, 234, 0.15) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.hero-title {
-  font-size: 56px;
-  font-weight: 700;
-  margin: 0 0 20px;
-  line-height: 1.2;
-  position: relative;
-  z-index: 2;
-}
-
-.title-text {
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: -1px;
-  animation: titleShimmer 3s ease-in-out infinite;
-  background-size: 200% 100%;
-}
-
-@keyframes titleShimmer {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-.hero-description {
-  font-size: 20px;
-  margin: 0;
-  color: #64748b;
-  position: relative;
-  z-index: 2;
-}
-
-/* 输入区域 */
-.input-section {
-  position: relative;
-  margin: 0 auto 24px;
-  max-width: 800px;
-}
-
-.prompt-input {
-  border-radius: var(--border-radius);
-  border: none;
-  font-size: 16px;
-  padding: 20px 70px 20px 20px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  box-shadow: var(--glass-shadow);
-  transition: var(--transition);
-}
-
-.prompt-input:focus {
-  background: rgba(255, 255, 255, 1);
-  box-shadow: var(--glass-shadow-hover);
-  transform: translateY(-2px);
-}
-
-.input-actions {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-}
-
-.create-btn {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background: var(--primary-gradient);
-  border: none;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-  transition: var(--transition);
-}
-
-.create-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
-}
-
-/* 快捷按钮 */
-.quick-actions {
+.home-layout {
   display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-bottom: 32px;
-  flex-wrap: wrap;
+  min-height: 100vh;
+  background-color: var(--bg-secondary);
 }
 
-.quick-btn {
-  border-radius: 25px;
-  padding: 10px 20px;
-  height: auto;
-  background: var(--glass-bg);
-  border: 1px solid rgba(102, 126, 234, 0.2);
-  backdrop-filter: blur(15px);
-  transition: var(--transition);
+/* 左侧边栏 */
+.sidebar {
+  width: 280px;
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 100;
+}
+
+.sidebar-header {
+  padding: 32px 24px 24px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.logo {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
-.quick-btn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(102, 126, 234, 0.4);
-  color: #667eea;
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  color: var(--primary);
 }
 
-/* 提示信息 */
-.notice-section {
-  max-width: 800px;
-  margin: 0 auto 48px;
+.logo-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
-.notice-alert {
-  border-radius: var(--border-radius-sm);
-  border: none;
-  background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+.logo-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
-.notice-content {
+.logo-desc {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin: 0;
+  padding-left: 48px;
+}
+
+/* 导航 */
+.sidebar-nav {
+  padding: 16px 12px;
+  flex: 1;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
   font-size: 14px;
-  line-height: 1.6;
-  color: #555;
-}
-
-.contact-link {
-  color: #667eea;
   font-weight: 500;
   text-decoration: none;
-  transition: var(--transition);
+  transition: all var(--transition-fast);
+  margin-bottom: 4px;
 }
 
-.contact-link:hover {
-  color: #764ba2;
-  text-decoration: underline;
+.nav-item:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
-/* 区域标题 */
-.section {
+.nav-item.active {
+  background-color: var(--primary-subtle);
+  color: var(--primary);
+}
+
+.nav-item :deep(.anticon) {
+  font-size: 18px;
+}
+
+/* 用户信息框 */
+.user-box {
+  margin: 0 16px 16px;
+  padding: 16px;
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background-color: var(--primary);
+  color: white;
+  font-weight: 600;
+}
+
+.user-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-role {
+  font-size: 12px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.logout-btn {
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.logout-btn:hover {
+  color: var(--primary);
+}
+
+.login-btn-sidebar {
+  height: 40px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.login-btn-sidebar:hover {
+  background-color: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+
+/* 联系信息框 - 放在侧边栏中间显眼位置 */
+.contact-box {
+  margin: 0 16px 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, var(--primary-subtle) 0%, rgba(13, 148, 136, 0.15) 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(13, 148, 136, 0.2);
+}
+
+.contact-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.contact-header :deep(.anticon) {
+  font-size: 16px;
+}
+
+.contact-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  margin: 0 0 12px;
+}
+
+.contact-email {
+  display: inline-block;
+  padding: 8px 12px;
+  background-color: var(--primary);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.contact-email:hover {
+  background-color: var(--primary-dark);
+  color: white;
+}
+
+/* 底部 GitHub */
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+.github-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.github-link:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.github-link :deep(.anticon) {
+  font-size: 18px;
+}
+
+/* 主内容区 */
+.main-content {
+  flex: 1;
+  margin-left: 280px;
+  padding: 40px;
+  max-width: calc(100% - 280px);
+}
+
+/* 创建区域 - 左右分栏 */
+.create-section {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 60px;
+  align-items: start;
   margin-bottom: 60px;
+  padding: 40px;
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-light);
+}
+
+.create-left {
+  padding-top: 20px;
+}
+
+.section-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background-color: var(--primary-subtle);
+  color: var(--primary);
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.create-title {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin: 0 0 20px;
+  letter-spacing: -1px;
+}
+
+.create-title .highlight {
+  color: var(--primary);
+}
+
+.create-desc {
+  font-size: 16px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.create-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.input-box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.prompt-textarea {
+  padding: 20px;
+  font-size: 15px;
+  line-height: 1.7;
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-secondary);
+  resize: none;
+  transition: all var(--transition-fast);
+}
+
+.prompt-textarea:hover {
+  border-color: var(--border-medium);
+}
+
+.prompt-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.1);
+  outline: none;
+}
+
+.submit-btn {
+  height: 52px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  background-color: var(--primary);
+  border: none;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-fast);
+}
+
+.submit-btn:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 模板 */
+.templates {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.templates-label {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.template-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tag-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background-color: var(--primary-subtle);
+}
+
+/* 内容网格 */
+.content-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.content-section {
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-light);
+  padding: 32px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
 }
 
 .section-title {
-  font-size: 28px;
-  font-weight: 600;
-  margin-bottom: 32px;
-  color: #1e293b;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.title-icon {
-  font-size: 24px;
+.section-title :deep(.anticon) {
+  font-size: 22px;
+  color: var(--primary);
 }
 
-/* 网格 */
-.app-grid,
-.featured-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-/* 空状态 */
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  background: var(--glass-bg);
-  border-radius: var(--border-radius);
-  backdrop-filter: blur(10px);
-}
-
-.empty-icon {
-  font-size: 48px;
-  display: block;
-  margin-bottom: 16px;
-  animation: bounce 2s ease-in-out infinite;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.empty-state p {
-  color: #888;
-  font-size: 16px;
+.section-title h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
   margin: 0;
 }
 
-/* 分页 */
-.pagination-wrapper {
-  display: flex;
-  justify-content: center;
-  margin-top: 32px;
+.app-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .hero-title {
-    font-size: 36px;
+.empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-tertiary);
+  gap: 12px;
+}
+
+.empty-icon {
+  font-size: 40px;
+  color: var(--neutral-300);
+}
+
+/* 响应式 */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 240px;
   }
 
-  .hero-description {
-    font-size: 16px;
+  .main-content {
+    margin-left: 240px;
+    max-width: calc(100% - 240px);
+    padding: 24px;
   }
 
-  .app-grid,
-  .featured-grid {
+  .create-section {
     grid-template-columns: 1fr;
+    gap: 32px;
   }
 
-  .quick-actions {
-    justify-content: center;
+  .create-title {
+    font-size: 32px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
   }
 
-  .quick-btn {
-    font-size: 13px;
-    padding: 8px 16px;
+  .main-content {
+    margin-left: 0;
+    max-width: 100%;
+    padding: 16px;
   }
 
-  .notice-content {
-    font-size: 13px;
+  .create-section {
+    padding: 24px;
+  }
+
+  .content-section {
+    padding: 20px;
   }
 }
 </style>

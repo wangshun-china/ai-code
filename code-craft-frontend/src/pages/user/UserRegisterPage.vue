@@ -316,12 +316,13 @@ const handleSubmit = async (values: API.UserRegisterRequest) => {
 }
 
 .desc {
-  color: #888;
+  color: #333333;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .input-icon {
-  color: #aaa;
+  color: #333333;
 }
 
 :deep(.ant-input-affix-wrapper),
@@ -344,9 +345,10 @@ const handleSubmit = async (values: API.UserRegisterRequest) => {
 
 .tips {
   text-align: center;
-  color: #999;
+  color: #333333;
   font-size: 13px;
   margin-bottom: 16px;
+  font-weight: 500;
 }
 
 .login-link {

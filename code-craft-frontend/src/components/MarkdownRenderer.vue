@@ -48,7 +48,27 @@ const renderedMarkdown = computed(() => {
 /* 基于 github-markdown-css 的自定义覆盖 */
 .markdown-body {
   line-height: 1.6;
-  font-size: 14px;
+  font-size: 15px;
+  color: #000000;
+}
+
+.markdown-body :deep(p) {
+  color: #000000;
+  margin-bottom: 12px;
+}
+
+.markdown-body :deep(li) {
+  color: #000000;
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4),
+.markdown-body :deep(h5),
+.markdown-body :deep(h6) {
+  color: #000000;
+  font-weight: 600;
 }
 
 /* 代码块样式优化 */

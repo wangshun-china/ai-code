@@ -41,5 +41,24 @@
             <artifactId>code-craft-common</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
+        <!-- Dubbo -->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.ws</groupId>
+            <artifactId>code-craft-client</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!-- 监控依赖 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
     </dependencies>
 </project>

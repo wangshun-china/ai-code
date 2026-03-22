@@ -145,8 +145,9 @@ const deleteMessage = async (id: number | undefined) => {
 
 .page-desc {
   margin: 0;
-  color: #888;
+  color: #333333;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .search-card {
@@ -237,7 +238,8 @@ const deleteMessage = async (id: number | undefined) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #555;
+  color: #333333;
+  font-weight: 500;
 }
 
 .type-tag {
@@ -246,8 +248,9 @@ const deleteMessage = async (id: number | undefined) => {
 }
 
 .time-cell {
-  color: #666;
+  color: #333333;
   font-size: 13px;
+  font-weight: 500;
 }
 
 .action-btn {

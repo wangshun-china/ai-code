@@ -427,8 +427,9 @@ onUnmounted(() => {
 
 .ai-message .message-content {
   background: #f1f5f9;
-  color: #1a1a2e;
+  color: #000000;
   border-bottom-left-radius: 4px;
+  font-weight: 400;
 }
 
 .message-avatar {
@@ -449,7 +450,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #666;
+  color: #333333;
+  font-weight: 500;
 }
 
 .load-more-container {
@@ -558,13 +560,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #666;
+  color: #333333;
 }
 
 .placeholder-icon {
   font-size: 56px;
   margin-bottom: 16px;
   animation: float 3s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
 @keyframes float {
@@ -575,6 +578,8 @@ onUnmounted(() => {
 .preview-loading p {
   margin-top: 16px;
   font-size: 15px;
+  color: #333333;
+  font-weight: 500;
 }
 
 .iframe-wrapper {
@@ -618,7 +623,8 @@ onUnmounted(() => {
 .element-item {
   margin-bottom: 4px;
   font-size: 13px;
-  color: #666;
+  color: #333333;
+  font-weight: 500;
 }
 
 .element-tag {

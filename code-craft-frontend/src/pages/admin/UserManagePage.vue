@@ -114,8 +114,9 @@ const doDelete = async (id: string) => {
 
 .page-desc {
   margin: 0;
-  color: #888;
+  color: #333333;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .search-card {
@@ -204,8 +205,9 @@ const doDelete = async (id: string) => {
 }
 
 .time-cell {
-  color: #666;
+  color: #333333;
   font-size: 13px;
+  font-weight: 500;
 }
 
 .delete-btn {
