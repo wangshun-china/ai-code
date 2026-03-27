@@ -110,7 +110,7 @@ services:
 
   # 用户微服务
   user-service:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:user-service
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:user-service-latest
     container_name: code-craft-user-service
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC"
@@ -141,7 +141,7 @@ services:
 
   # 主应用微服务
   app-service:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:app-service
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:app-service-latest
     container_name: code-craft-app-service
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx1024m -Xms512m -XX:+UseG1GC"
@@ -183,7 +183,7 @@ services:
 
   # 截图微服务（基于 Playwright，比 Selenium 更轻量）
   screenshot-service:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:screenshot-service
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:screenshot-service-latest
     container_name: code-craft-screenshot-service
     shm_size: '512mb'
     environment:
@@ -224,7 +224,7 @@ services:
 
   # Node.js 构建服务（用于构建 Vue 项目）
   node-builder:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:node-builder
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:node-builder-latest
     container_name: code-craft-node-builder
     working_dir: /app
     volumes:
@@ -244,7 +244,7 @@ services:
 
   # 前端
   frontend:
-    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:frontend
+    image: crpi-r1wme86kfaw7rr3f.cn-shanghai.personal.cr.aliyuncs.com/wangshun_build/code-craft-ai:frontend-latest
     container_name: code-craft-frontend
     restart: unless-stopped
     networks:
