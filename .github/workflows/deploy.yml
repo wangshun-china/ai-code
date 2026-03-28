@@ -515,25 +515,41 @@ jobs:
       - name: Deploy Services
         working-directory: ${{ env.DEPLOY_DIR }}
         run: |
-          echo "=== Step 1: Graceful Shutdown ==="
+          echo "=== Step 1: Force Cleanup All Existing Containers ==="
+
+          # 1. 先尝试 docker compose down（如果之前有配置文件）
           docker compose down --remove-orphans 2>/dev/null || true
 
-          # Check and force stop if needed
-          for i in {1..30}; do
-            COUNT=$(docker ps --filter "name=code-craft-" -q 2>/dev/null | wc -l)
-            if [ "$COUNT" -eq 0 ]; then
-              echo "✓ All containers stopped"
-              break
+          # 2. 强制停止并删除所有 code-craft 相关容器（包括之前部署的）
+          echo "Force removing any existing containers..."
+          docker ps -a --filter "name=code-craft" -q 2>/dev/null | xargs -r docker stop -t 5 2>/dev/null || true
+          docker ps -a --filter "name=code-craft" -q 2>/dev/null | xargs -r docker rm -f 2>/dev/null || true
+
+          # 3. 删除可能存在的旧项目容器（包括 mysql、redis 等基础设施）
+          for container in code-craft-mysql code-craft-redis code-craft-nacos code-craft-user-service code-craft-app-service code-craft-screenshot-service code-craft-frontend code-craft-nginx code-craft-node-builder code-craft-nacos-db-init; do
+            if docker ps -a --format "{{.Names}}" | grep -q "^${container}$"; then
+              echo "Removing existing container: $container"
+              docker stop -t 5 "$container" 2>/dev/null || true
+              docker rm -f "$container" 2>/dev/null || true
             fi
-            echo "Waiting... ($i/30)"
-            sleep 2
           done
 
-          # Force cleanup if still running
-          if [ "$(docker ps --filter "name=code-craft-" -q 2>/dev/null | wc -l)" -gt 0 ]; then
-            docker ps --filter "name=code-craft-" -q | xargs -r docker kill 2>/dev/null || true
-            docker ps -a --filter "name=code-craft-" -q | xargs -r docker rm -f 2>/dev/null || true
-          fi
+          # 4. 确认所有容器已删除
+          echo "Verifying cleanup..."
+          for i in {1..10}; do
+            COUNT=$(docker ps -a --filter "name=code-craft" -q 2>/dev/null | wc -l)
+            if [ "$COUNT" -eq 0 ]; then
+              echo "✓ All containers removed"
+              break
+            fi
+            echo "Still have $COUNT containers, retrying... ($i/10)"
+            docker ps -a --filter "name=code-craft" -q 2>/dev/null | xargs -r docker rm -f 2>/dev/null || true
+            sleep 1
+          done
+
+          # 5. 清理孤立卷和网络
+          docker volume prune -f 2>/dev/null || true
+          docker network prune -f 2>/dev/null || true
 
           echo "=== Step 2: Pull Latest Images ==="
           docker compose pull
