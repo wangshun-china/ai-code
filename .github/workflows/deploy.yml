@@ -23,7 +23,7 @@ env:
 
   # 应用配置
   APP_NAME: code-craft
-  DEPLOY_DIR: /root/code-craft-prod
+  DEPLOY_DIR: code-craft-prod
 
   # 数据库配置
   DB_ROOT_PASSWORD: root123456
