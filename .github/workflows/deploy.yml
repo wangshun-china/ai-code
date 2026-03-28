@@ -2,10 +2,17 @@ name: Build and Deploy
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
   workflow_dispatch:
+    inputs:
+      target_env:
+        description: '请选择要部署的目标服务器 (默认推送到阿里云)'
+        required: true
+        default: 'aliyun'
+        type: choice
+        options:
+          - aliyun
+          - wsl
 
 env:
   # 镜像仓库配置 (Single Source of Truth)
@@ -146,9 +153,10 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy to Production
+    name: Deploy to ${{ github.event.inputs.target_env || 'aliyun' }}
     needs: build
-    runs-on: self-hosted
+    # 神级代码：如果是网页端手动选的就用选的标签，如果是 push 代码自动触发的，默认用 aliyun
+    runs-on: [self-hosted, "${{ github.event.inputs.target_env || 'aliyun' }}"]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
