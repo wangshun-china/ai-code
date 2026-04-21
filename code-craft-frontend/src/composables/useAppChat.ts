@@ -7,6 +7,8 @@ import {
   deployApp as deployAppApi,
   deleteApp as deleteAppApi,
   getDeployTask,
+  listAppSourceFiles,
+  getAppSourceFileContent,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { CodeGenTypeEnum } from '@/utils/codeGenTypes'
@@ -50,6 +52,13 @@ export function useAppChat() {
   // 预览相关
   const previewUrl = ref('')
   const previewReady = ref(false)
+  const sourceFiles = ref<API.AppSourceFileNodeVO[]>([])
+  const sourceFilesLoading = ref(false)
+  const openSourceTabs = ref<API.AppSourceFileContentVO[]>([])
+  const activeSourcePath = ref<string>()
+  const activeSourceFile = computed(() => {
+    return openSourceTabs.value.find((file) => file.path === activeSourcePath.value)
+  })
 
   // 部署相关
   const deploying = ref(false)
@@ -147,6 +156,7 @@ export function useAppChat() {
         if (messages.value.length >= 2) {
           updatePreview()
         }
+        await loadSourceFiles()
         if (
           appInfo.value.initPrompt &&
           isOwner.value &&
@@ -304,6 +314,71 @@ export function useAppChat() {
       previewUrl.value = newPreviewUrl
       previewReady.value = true
     }
+  }
+
+  const loadSourceFiles = async () => {
+    if (!appId.value) {
+      sourceFiles.value = []
+      return
+    }
+    sourceFilesLoading.value = true
+    try {
+      const res = await listAppSourceFiles({ appId: appId.value as unknown as number })
+      if (res.data.code === 0) {
+        sourceFiles.value = res.data.data || []
+      }
+    } catch (error) {
+      console.warn('加载源码文件树失败：', error)
+      sourceFiles.value = []
+    } finally {
+      sourceFilesLoading.value = false
+    }
+  }
+
+  const openSourceFile = async (file: API.AppSourceFileNodeVO) => {
+    if (!appId.value || file.directory || !file.path) {
+      return
+    }
+    const cachedFile = openSourceTabs.value.find((item) => item.path === file.path)
+    if (cachedFile) {
+      activeSourcePath.value = cachedFile.path
+      return
+    }
+    try {
+      const res = await getAppSourceFileContent({
+        appId: appId.value as unknown as number,
+        path: file.path,
+      })
+      if (res.data.code === 0 && res.data.data) {
+        openSourceTabs.value.push(res.data.data)
+        activeSourcePath.value = res.data.data.path
+      } else {
+        message.error('读取文件失败：' + res.data.message)
+      }
+    } catch (error) {
+      console.error('读取文件失败：', error)
+      message.error('读取文件失败')
+    }
+  }
+
+  const closeSourceTab = (path?: string) => {
+    if (!path) {
+      return
+    }
+    const currentIndex = openSourceTabs.value.findIndex((item) => item.path === path)
+    if (currentIndex < 0) {
+      return
+    }
+    openSourceTabs.value.splice(currentIndex, 1)
+    if (activeSourcePath.value === path) {
+      const nextFile = openSourceTabs.value[currentIndex] || openSourceTabs.value[currentIndex - 1]
+      activeSourcePath.value = nextFile?.path
+    }
+  }
+
+  const closeAllSourceTabs = () => {
+    openSourceTabs.value = []
+    activeSourcePath.value = undefined
   }
 
   // 滚动到底部
@@ -513,6 +588,11 @@ export function useAppChat() {
     hasMoreHistory,
     previewUrl,
     previewReady,
+    sourceFiles,
+    sourceFilesLoading,
+    openSourceTabs,
+    activeSourcePath,
+    activeSourceFile,
     deploying,
     deployModalVisible,
     deployUrl,
@@ -532,6 +612,10 @@ export function useAppChat() {
     sendInitialMessage,
     sendMessage,
     updatePreview,
+    loadSourceFiles,
+    openSourceFile,
+    closeSourceTab,
+    closeAllSourceTabs,
     scrollToBottom,
     downloadCode,
     deployApp,

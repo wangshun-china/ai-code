@@ -123,6 +123,34 @@ export async function getDeployTask(
   })
 }
 
+/** 查询应用源码文件树 GET /app/files/tree */
+export async function listAppSourceFiles(
+  params: API.listAppSourceFilesParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseAppSourceFileNodeVOArray>('/app/files/tree', {
+    method: 'GET',
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  })
+}
+
+/** 查询应用源码文件内容 GET /app/files/content */
+export async function getAppSourceFileContent(
+  params: API.getAppSourceFileContentParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseAppSourceFileContentVO>('/app/files/content', {
+    method: 'GET',
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 GET /app/download/${param0} */
 export async function downloadAppCode(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

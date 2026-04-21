@@ -33,141 +33,224 @@
 
     <!-- 主要内容区域 -->
     <div class="main-content">
-      <!-- 左侧对话区域 -->
-      <div class="chat-section">
-        <!-- 消息区域 -->
-        <div class="messages-container" ref="messagesContainer">
-          <div v-if="hasMoreHistory" class="load-more-container">
-            <a-button type="link" @click="loadMoreHistory" :loading="loadingHistory" size="small">
-              加载更多历史消息
-            </a-button>
-          </div>
-          <div v-for="(message, index) in messages" :key="index" class="message-item">
-            <div v-if="message.type === 'user'" class="user-message">
-              <div class="message-content">{{ message.content }}</div>
-              <div class="message-avatar user-avatar">
-                <a-avatar :src="loginUserStore.loginUser.userAvatar" />
-              </div>
+      <div class="workspace-shell" ref="workspaceShell">
+        <!-- 左侧源码区域 -->
+        <div class="source-section" :style="{ width: `calc(${sourcePanelWidth}% - 6px)` }">
+          <div class="source-header">
+            <h3>源码工作区</h3>
+            <div class="source-actions">
+              <a-button type="link" size="small" @click="loadSourceFiles" :loading="sourceFilesLoading">
+                刷新
+              </a-button>
+              <a-button v-if="openSourceTabs.length > 0" type="link" size="small" @click="closeAllSourceTabs">
+                清空 Tab
+              </a-button>
             </div>
-            <div v-else class="ai-message">
-              <div class="message-avatar ai-avatar">
-                <a-avatar :src="aiAvatar" />
+          </div>
+          <div class="source-workspace">
+            <div class="source-tree">
+              <a-empty
+                v-if="!sourceFilesLoading && fileTreeData.length === 0"
+                description="暂无生成文件"
+                :image="undefined"
+              />
+              <a-spin v-else-if="sourceFilesLoading" />
+              <a-tree
+                v-else
+                :tree-data="fileTreeData"
+                :selected-keys="activeSourcePath ? [activeSourcePath] : []"
+                default-expand-all
+                block-node
+                @select="handleFileSelect"
+              />
+            </div>
+            <div class="source-editor">
+              <div v-if="openSourceTabs.length > 0" class="source-tabs">
+                <button
+                  v-for="file in openSourceTabs"
+                  :key="file.path"
+                  class="source-tab"
+                  :class="{ active: file.path === activeSourcePath }"
+                  @click="activeSourcePath = file.path"
+                >
+                  <span>{{ file.name }}</span>
+                  <span class="source-tab-close" @click.stop="closeSourceTab(file.path)">×</span>
+                </button>
               </div>
-              <div class="message-content">
-                <MarkdownRenderer v-if="message.content" :content="message.content" />
-                <div v-if="message.loading" class="loading-indicator">
-                  <a-spin size="small" />
-                  <span>AI 正在思考...</span>
-                </div>
+              <div v-if="openSourceTabs.length > 0" class="code-panel">
+                <div class="code-path">{{ activeSourceFile?.path }}</div>
+                <pre class="code-view"><code>{{ activeSourceFile?.content }}</code></pre>
+              </div>
+              <div v-else class="code-empty">
+                <div class="code-empty-title">选择一个文件查看源码</div>
+                <p>左侧文件树会展示当前应用生成目录内的文本文件。</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 选中元素信息展示 -->
-        <a-alert
-          v-if="selectedElementInfo"
-          class="selected-element-alert"
-          type="info"
-          closable
-          @close="clearSelectedElement"
-        >
-          <template #message>
-            <div class="selected-element-info">
-              <div class="element-header">
-                <span class="element-tag">选中元素：{{ selectedElementInfo.tagName.toLowerCase() }}</span>
-                <span v-if="selectedElementInfo.id" class="element-id">#{{ selectedElementInfo.id }}</span>
-                <span v-if="selectedElementInfo.className" class="element-class">
-                  .{{ selectedElementInfo.className.split(' ').join('.') }}
-                </span>
-              </div>
-              <div class="element-details">
-                <div v-if="selectedElementInfo.textContent" class="element-item">
-                  内容: {{ selectedElementInfo.textContent.substring(0, 50) }}
-                  {{ selectedElementInfo.textContent.length > 50 ? '...' : '' }}
-                </div>
-                <div v-if="selectedElementInfo.pagePath" class="element-item">
-                  页面路径: {{ selectedElementInfo.pagePath }}
-                </div>
-                <div class="element-item">
-                  选择器: <code class="element-selector-code">{{ selectedElementInfo.selector }}</code>
-                </div>
-              </div>
-            </div>
-          </template>
-        </a-alert>
+        <div class="workspace-resizer" @mousedown="startResize" title="拖动调整源码和预览宽度"></div>
 
-        <!-- 用户消息输入框 -->
-        <div class="input-container">
-          <div class="input-wrapper">
-            <a-tooltip v-if="!isOwner" title="无法在别人的作品下对话哦~" placement="top">
-              <a-textarea
-                v-model:value="userInput"
-                :placeholder="getInputPlaceholder()"
-                :rows="4"
-                :maxlength="1000"
-                @keydown.enter.prevent="handleSendMessage"
-                :disabled="isGenerating || !isOwner"
-                class="chat-input"
-              />
-            </a-tooltip>
-            <a-textarea
-              v-else
-              v-model:value="userInput"
-              :placeholder="getInputPlaceholder()"
-              :rows="4"
-              :maxlength="1000"
-              @keydown.enter.prevent="handleSendMessage"
-              :disabled="isGenerating"
-              class="chat-input"
-            />
-            <div class="input-actions">
-              <a-button type="primary" @click="handleSendMessage" :loading="isGenerating" :disabled="!isOwner" class="send-btn">
-                <template #icon><SendOutlined /></template>
+        <!-- 右侧网页展示区域 -->
+        <div class="preview-section" :style="{ width: `calc(${100 - sourcePanelWidth}% - 6px)` }">
+          <div class="preview-header">
+            <h3>生成后的网页展示</h3>
+            <div class="preview-actions">
+              <a-button
+                v-if="isOwner && previewUrl"
+                type="link"
+                :danger="isEditMode"
+                @click="toggleEditMode"
+                :class="{ 'edit-mode-active': isEditMode }"
+                class="edit-btn"
+              >
+                <template #icon><EditOutlined /></template>
+                {{ isEditMode ? '退出编辑' : '编辑模式' }}
               </a-button>
+              <a-button v-if="previewUrl" type="link" @click="openInNewTab" class="open-btn">
+                <template #icon><ExportOutlined /></template>
+                新窗口打开
+              </a-button>
+            </div>
+          </div>
+          <div class="preview-content">
+            <div v-if="!previewUrl && !isGenerating" class="preview-placeholder">
+              <div class="placeholder-icon">🌐</div>
+              <p>网站文件生成完成后将在这里展示</p>
+            </div>
+            <div v-else-if="isGenerating" class="preview-loading">
+              <a-spin size="large" />
+              <p>正在生成网站...</p>
+            </div>
+            <div v-else class="iframe-wrapper">
+              <iframe
+                :src="previewUrl"
+                class="preview-iframe"
+                frameborder="0"
+                @load="onIframeLoad"
+              ></iframe>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 右侧网页展示区域 -->
-      <div class="preview-section">
-        <div class="preview-header">
-          <h3>生成后的网页展示</h3>
-          <div class="preview-actions">
-            <a-button
-              v-if="isOwner && previewUrl"
-              type="link"
-              :danger="isEditMode"
-              @click="toggleEditMode"
-              :class="{ 'edit-mode-active': isEditMode }"
-              class="edit-btn"
-            >
-              <template #icon><EditOutlined /></template>
-              {{ isEditMode ? '退出编辑' : '编辑模式' }}
+      <button
+        v-if="chatMode === 'minimized'"
+        class="chat-minimized-pill"
+        type="button"
+        @click="restoreChat"
+      >
+        <span>AI 对话</span>
+        <small>{{ isGenerating ? '生成中...' : '点击展开' }}</small>
+      </button>
+
+      <div v-else class="chat-float" :class="chatWindowClass">
+        <div class="chat-window-header">
+          <div>
+            <div class="chat-window-title">AI 对话</div>
+            <small>{{ chatMode === 'maximized' ? '全屏专注模式' : '悬浮工作模式' }}</small>
+          </div>
+          <div class="chat-window-actions">
+            <a-button type="text" size="small" @click="toggleChatMaximize">
+              {{ chatMode === 'maximized' ? '还原' : '最大化' }}
             </a-button>
-            <a-button v-if="previewUrl" type="link" @click="openInNewTab" class="open-btn">
-              <template #icon><ExportOutlined /></template>
-              新窗口打开
-            </a-button>
+            <a-button type="text" size="small" @click="minimizeChat">最小化</a-button>
           </div>
         </div>
-        <div class="preview-content">
-          <div v-if="!previewUrl && !isGenerating" class="preview-placeholder">
-            <div class="placeholder-icon">🌐</div>
-            <p>网站文件生成完成后将在这里展示</p>
+
+        <div class="chat-section">
+          <!-- 消息区域 -->
+          <div class="messages-container" ref="messagesContainer">
+            <div v-if="hasMoreHistory" class="load-more-container">
+              <a-button type="link" @click="loadMoreHistory" :loading="loadingHistory" size="small">
+                加载更多历史消息
+              </a-button>
+            </div>
+            <div v-for="(message, index) in messages" :key="index" class="message-item">
+              <div v-if="message.type === 'user'" class="user-message">
+                <div class="message-content">{{ message.content }}</div>
+                <div class="message-avatar user-avatar">
+                  <a-avatar :src="loginUserStore.loginUser.userAvatar" />
+                </div>
+              </div>
+              <div v-else class="ai-message">
+                <div class="message-avatar ai-avatar">
+                  <a-avatar :src="aiAvatar" />
+                </div>
+                <div class="message-content">
+                  <MarkdownRenderer v-if="message.content" :content="message.content" />
+                  <div v-if="message.loading" class="loading-indicator">
+                    <a-spin size="small" />
+                    <span>AI 正在思考...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div v-else-if="isGenerating" class="preview-loading">
-            <a-spin size="large" />
-            <p>正在生成网站...</p>
-          </div>
-          <div v-else class="iframe-wrapper">
-            <iframe
-              :src="previewUrl"
-              class="preview-iframe"
-              frameborder="0"
-              @load="onIframeLoad"
-            ></iframe>
+
+          <!-- 选中元素信息展示 -->
+          <a-alert
+            v-if="selectedElementInfo"
+            class="selected-element-alert"
+            type="info"
+            closable
+            @close="clearSelectedElement"
+          >
+            <template #message>
+              <div class="selected-element-info">
+                <div class="element-header">
+                  <span class="element-tag">选中元素：{{ selectedElementInfo.tagName.toLowerCase() }}</span>
+                  <span v-if="selectedElementInfo.id" class="element-id">#{{ selectedElementInfo.id }}</span>
+                  <span v-if="selectedElementInfo.className" class="element-class">
+                    .{{ selectedElementInfo.className.split(' ').join('.') }}
+                  </span>
+                </div>
+                <div class="element-details">
+                  <div v-if="selectedElementInfo.textContent" class="element-item">
+                    内容: {{ selectedElementInfo.textContent.substring(0, 50) }}
+                    {{ selectedElementInfo.textContent.length > 50 ? '...' : '' }}
+                  </div>
+                  <div v-if="selectedElementInfo.pagePath" class="element-item">
+                    页面路径: {{ selectedElementInfo.pagePath }}
+                  </div>
+                  <div class="element-item">
+                    选择器: <code class="element-selector-code">{{ selectedElementInfo.selector }}</code>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </a-alert>
+
+          <!-- 用户消息输入框 -->
+          <div class="input-container">
+            <div class="input-wrapper">
+              <a-tooltip v-if="!isOwner" title="无法在别人的作品下对话哦~" placement="top">
+                <a-textarea
+                  v-model:value="userInput"
+                  :placeholder="getInputPlaceholder()"
+                  :rows="4"
+                  :maxlength="1000"
+                  @keydown.enter.prevent="handleSendMessage"
+                  :disabled="isGenerating || !isOwner"
+                  class="chat-input"
+                />
+              </a-tooltip>
+              <a-textarea
+                v-else
+                v-model:value="userInput"
+                :placeholder="getInputPlaceholder()"
+                :rows="4"
+                :maxlength="1000"
+                @keydown.enter.prevent="handleSendMessage"
+                :disabled="isGenerating"
+                class="chat-input"
+              />
+              <div class="input-actions">
+                <a-button type="primary" @click="handleSendMessage" :loading="isGenerating" :disabled="!isOwner" class="send-btn">
+                  <template #icon><SendOutlined /></template>
+                </a-button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -207,7 +290,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { formatCodeGenType } from '@/utils/codeGenTypes'
 import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
@@ -239,6 +322,11 @@ const {
   hasMoreHistory,
   previewUrl,
   previewReady,
+  sourceFiles,
+  sourceFilesLoading,
+  openSourceTabs,
+  activeSourcePath,
+  activeSourceFile,
   deploying,
   deployModalVisible,
   deployUrl,
@@ -253,6 +341,10 @@ const {
   loadMoreHistory,
   fetchAppInfo,
   sendMessage,
+  loadSourceFiles,
+  openSourceFile,
+  closeSourceTab,
+  closeAllSourceTabs,
   downloadCode,
   deployApp,
   openInNewTab,
@@ -263,11 +355,78 @@ const {
 
 const isEditMode = ref(false)
 const selectedElementInfo = ref<ElementInfo | null>(null)
+const workspaceShell = ref<HTMLElement>()
+const sourcePanelWidth = ref(46)
+type ChatMode = 'floating' | 'maximized' | 'minimized'
+const chatMode = ref<ChatMode>('floating')
 const visualEditor = new VisualEditor({
   onElementSelected: (elementInfo: ElementInfo) => {
     selectedElementInfo.value = elementInfo
   },
 })
+
+const chatWindowClass = computed(() => ({
+  'chat-float-floating': chatMode.value === 'floating',
+  'chat-float-maximized': chatMode.value === 'maximized',
+}))
+
+const fileTreeData = computed(() => {
+  const mapNode = (file: API.AppSourceFileNodeVO): any => ({
+    title: file.name,
+    key: file.path,
+    isLeaf: !file.directory,
+    fileNode: file,
+    children: file.children?.map(mapNode),
+  })
+  return sourceFiles.value.map(mapNode)
+})
+
+const handleFileSelect = (_selectedKeys: string[], info: any) => {
+  const fileNode = info?.node?.fileNode as API.AppSourceFileNodeVO | undefined
+  if (fileNode && !fileNode.directory) {
+    openSourceFile(fileNode)
+  }
+}
+
+const toggleChatMaximize = () => {
+  chatMode.value = chatMode.value === 'maximized' ? 'floating' : 'maximized'
+}
+
+const minimizeChat = () => {
+  chatMode.value = 'minimized'
+}
+
+const restoreChat = () => {
+  chatMode.value = 'floating'
+}
+
+const stopResize = () => {
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  window.removeEventListener('mousemove', handleResizeMove)
+  window.removeEventListener('mouseup', stopResize)
+}
+
+const handleResizeMove = (event: MouseEvent) => {
+  const shell = workspaceShell.value
+  if (!shell) {
+    return
+  }
+  const rect = shell.getBoundingClientRect()
+  const nextWidth = ((event.clientX - rect.left) / rect.width) * 100
+  sourcePanelWidth.value = Math.min(72, Math.max(28, nextWidth))
+}
+
+const startResize = (event: MouseEvent) => {
+  if (window.innerWidth <= 1024) {
+    return
+  }
+  event.preventDefault()
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('mousemove', handleResizeMove)
+  window.addEventListener('mouseup', stopResize)
+}
 
 const handleSendMessage = async () => {
   await sendMessage(selectedElementInfo.value)
@@ -309,15 +468,18 @@ const getInputPlaceholder = () => {
   return '请描述你想生成的网站，越详细效果越好哦'
 }
 
+const handleWindowMessage = (event: MessageEvent) => {
+  visualEditor.handleIframeMessage(event)
+}
+
 onMounted(() => {
   fetchAppInfo()
-  window.addEventListener('message', (event) => {
-    visualEditor.handleIframeMessage(event)
-  })
+  window.addEventListener('message', handleWindowMessage)
 })
 
 onUnmounted(() => {
-  // EventSource 会在组件卸载时自动清理
+  window.removeEventListener('message', handleWindowMessage)
+  stopResize()
 })
 </script>
 
@@ -619,6 +781,111 @@ onUnmounted(() => {
   border-radius: 8px;
 }
 
+.source-section {
+  flex: 1.1;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+  min-width: 220px;
+}
+
+.source-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.source-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.source-tree {
+  flex: 1;
+  padding: 10px;
+  overflow: auto;
+}
+
+.source-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.source-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 180px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #333333;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.source-tab span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-tab.active {
+  background: white;
+  border-color: #e8e8e8;
+}
+
+.source-tab-close {
+  color: #888888;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.source-tab-close:hover {
+  color: #b53333;
+}
+
+.code-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #141413;
+}
+
+.code-path {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #b0aea5;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.code-view {
+  flex: 1;
+  margin: 0;
+  padding: 18px;
+  overflow: auto;
+  color: #f5f4ed;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .selected-element-alert {
   margin: 0 16px;
   border-radius: var(--border-radius-sm);
@@ -727,9 +994,13 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
-  .chat-section, .preview-section {
+  .chat-section, .source-section, .preview-section {
     flex: none;
     height: 50vh;
+  }
+
+  .source-section {
+    height: 36vh;
   }
 }
 
@@ -764,6 +1035,7 @@ onUnmounted(() => {
 
 .header-bar,
 .chat-section,
+.source-section,
 .preview-section {
   background: var(--ivory);
   border: 1px solid var(--border-cream);
@@ -805,13 +1077,74 @@ onUnmounted(() => {
 }
 
 .chat-section,
+.source-section,
 .preview-section {
   border-radius: 28px;
+}
+
+.chat-section {
+  flex: 1.45;
+}
+
+.source-section {
+  flex: 0.85;
+  background: var(--near-black);
+  border-color: var(--dark-surface);
+  min-width: 230px;
+}
+
+.source-header {
+  background: var(--dark-surface);
+  border-bottom: 1px solid rgba(250, 249, 245, 0.08);
+}
+
+.source-header h3 {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ivory);
+}
+
+.source-tree {
+  color: var(--warm-silver);
+}
+
+.source-tree :deep(.ant-tree) {
+  background: transparent;
+  color: var(--warm-silver);
+}
+
+.source-tree :deep(.ant-tree-node-content-wrapper) {
+  border-radius: 8px;
+}
+
+.source-tree :deep(.ant-tree-node-content-wrapper:hover),
+.source-tree :deep(.ant-tree-node-selected) {
+  background: var(--dark-surface) !important;
+  color: var(--ivory) !important;
+}
+
+.preview-section {
+  flex: 2.35;
 }
 
 .preview-header {
   background: rgba(232, 230, 220, 0.42);
   border-bottom: 1px solid var(--border-cream);
+}
+
+.source-tabs {
+  background: var(--warm-sand);
+  border-bottom: 1px solid var(--border-cream);
+}
+
+.source-tab {
+  color: var(--charcoal-warm);
+}
+
+.source-tab.active {
+  background: var(--ivory);
+  border-color: var(--ring-warm);
 }
 
 .preview-header h3 {
@@ -910,5 +1243,301 @@ onUnmounted(() => {
 
 .terminal-prompt {
   color: var(--primary-light);
+}
+
+/* Floating chat + resizable source/preview workbench */
+#appChatPage {
+  position: relative;
+  overflow: hidden;
+}
+
+.main-content {
+  position: relative;
+  display: block;
+  min-height: 0;
+}
+
+.workspace-shell {
+  height: 100%;
+  display: flex;
+  gap: 0;
+  min-height: 0;
+}
+
+.workspace-resizer {
+  width: 12px;
+  flex: 0 0 12px;
+  cursor: col-resize;
+  position: relative;
+}
+
+.workspace-resizer::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--ring-warm);
+  opacity: 0.75;
+  transition: width 0.2s ease, opacity 0.2s ease;
+}
+
+.workspace-resizer:hover::before {
+  width: 4px;
+  opacity: 1;
+}
+
+.source-section,
+.preview-section {
+  flex: none !important;
+  height: 100%;
+  min-width: 0;
+}
+
+.source-section {
+  min-width: 0;
+}
+
+.source-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.source-workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.source-tree {
+  flex: 0 0 240px;
+  width: 240px;
+  min-width: 180px;
+  border-right: 1px solid rgba(250, 249, 245, 0.08);
+}
+
+.source-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #141413;
+}
+
+.source-tabs {
+  flex: 0 0 auto;
+}
+
+.code-panel {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.code-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--warm-silver);
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(250, 249, 245, 0.06), transparent 30%),
+    #141413;
+}
+
+.code-empty-title {
+  margin-bottom: 8px;
+  color: var(--ivory);
+  font-family: var(--font-serif);
+  font-size: 22px;
+}
+
+.code-empty p {
+  max-width: 320px;
+  margin: 0;
+  line-height: 1.7;
+}
+
+.chat-float {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ivory);
+  border: 1px solid var(--border-cream);
+  box-shadow: 0 28px 80px rgba(20, 20, 19, 0.24);
+  transition:
+    width 0.24s ease,
+    height 0.24s ease,
+    inset 0.24s ease,
+    transform 0.24s ease,
+    border-radius 0.24s ease;
+}
+
+.chat-float-floating {
+  top: 50%;
+  left: 50%;
+  width: min(680px, calc(100vw - 48px));
+  height: min(560px, calc(100vh - 170px));
+  transform: translate(-50%, -50%);
+  border-radius: 30px;
+}
+
+.chat-float-maximized {
+  inset: 0;
+  width: auto;
+  height: auto;
+  transform: none;
+  border-radius: 28px;
+}
+
+.chat-window-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: rgba(232, 230, 220, 0.5);
+  border-bottom: 1px solid var(--border-cream);
+}
+
+.chat-window-title {
+  color: var(--near-black);
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.chat-window-header small {
+  color: var(--muted-warm);
+}
+
+.chat-window-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.chat-float .chat-section {
+  flex: 1 !important;
+  height: auto !important;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.chat-float .messages-container {
+  flex: 1;
+  min-height: 0;
+}
+
+.chat-float .input-container {
+  flex: 0 0 auto;
+}
+
+.chat-minimized-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border: 1px solid var(--border-cream);
+  border-radius: 999px;
+  color: var(--near-black);
+  background: var(--ivory);
+  box-shadow: 0 18px 50px rgba(20, 20, 19, 0.18);
+  cursor: pointer;
+  transform: translateX(-50%);
+}
+
+.chat-minimized-pill span {
+  font-family: var(--font-serif);
+  font-size: 18px;
+}
+
+.chat-minimized-pill small {
+  color: var(--muted-warm);
+}
+
+@media (max-width: 1024px) {
+  .workspace-shell {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .workspace-resizer {
+    display: none;
+  }
+
+  .source-section,
+  .preview-section {
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  .source-section {
+    height: 45%;
+  }
+
+  .preview-section {
+    height: 55%;
+  }
+
+  .source-tree {
+    flex-basis: 220px;
+    width: 220px;
+  }
+}
+
+@media (max-width: 768px) {
+  .source-workspace {
+    flex-direction: column;
+  }
+
+  .source-tree {
+    flex: 0 0 170px;
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid rgba(250, 249, 245, 0.08);
+  }
+
+  .chat-float-floating {
+    inset: auto 12px 12px 12px;
+    width: auto;
+    height: 58vh;
+    transform: none;
+    border-radius: 24px;
+  }
+
+  .chat-float-maximized {
+    inset: 0;
+  }
+
+  .chat-window-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .chat-minimized-pill {
+    right: 16px;
+    left: 16px;
+    justify-content: center;
+    transform: none;
+  }
 }
 </style>

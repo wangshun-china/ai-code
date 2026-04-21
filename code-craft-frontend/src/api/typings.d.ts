@@ -39,6 +39,22 @@ declare namespace API {
     updateTime?: string
   }
 
+  type AppSourceFileNodeVO = {
+    name?: string
+    path?: string
+    directory?: boolean
+    size?: number
+    children?: AppSourceFileNodeVO[]
+  }
+
+  type AppSourceFileContentVO = {
+    name?: string
+    path?: string
+    content?: string
+    language?: string
+    size?: number
+  }
+
   type AppQueryRequest = {
     pageNum?: number
     pageSize?: number
@@ -91,6 +107,18 @@ declare namespace API {
   type BaseResponseAppDeployTaskVO = {
     code?: number
     data?: AppDeployTaskVO
+    message?: string
+  }
+
+  type BaseResponseAppSourceFileNodeVOArray = {
+    code?: number
+    data?: AppSourceFileNodeVO[]
+    message?: string
+  }
+
+  type BaseResponseAppSourceFileContentVO = {
+    code?: number
+    data?: AppSourceFileContentVO
     message?: string
   }
 
@@ -195,6 +223,15 @@ declare namespace API {
 
   type getDeployTaskParams = {
     taskId: number
+  }
+
+  type listAppSourceFilesParams = {
+    appId: number
+  }
+
+  type getAppSourceFileContentParams = {
+    appId: number
+    path: string
   }
 
   type getUserByIdParams = {

@@ -154,10 +154,10 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy to ${{ github.event.inputs.target_env || 'aliyun' }}
+    name: Deploy to ${{ github.event.inputs.target_env || 'wsl' }}
     needs: build
     # 神级代码：如果是网页端手动选的就用选的标签，如果是 push 代码自动触发的，默认用 aliyun
-    runs-on: [self-hosted, "${{ github.event.inputs.target_env || 'aliyun' }}"]
+    runs-on: [self-hosted, "${{ github.event.inputs.target_env || 'wsl' }}"]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
