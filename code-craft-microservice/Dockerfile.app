@@ -1,3 +1,4 @@
+
 # 构建阶段
 FROM maven:3.9-eclipse-temurin-21 AS builder
 
@@ -35,7 +36,7 @@ EXPOSE 8126
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8126/api/actuator/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8126/actuator/health || exit 1
 
 # 启动应用
 ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]

@@ -1,7 +1,9 @@
 package com.ws.codecraft.controller;
 
-import com.ws.codecraft.constant.AppConstant;
+import com.ws.codecraft.config.CodeProjectProperties;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -15,70 +17,64 @@ import org.springframework.web.servlet.HandlerMapping;
 import java.io.File;
 
 /**
- * 部署应用静态资源访问
- * 访问格式：http://localhost:8126/{deployKey}[/{fileName}]
+ * 部署应用静态资源访问。
  */
 @RestController
+@Slf4j
+@RequiredArgsConstructor
 public class DeployResourceController {
 
-    // 应用部署根目录
-    private static final String DEPLOY_ROOT_DIR = AppConstant.CODE_DEPLOY_ROOT_DIR;
+    private final CodeProjectProperties codeProjectProperties;
 
-
-    /**
-     * 提供部署应用的静态资源访问，支持目录重定向
-     * 访问格式：http://localhost:8126/{deployKey}[/{fileName}]
-     */
     @GetMapping("/{deployKey:[A-Za-z0-9]{6}}/**")
-    public ResponseEntity<Resource> serveDeployResource(
-            @PathVariable String deployKey,
-            HttpServletRequest request) {
-        System.out.println("🔍 [1] 收到请求: " + request.getRequestURI());
+    public ResponseEntity<Resource> serveDeployResource(@PathVariable String deployKey,
+                                                        HttpServletRequest request) {
         try {
-            // 获取资源路径
             String resourcePath = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
             resourcePath = resourcePath.substring(("/" + deployKey).length());
 
-            // 如果是目录访问（不带斜杠），重定向到带斜杠的URL
             if (resourcePath.isEmpty()) {
                 HttpHeaders headers = new HttpHeaders();
                 headers.add("Location", request.getRequestURI() + "/");
                 return new ResponseEntity<>(headers, HttpStatus.MOVED_PERMANENTLY);
             }
 
-            // 默认返回 index.html
             if (resourcePath.equals("/")) {
                 resourcePath = "/index.html";
             }
 
-            // 构建文件路径
-            String filePath = DEPLOY_ROOT_DIR + "/" + deployKey + resourcePath;
+            String filePath = codeProjectProperties.getDeployRootDir() + "/" + deployKey + resourcePath;
             File file = new File(filePath);
-
-            // 检查文件是否存在
             if (!file.exists()) {
                 return ResponseEntity.notFound().build();
             }
 
-            // 返回文件资源
             Resource resource = new FileSystemResource(file);
             return ResponseEntity.ok()
                     .header("Content-Type", getContentTypeWithCharset(filePath))
                     .body(resource);
         } catch (Exception e) {
+            log.error("Failed to serve deploy resource for {}", request.getRequestURI(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    /**
-     * 根据文件扩展名返回带字符编码的 Content-Type
-     */
     private String getContentTypeWithCharset(String filePath) {
-        if (filePath.endsWith(".html")) return "text/html; charset=UTF-8";
-        if (filePath.endsWith(".css")) return "text/css; charset=UTF-8";
-        if (filePath.endsWith(".js")) return "application/javascript; charset=UTF-8";
-        if (filePath.endsWith(".png")) return "image/png";
-        if (filePath.endsWith(".jpg")) return "image/jpeg";
+        if (filePath.endsWith(".html")) {
+            return "text/html; charset=UTF-8";
+        }
+        if (filePath.endsWith(".css")) {
+            return "text/css; charset=UTF-8";
+        }
+        if (filePath.endsWith(".js")) {
+            return "application/javascript; charset=UTF-8";
+        }
+        if (filePath.endsWith(".png")) {
+            return "image/png";
+        }
+        if (filePath.endsWith(".jpg")) {
+            return "image/jpeg";
+        }
         return "application/octet-stream";
     }
 }

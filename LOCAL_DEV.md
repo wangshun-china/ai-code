@@ -17,7 +17,7 @@ docker compose -f docker-compose.dev.yml logs -f nacos
 | MySQL | localhost:3306 | 用户: yu_ai_code_mother_user, 密码: 12345678 |
 | Redis | localhost:6379 | 无密码 |
 | Nacos | http://localhost:8848/nacos | 用户名/密码: nacos/nacos |
-| Node Builder | http://localhost:3000 | Vue 项目构建服务 |
+| Node Builder | http://localhost:8020 | Vue 项目构建服务 |
 
 ## 文件共享配置（关键！）
 
@@ -34,7 +34,7 @@ mkdir -p tmp/code_output tmp/code_deploy
 ```
 CODE_OUTPUT_DIR=G:\project\yu-ai-code-mother\tmp\code_output
 CODE_DEPLOY_DIR=G:\project\yu-ai-code-mother\tmp\code_deploy
-NODE_BUILDER_URL=http://localhost:3000/build
+NODE_BUILDER_URL=http://localhost:8020/build
 ```
 
 3. 修改 `docker-compose.dev.yml` 中 node-builder 的 volumes：
@@ -51,9 +51,7 @@ volumes:
 ### 方式二：全部在 Docker 中运行
 
 如果文件共享配置复杂，可以把 Java 服务也放到 Docker 中运行：
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
+生产部署不再维护根目录 `docker-compose.prod.yml`，线上由 `.github/workflows/deploy.yml` 在部署目录内生成 `docker-compose.yml`。
 
 ## IDE 运行配置
 
@@ -63,7 +61,7 @@ docker compose -f docker-compose.prod.yml up -d
 2. 添加 Spring Boot 配置
 3. 设置 Environment variables：
    ```
-   CODE_OUTPUT_DIR=G:\project\yu-ai-code-mother\tmp\code_output;CODE_DEPLOY_DIR=G:\project\yu-ai-code-mother\tmp\code_deploy;NODE_BUILDER_URL=http://localhost:3000/build;AI_DASHSCOPE_API_KEY=your-api-key
+   CODE_OUTPUT_DIR=G:\project\yu-ai-code-mother\tmp\code_output;CODE_DEPLOY_DIR=G:\project\yu-ai-code-mother\tmp\code_deploy;NODE_BUILDER_URL=http://localhost:8020/build;AI_DASHSCOPE_API_KEY=your-api-key
    ```
 4. Active profiles: `local`
 

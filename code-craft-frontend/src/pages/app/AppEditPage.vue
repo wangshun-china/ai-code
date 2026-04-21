@@ -276,9 +276,10 @@ onMounted(() => {
 
 <style scoped>
 #appEditPage {
-  padding: 24px;
+  padding: 40px 24px;
   max-width: 1000px;
   margin: 0 auto;
+  min-height: 100vh;
 }
 
 .page-header {
@@ -290,8 +291,9 @@ onMounted(() => {
 
 .page-header h1 {
   margin: 0;
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 34px;
+  font-weight: 500;
+  color: var(--near-black);
 }
 
 .edit-container {
@@ -301,23 +303,36 @@ onMounted(() => {
 .cover-preview {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
-  background: #fafafa;
+  border: 1px solid var(--border-cream);
+  border-radius: var(--radius-lg);
+  background: var(--parchment);
 }
 
 .form-tip {
   font-size: 12px;
-  color: #999;
+  color: var(--stone-gray);
   margin-top: 4px;
 }
 
 :deep(.ant-card-head) {
-  background: #fafafa;
+  background: rgba(232, 230, 220, 0.42);
+  border-bottom: 1px solid var(--border-cream);
 }
 
 :deep(.ant-descriptions-item-label) {
-  background: #fafafa;
+  background: var(--warm-sand);
   font-weight: 500;
+  color: var(--charcoal-warm);
+}
+
+:deep(.ant-card) {
+  background: var(--ivory);
+  border-color: var(--border-cream);
+  box-shadow: var(--shadow-lg);
+}
+
+:deep(.ant-descriptions-bordered .ant-descriptions-item-content) {
+  background: var(--ivory);
+  border-color: var(--border-cream);
 }
 </style>

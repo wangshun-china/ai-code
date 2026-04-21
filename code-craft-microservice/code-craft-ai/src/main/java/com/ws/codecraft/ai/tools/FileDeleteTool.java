@@ -1,7 +1,7 @@
 package com.ws.codecraft.ai.tools;
 
 import cn.hutool.json.JSONObject;
-import com.ws.codecraft.constant.AppConstant;
+import com.ws.codecraft.config.CodeProjectProperties;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
@@ -14,37 +14,35 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * 文件删除工具
- * 支持 AI 通过工具调用的方式删除文件
+ * 文件删除工具。
  */
 @Slf4j
 @Component
 public class FileDeleteTool extends BaseTool {
 
+    private final CodeProjectProperties codeProjectProperties;
+
+    public FileDeleteTool(CodeProjectProperties codeProjectProperties) {
+        this.codeProjectProperties = codeProjectProperties;
+    }
+
     @Tool("删除指定路径的文件")
-    public String deleteFile(
-            @P("文件的相对路径")
-            String relativeFilePath,
-            @ToolMemoryId Long appId
-    ) {
+    public String deleteFile(@P("文件的相对路径") String relativeFilePath,
+                             @ToolMemoryId Long appId) {
         try {
-            Path path = Paths.get(relativeFilePath);
-            if (!path.isAbsolute()) {
-                String projectDirName = "vue_project_" + appId;
-                Path projectRoot = Paths.get(AppConstant.CODE_OUTPUT_ROOT_DIR, projectDirName);
-                path = projectRoot.resolve(relativeFilePath);
-            }
+            Path path = resolvePath(relativeFilePath, appId);
             if (!Files.exists(path)) {
                 return "警告：文件不存在，无需删除 - " + relativeFilePath;
             }
             if (!Files.isRegularFile(path)) {
                 return "错误：指定路径不是文件，无法删除 - " + relativeFilePath;
             }
-            // 安全检查：避免删除重要文件
+
             String fileName = path.getFileName().toString();
             if (isImportantFile(fileName)) {
                 return "错误：不允许删除重要文件 - " + fileName;
             }
+
             Files.delete(path);
             log.info("成功删除文件: {}", path.toAbsolutePath());
             return "文件删除成功: " + relativeFilePath;
@@ -55,9 +53,16 @@ public class FileDeleteTool extends BaseTool {
         }
     }
 
-    /**
-     * 判断是否是重要文件，不允许删除
-     */
+    private Path resolvePath(String relativeFilePath, Long appId) {
+        Path path = Paths.get(relativeFilePath);
+        if (!path.isAbsolute()) {
+            String projectDirName = "vue_project_" + appId;
+            Path projectRoot = Paths.get(codeProjectProperties.getOutputRootDir(), projectDirName);
+            path = projectRoot.resolve(relativeFilePath);
+        }
+        return path;
+    }
+
     private boolean isImportantFile(String fileName) {
         String[] importantFiles = {
                 "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
@@ -86,6 +91,6 @@ public class FileDeleteTool extends BaseTool {
     @Override
     public String generateToolExecutedResult(JSONObject arguments) {
         String relativeFilePath = arguments.getStr("relativeFilePath");
-        return String.format(" [工具调用] %s %s", getDisplayName(), relativeFilePath);
+        return String.format("[工具调用] %s %s", getDisplayName(), relativeFilePath);
     }
 }

@@ -44,6 +44,7 @@ env:
   USER_SERVICE_PORT: "8124"
   APP_SERVICE_PORT: "8126"
   SCREENSHOT_SERVICE_PORT: "8127"
+  NODE_BUILDER_PORT: "8020"
   FRONTEND_PORT: "8090"
   NGINX_PORT: "8888"
 
@@ -178,6 +179,7 @@ jobs:
           COS_REGION: ${{ env.COS_REGION }}
           COS_BUCKET: ${{ env.COS_BUCKET }}
           COS_HOST: ${{ env.COS_HOST }}
+          NODE_BUILDER_PORT: ${{ env.NODE_BUILDER_PORT }}
         run: |
           # 创建部署目录
           mkdir -p ${{ env.DEPLOY_DIR }}
@@ -207,6 +209,7 @@ jobs:
           COS_REGION=${COS_REGION}
           COS_BUCKET=${COS_BUCKET}
           COS_HOST=${COS_HOST}
+          NODE_BUILDER_PORT=${NODE_BUILDER_PORT}
           EOF
 
           # 生成 docker-compose.yml (Infrastructure as Code)
@@ -367,7 +370,7 @@ jobs:
                 DEPLOY_HOST: http://localhost
                 CODE_OUTPUT_DIR: /tmp/code_output
                 CODE_DEPLOY_DIR: /tmp/code_deploy
-                NODE_BUILDER_URL: http://node-builder:3000/build
+                NODE_BUILDER_URL: http://node-builder:${NODE_BUILDER_PORT:-8020}/build
               ports:
                 - "8126:8126"
               volumes:
@@ -434,11 +437,12 @@ jobs:
                 - code_output:/tmp/code_output
               environment:
                 NODE_ENV: production
+                PORT: ${NODE_BUILDER_PORT:-8020}
               networks:
                 - code-craft-network
               restart: unless-stopped
               healthcheck:
-                test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+                test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${NODE_BUILDER_PORT:-8020}/health"]
                 interval: 30s
                 timeout: 10s
                 start_period: 10s

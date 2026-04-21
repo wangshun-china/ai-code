@@ -9,6 +9,7 @@ import com.ws.codecraft.annotation.AuthCheck;
 import com.ws.codecraft.common.BaseResponse;
 import com.ws.codecraft.common.DeleteRequest;
 import com.ws.codecraft.common.ResultUtils;
+import com.ws.codecraft.config.CodeProjectProperties;
 import com.ws.codecraft.constant.AppConstant;
 import com.ws.codecraft.constant.UserConstant;
 import com.ws.codecraft.exception.BusinessException;
@@ -16,14 +17,19 @@ import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.exception.ThrowUtils;
 import com.ws.codecraft.innerservice.InnerUserService;
 import com.ws.codecraft.model.dto.app.*;
+import com.ws.codecraft.model.entity.AppDeployTask;
 import com.ws.codecraft.model.entity.User;
+import com.ws.codecraft.model.vo.AppDeployResultVO;
+import com.ws.codecraft.model.vo.AppDeployTaskVO;
 import com.ws.codecraft.model.vo.AppVO;
 import com.ws.codecraft.ratelimter.annotation.RateLimit;
 import com.ws.codecraft.ratelimter.enums.RateLimitType;
+import com.ws.codecraft.service.AppDeployTaskService;
 import com.ws.codecraft.service.ProjectDownloadService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -51,7 +57,13 @@ public class AppController {
     private AppService appService;
 
     @Resource
+    private AppDeployTaskService appDeployTaskService;
+
+    @Resource
     private ProjectDownloadService projectDownloadService;
+
+    @Resource
+    private CodeProjectProperties codeProjectProperties;
 
     @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RateLimit(limitType = RateLimitType.USER, rate = 5, rateInterval = 60, message = "AI 对话请求过于频繁，请稍后再试")
@@ -90,7 +102,8 @@ public class AppController {
      * @return 部署 URL
      */
     @PostMapping("/deploy")
-    public BaseResponse<String> deployApp(@RequestBody AppDeployRequest appDeployRequest, HttpServletRequest request) {
+    @CacheEvict(value = "good_app_page", allEntries = true)
+    public BaseResponse<AppDeployResultVO> deployApp(@RequestBody AppDeployRequest appDeployRequest, HttpServletRequest request) {
         // 检查部署请求是否为空
         ThrowUtils.throwIf(appDeployRequest == null, ErrorCode.PARAMS_ERROR);
         // 获取应用 ID
@@ -100,9 +113,27 @@ public class AppController {
         // 获取当前登录用户
         User loginUser = InnerUserService.getLoginUser(request);
         // 调用服务部署应用
-        String deployUrl = appService.deployApp(appId, loginUser);
-        // 返回部署 URL
-        return ResultUtils.success(deployUrl);
+        AppDeployResultVO deployResult = appService.deployApp(appId, loginUser);
+        return ResultUtils.success(deployResult);
+    }
+
+    /**
+     * 查询应用部署任务
+     *
+     * @param taskId  部署任务 ID
+     * @param request 请求
+     * @return 部署任务
+     */
+    @GetMapping("/deploy/task/{taskId}")
+    public BaseResponse<AppDeployTaskVO> getDeployTask(@PathVariable Long taskId, HttpServletRequest request) {
+        ThrowUtils.throwIf(taskId == null || taskId <= 0, ErrorCode.PARAMS_ERROR, "部署任务 ID 错误");
+        User loginUser = InnerUserService.getLoginUser(request);
+        AppDeployTask task = appDeployTaskService.getById(taskId);
+        ThrowUtils.throwIf(task == null, ErrorCode.NOT_FOUND_ERROR, "部署任务不存在");
+        if (!task.getUserId().equals(loginUser.getId()) && !UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权访问该部署任务");
+        }
+        return ResultUtils.success(appDeployTaskService.getTaskVO(task));
     }
 
     /**
@@ -129,7 +160,7 @@ public class AppController {
         // 4. 构建应用代码目录路径（生成目录，非部署目录）
         String codeGenType = app.getCodeGenType();
         String sourceDirName = codeGenType + "_" + appId;
-        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+        String sourceDirPath = codeProjectProperties.getOutputRootDir() + File.separator + sourceDirName;
         // 5. 检查代码目录是否存在
         File sourceDir = new File(sourceDirPath);
         ThrowUtils.throwIf(!sourceDir.exists() || !sourceDir.isDirectory(),
@@ -148,6 +179,7 @@ public class AppController {
      * @return 应用 id
      */
     @PostMapping("/add")
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Long> addApp(@RequestBody AppAddRequest appAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(appAddRequest == null, ErrorCode.PARAMS_ERROR);
         // 获取当前登录用户
@@ -164,6 +196,7 @@ public class AppController {
      * @return 更新结果
      */
     @PostMapping("/update")
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Boolean> updateApp(@RequestBody AppUpdateRequest appUpdateRequest, HttpServletRequest request) {
         if (appUpdateRequest == null || appUpdateRequest.getId() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -195,6 +228,7 @@ public class AppController {
      * @return 删除结果
      */
     @PostMapping("/delete")
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Boolean> deleteApp(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -292,6 +326,7 @@ public class AppController {
      */
     @PostMapping("/admin/delete")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Boolean> deleteAppByAdmin(@RequestBody DeleteRequest deleteRequest) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -312,6 +347,7 @@ public class AppController {
      */
     @PostMapping("/admin/update")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @CacheEvict(value = "good_app_page", allEntries = true)
     public BaseResponse<Boolean> updateAppByAdmin(@RequestBody AppAdminUpdateRequest appAdminUpdateRequest) {
         if (appAdminUpdateRequest == null || appAdminUpdateRequest.getId() == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);

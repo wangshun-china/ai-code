@@ -385,4 +385,108 @@ const handleSubmit = async (values: API.UserRegisterRequest) => {
     min-height: auto;
   }
 }
+
+#userRegisterPage {
+  background:
+    radial-gradient(circle at 88% 10%, rgba(201, 100, 66, 0.1), transparent 26%),
+    var(--parchment);
+}
+
+.register-container {
+  background: var(--ivory);
+  border: 1px solid var(--border-cream);
+  box-shadow: var(--shadow-xl);
+}
+
+.decoration-panel {
+  background: var(--near-black);
+}
+
+.decoration-panel::after {
+  content: '';
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  right: -70px;
+  top: -80px;
+  border: 1px solid rgba(201, 100, 66, 0.38);
+  border-radius: 52% 48% 44% 56%;
+}
+
+.shape {
+  background: rgba(201, 100, 66, 0.16);
+  border: 1px solid rgba(250, 249, 245, 0.08);
+}
+
+.brand-title,
+.title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+}
+
+.brand-title {
+  color: var(--ivory);
+  text-shadow: none;
+}
+
+.brand-desc {
+  color: var(--warm-silver);
+}
+
+.feature-item {
+  background: var(--dark-surface);
+  color: var(--warm-silver);
+  border: 1px solid rgba(250, 249, 245, 0.08);
+}
+
+.feature-item:hover {
+  background: #3d3d3a;
+  transform: translateX(4px);
+}
+
+.form-panel {
+  background: var(--ivory);
+}
+
+.title {
+  font-size: 34px;
+  background: none;
+  -webkit-text-fill-color: var(--near-black);
+  color: var(--near-black);
+}
+
+.desc,
+.tips,
+.input-icon {
+  color: var(--olive-gray);
+}
+
+.login-link {
+  color: var(--primary);
+}
+
+.login-link:hover {
+  color: var(--primary-dark);
+}
+
+:deep(.ant-input-affix-wrapper:hover),
+:deep(.ant-input:hover) {
+  border-color: var(--ring-warm);
+}
+
+:deep(.ant-input-affix-wrapper-focused),
+:deep(.ant-input:focus) {
+  border-color: var(--focus-blue);
+  box-shadow: 0 0 0 3px rgba(56, 152, 236, 0.14);
+}
+
+.submit-btn {
+  background: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.submit-btn:hover {
+  background: var(--primary-dark);
+  box-shadow: 0 0 0 1px var(--primary-dark);
+}
 </style>

@@ -93,19 +93,29 @@ const handleClose = () => {
   margin-bottom: 16px;
 }
 
+.success-icon :deep(.anticon) {
+  color: var(--primary) !important;
+}
+
 .deploy-success h3 {
   margin: 0 0 16px;
-  font-size: 20px;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--near-black);
 }
 
 .deploy-success p {
   margin: 0 0 24px;
-  color: #666;
+  color: var(--olive-gray);
 }
 
 .deploy-url {
   margin-bottom: 24px;
+  padding: 10px;
+  background: var(--parchment);
+  border: 1px solid var(--border-cream);
+  border-radius: var(--radius-lg);
 }
 
 .deploy-actions {

@@ -14,6 +14,31 @@ declare namespace API {
     appId?: number
   }
 
+  type AppDeployResultVO = {
+    taskId?: number
+    appId?: number
+    deployKey?: string
+    deployUrl?: string
+    status?: string
+  }
+
+  type AppDeployTaskVO = {
+    id?: number
+    appId?: number
+    userId?: number
+    status?: string
+    currentStep?: string
+    deployKey?: string
+    deployUrl?: string
+    logText?: string
+    errorMessage?: string
+    retryCount?: number
+    startTime?: string
+    endTime?: string
+    createTime?: string
+    updateTime?: string
+  }
+
   type AppQueryRequest = {
     pageNum?: number
     pageSize?: number
@@ -25,6 +50,7 @@ declare namespace API {
     initPrompt?: string
     codeGenType?: string
     deployKey?: string
+    status?: string
     priority?: number
     userId?: number
   }
@@ -42,6 +68,7 @@ declare namespace API {
     codeGenType?: string
     deployKey?: string
     deployedTime?: string
+    status?: string
     priority?: number
     userId?: number
     createTime?: string
@@ -52,6 +79,18 @@ declare namespace API {
   type BaseResponseAppVO = {
     code?: number
     data?: AppVO
+    message?: string
+  }
+
+  type BaseResponseAppDeployResultVO = {
+    code?: number
+    data?: AppDeployResultVO
+    message?: string
+  }
+
+  type BaseResponseAppDeployTaskVO = {
+    code?: number
+    data?: AppDeployTaskVO
     message?: string
   }
 
@@ -152,6 +191,10 @@ declare namespace API {
 
   type getAppVOByIdParams = {
     id: number
+  }
+
+  type getDeployTaskParams = {
+    taskId: number
   }
 
   type getUserByIdParams = {

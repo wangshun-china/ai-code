@@ -64,23 +64,24 @@ const handleViewWork = () => {
 
 <style scoped>
 .app-card {
-  background-color: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-light);
+  background-color: var(--ivory);
+  border-radius: 18px;
+  border: 1px solid var(--border-cream);
   overflow: hidden;
   cursor: pointer;
   transition: all var(--transition-base);
   position: relative;
+  box-shadow: var(--shadow-sm);
 }
 
 .app-card:hover {
-  border-color: var(--border-medium);
+  border-color: var(--border-warm);
   box-shadow: var(--shadow-lg);
-  transform: translateY(-4px);
+  transform: translateY(-3px);
 }
 
 .app-card--featured {
-  border-color: rgba(13, 148, 136, 0.3);
+  border-color: rgba(201, 100, 66, 0.34);
 }
 
 .app-card--featured:hover {
@@ -90,7 +91,9 @@ const handleViewWork = () => {
 /* Preview */
 .card-preview {
   aspect-ratio: 16 / 10;
-  background: linear-gradient(135deg, var(--neutral-100) 0%, var(--neutral-200) 100%);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(201, 100, 66, 0.14), transparent 32%),
+    var(--warm-sand);
   position: relative;
   overflow: hidden;
 }
@@ -112,7 +115,7 @@ const handleViewWork = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--neutral-400);
+  color: var(--stone-gray);
 }
 
 .preview-placeholder svg {
@@ -130,7 +133,7 @@ const handleViewWork = () => {
   gap: 4px;
   padding: 4px 10px;
   background-color: var(--primary);
-  color: white;
+  color: var(--ivory);
   font-size: 12px;
   font-weight: 600;
   border-radius: var(--radius-full);
@@ -143,13 +146,14 @@ const handleViewWork = () => {
 
 /* Content */
 .card-content {
-  padding: 16px;
+  padding: 18px 18px 14px;
 }
 
 .app-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--near-black);
   margin: 0 0 10px;
   line-height: 1.4;
   white-space: nowrap;
@@ -166,13 +170,13 @@ const handleViewWork = () => {
 .author-avatar {
   flex-shrink: 0;
   background-color: var(--primary);
-  color: white;
+  color: var(--ivory);
   font-size: 11px;
 }
 
 .author-name {
   font-size: 13px;
-  color: var(--text-tertiary);
+  color: var(--stone-gray);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -182,7 +186,7 @@ const handleViewWork = () => {
 .card-actions {
   display: flex;
   gap: 8px;
-  padding: 0 16px 16px;
+  padding: 0 18px 18px;
   opacity: 0;
   transform: translateY(10px);
   transition: all var(--transition-fast);

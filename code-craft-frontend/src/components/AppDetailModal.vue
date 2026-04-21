@@ -94,6 +94,10 @@ const handleDelete = () => {
 
 .app-basic-info {
   margin-bottom: 24px;
+  padding: 14px;
+  background: var(--parchment);
+  border: 1px solid var(--border-cream);
+  border-radius: var(--radius-lg);
 }
 
 .info-item {
@@ -104,13 +108,13 @@ const handleDelete = () => {
 
 .info-label {
   width: 80px;
-  color: #666;
+  color: var(--olive-gray);
   font-size: 14px;
   flex-shrink: 0;
 }
 
 .app-actions {
   padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-cream);
 }
 </style>

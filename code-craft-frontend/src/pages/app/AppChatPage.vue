@@ -188,6 +188,21 @@
       :deploy-url="deployUrl"
       @open-site="openDeployedSite"
     />
+
+    <transition name="deploy-terminal-fade">
+      <div v-if="deployTerminalVisible" class="deploy-terminal">
+        <div class="deploy-terminal-header">
+          <span>部署终端</span>
+          <a-tag color="processing">{{ deployTask?.status || 'running' }}</a-tag>
+        </div>
+        <div class="deploy-terminal-body">
+          <div v-for="(line, index) in deployLogs" :key="index" class="deploy-terminal-line">
+            <span class="terminal-prompt">$</span>
+            <span>{{ line }}</span>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -227,6 +242,9 @@ const {
   deploying,
   deployModalVisible,
   deployUrl,
+  deployTerminalVisible,
+  deployLogs,
+  deployTask,
   downloading,
   appDetailVisible,
   isOwner,
@@ -646,6 +664,63 @@ onUnmounted(() => {
   color: #667eea;
 }
 
+.deploy-terminal {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 1100;
+  width: min(520px, calc(100vw - 32px));
+  max-height: 320px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #07111f;
+  box-shadow: 0 20px 60px rgba(7, 17, 31, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.deploy-terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  color: #e2e8f0;
+  font-weight: 700;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.deploy-terminal-body {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 14px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #cbd5e1;
+}
+
+.deploy-terminal-line {
+  display: flex;
+  gap: 8px;
+  word-break: break-word;
+}
+
+.terminal-prompt {
+  color: #38bdf8;
+  flex: 0 0 auto;
+}
+
+.deploy-terminal-fade-enter-active,
+.deploy-terminal-fade-leave-active {
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.deploy-terminal-fade-enter-from,
+.deploy-terminal-fade-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+}
+
 /* 响应式设计 */
 @media (max-width: 1024px) {
   .main-content {
@@ -677,5 +752,163 @@ onUnmounted(() => {
   .message-content {
     max-width: 85%;
   }
+}
+
+/* Claude-inspired visual layer */
+#appChatPage {
+  background:
+    radial-gradient(circle at 8% 8%, rgba(201, 100, 66, 0.08), transparent 24%),
+    var(--parchment);
+  color: var(--near-black);
+}
+
+.header-bar,
+.chat-section,
+.preview-section {
+  background: var(--ivory);
+  border: 1px solid var(--border-cream);
+  box-shadow: var(--shadow-lg);
+}
+
+.header-bar {
+  border-radius: 24px;
+}
+
+.app-name {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 500;
+  background: none;
+  -webkit-text-fill-color: var(--near-black);
+  color: var(--near-black);
+}
+
+.code-gen-type-tag {
+  background: var(--warm-sand);
+  border-color: var(--ring-warm);
+  color: var(--charcoal-warm);
+}
+
+.header-btn {
+  border-radius: var(--radius-lg);
+}
+
+.header-btn.primary {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.header-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.chat-section,
+.preview-section {
+  border-radius: 28px;
+}
+
+.preview-header {
+  background: rgba(232, 230, 220, 0.42);
+  border-bottom: 1px solid var(--border-cream);
+}
+
+.preview-header h3 {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--near-black);
+}
+
+.messages-container {
+  background: var(--ivory);
+}
+
+.message-content {
+  border-radius: 18px;
+  line-height: 1.65;
+}
+
+.user-message .message-content {
+  background: var(--primary);
+  color: var(--ivory);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.ai-message .message-content {
+  background: var(--parchment);
+  color: var(--near-black);
+  border: 1px solid var(--border-cream);
+}
+
+.user-avatar :deep(.ant-avatar),
+.ai-avatar :deep(.ant-avatar) {
+  background: var(--warm-sand);
+  color: var(--charcoal-warm);
+  box-shadow: 0 0 0 1px var(--ring-warm);
+}
+
+.input-container {
+  background: var(--ivory);
+  border-top: 1px solid var(--border-cream);
+}
+
+.chat-input {
+  border: 1px solid var(--border-warm);
+  border-radius: 18px;
+  background: var(--parchment);
+}
+
+.chat-input:focus {
+  border-color: var(--focus-blue);
+  box-shadow: 0 0 0 3px rgba(56, 152, 236, 0.14);
+}
+
+.send-btn {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.preview-content,
+.preview-placeholder,
+.preview-loading {
+  background: var(--parchment);
+}
+
+.iframe-wrapper {
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  background: var(--ivory);
+}
+
+.preview-iframe {
+  border-radius: 16px;
+}
+
+.selected-element-alert {
+  background: var(--warm-sand);
+  border: 1px solid var(--ring-warm);
+}
+
+.element-tag,
+.element-selector-code {
+  color: var(--primary-dark);
+}
+
+.deploy-terminal {
+  background: var(--near-black);
+  border-color: var(--dark-surface);
+  box-shadow: rgba(20, 20, 19, 0.22) 0 18px 60px;
+}
+
+.deploy-terminal-header {
+  background: var(--dark-surface);
+  color: var(--ivory);
+}
+
+.terminal-prompt {
+  color: var(--primary-light);
 }
 </style>

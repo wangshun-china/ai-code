@@ -64,8 +64,8 @@ const doLogout = async () => {
     position: sticky;
     top: 0;
     z-index: 100;
-    background-color: var(--bg-primary);
-    border-bottom: 1px solid var(--border-light);
+    background-color: var(--ivory);
+    border-bottom: 1px solid var(--border-cream);
   }
 
   .header-content {
@@ -85,22 +85,22 @@ const doLogout = async () => {
     width: 36px;
     height: 36px;
     background-color: var(--primary);
-    color: white;
+    color: var(--ivory);
   }
 
   .login-btn {
     height: 36px;
     padding: 0 20px;
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-lg);
     font-weight: 500;
     background-color: var(--primary);
     border-color: var(--primary);
   }
 
   .user-dropdown {
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
-    border: 1px solid var(--border-light);
+    border: 1px solid var(--border-cream);
     padding: 4px;
     min-width: 140px;
   }

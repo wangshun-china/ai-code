@@ -47,6 +47,11 @@ public class AppVO implements Serializable {
     private LocalDateTime deployedTime;
 
     /**
+     * 应用生命周期状态
+     */
+    private String status;
+
+    /**
      * 优先级
      */
     private Integer priority;

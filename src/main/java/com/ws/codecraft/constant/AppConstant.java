@@ -38,10 +38,10 @@ public interface AppConstant {
 
     /**
      * Node.js 构建服务地址（用于构建 Vue 项目）
-     * 本地开发: http://localhost:3001/build
-     * Docker: http://node-builder:3000/build
+     * 本地开发: http://localhost:8020/build
+     * Docker: http://node-builder:8020/build
      */
     String NODE_BUILDER_URL = System.getenv("NODE_BUILDER_URL") != null
             ? System.getenv("NODE_BUILDER_URL")
-            : "http://localhost:3001/build";
+            : "http://localhost:8020/build";
 }

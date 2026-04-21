@@ -7,70 +7,72 @@ import BasicLayout from '@/layouts/BasicLayout.vue'
 </template>
 
 <style>
-/* 全局 CSS 变量 - 现代化简洁风格 */
 :root {
-  /* 主色调 - 青绿色系，现代专业 */
-  --primary: #0d9488;
-  --primary-light: #14b8a6;
-  --primary-dark: #0f766e;
-  --primary-subtle: rgba(13, 148, 136, 0.08);
+  --primary: #c96442;
+  --primary-light: #d97757;
+  --primary-dark: #a84f33;
+  --primary-subtle: rgba(201, 100, 66, 0.12);
+  --primary-gradient: none;
+  --secondary-gradient: none;
 
-  /* 渐变色 */
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --secondary-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --parchment: #f5f4ed;
+  --ivory: #faf9f5;
+  --warm-sand: #e8e6dc;
+  --near-black: #141413;
+  --dark-surface: #30302e;
+  --charcoal-warm: #4d4c48;
+  --olive-gray: #5e5d59;
+  --stone-gray: #87867f;
+  --warm-silver: #b0aea5;
+  --border-cream: #f0eee6;
+  --border-warm: #e8e6dc;
+  --ring-warm: #d1cfc5;
+  --error-crimson: #b53333;
+  --focus-blue: #3898ec;
 
-  /* 中性色 */
-  --neutral-50: #fafafa;
-  --neutral-100: #f5f5f5;
-  --neutral-200: #e5e5e5;
-  --neutral-300: #d4d4d4;
-  --neutral-400: #a3a3a3;
-  --neutral-500: #737373;
-  --neutral-600: #525252;
-  --neutral-700: #404040;
-  --neutral-800: #262626;
-  --neutral-900: #171717;
+  --neutral-50: #faf9f5;
+  --neutral-100: #f5f4ed;
+  --neutral-200: #e8e6dc;
+  --neutral-300: #d1cfc5;
+  --neutral-400: #b0aea5;
+  --neutral-500: #87867f;
+  --neutral-600: #5e5d59;
+  --neutral-700: #4d4c48;
+  --neutral-800: #30302e;
+  --neutral-900: #141413;
 
-  /* 背景色 */
-  --bg-primary: #ffffff;
-  --bg-secondary: #fafafa;
-  --bg-tertiary: #f3f4f6;
+  --bg-primary: var(--ivory);
+  --bg-secondary: var(--parchment);
+  --bg-tertiary: var(--warm-sand);
+  --text-primary: var(--near-black);
+  --text-secondary: var(--olive-gray);
+  --text-tertiary: var(--stone-gray);
+  --text-inverse: var(--ivory);
+  --border-light: var(--border-cream);
+  --border-medium: var(--border-warm);
+  --border-focus: var(--focus-blue);
 
-  /* 文字色 - 高对比度 */
-  --text-primary: #000000;
-  --text-secondary: #333333;
-  --text-tertiary: #555555;
-  --text-inverse: #ffffff;
+  --shadow-sm: 0 0 0 1px var(--border-cream);
+  --shadow-md: 0 0 0 1px var(--ring-warm);
+  --shadow-lg: rgba(20, 20, 19, 0.05) 0 4px 24px, 0 0 0 1px var(--border-warm);
+  --shadow-xl: rgba(20, 20, 19, 0.08) 0 16px 56px, 0 0 0 1px var(--border-warm);
+  --glass-bg: rgba(250, 249, 245, 0.9);
+  --glass-shadow: rgba(20, 20, 19, 0.05) 0 4px 24px, 0 0 0 1px var(--border-cream);
 
-  /* 边框 */
-  --border-light: #e5e5e5;
-  --border-medium: #d4d4d4;
-  --border-focus: var(--primary);
+  --font-serif: Georgia, 'Times New Roman', serif;
+  --font-sans: 'Avenir Next', 'Trebuchet MS', 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
 
-  /* 阴影 */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-
-  /* 玻璃态效果 */
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-
-  /* 圆角 */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-full: 9999px;
-
-  /* 过渡 */
   --transition-fast: 150ms ease;
   --transition-base: 250ms ease;
   --transition-slow: 350ms ease;
 }
 
-/* 全局样式 */
 * {
   box-sizing: border-box;
 }
@@ -84,38 +86,41 @@ html {
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background-color: var(--bg-secondary);
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(circle at 10% 12%, rgba(201, 100, 66, 0.08), transparent 28%),
+    radial-gradient(circle at 88% 2%, rgba(94, 93, 89, 0.08), transparent 26%),
+    var(--parchment);
   color: var(--text-primary);
   line-height: 1.6;
   overflow-x: hidden;
 }
 
-/* 确保所有文字都有高对比度 */
 p, span, div, li, td, th, label {
   color: inherit;
 }
 
 h1, h2, h3, h4, h5, h6 {
   color: var(--text-primary);
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
-/* 覆盖 Ant Design 的默认文字颜色 */
 .ant-typography {
   color: var(--text-primary);
 }
 
 .ant-form-item-label > label {
-  color: var(--text-primary);
+  color: var(--charcoal-warm);
   font-weight: 500;
 }
 
-.ant-input::placeholder {
-  color: #888888;
+.ant-input::placeholder,
+.ant-input-textarea::placeholder {
+  color: var(--stone-gray);
 }
 
-/* 滚动条样式 - 简洁 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -126,21 +131,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--neutral-300);
+  background: var(--ring-warm);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--neutral-400);
+  background: var(--stone-gray);
 }
 
-/* 选中文字样式 */
 ::selection {
   background-color: var(--primary-subtle);
-  color: var(--primary-dark);
+  color: var(--near-black);
 }
 
-/* 链接基础样式 */
 a {
   color: var(--primary);
   text-decoration: none;
@@ -151,56 +154,75 @@ a:hover {
   color: var(--primary-dark);
 }
 
-/* 按钮基础样式覆盖 */
 .ant-btn {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   font-weight: 500;
   transition: all var(--transition-fast);
+  box-shadow: 0 0 0 1px var(--ring-warm);
+}
+
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-text):not(.ant-btn-link) {
+  background: var(--warm-sand);
+  border-color: transparent;
+  color: var(--charcoal-warm);
 }
 
 .ant-btn-primary {
   background-color: var(--primary);
   border-color: var(--primary);
+  color: var(--ivory);
+  box-shadow: 0 0 0 1px var(--primary);
 }
 
 .ant-btn-primary:hover {
   background-color: var(--primary-dark);
   border-color: var(--primary-dark);
+  color: var(--ivory);
 }
 
-/* 输入框样式 */
 .ant-input,
-.ant-input-textarea {
-  border-radius: var(--radius-md);
-  border-color: var(--border-light);
+.ant-input-textarea,
+.ant-input-affix-wrapper {
+  border-radius: var(--radius-lg);
+  border-color: var(--border-medium);
+  background: var(--ivory);
   transition: all var(--transition-fast);
 }
 
 .ant-input:focus,
-.ant-input-textarea:focus {
+.ant-input-textarea:focus,
+.ant-input-affix-wrapper-focused {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+  box-shadow: 0 0 0 3px rgba(56, 152, 236, 0.14);
 }
 
-/* 卡片样式 */
-.ant-card {
-  border-radius: var(--radius-lg);
-  border-color: var(--border-light);
+.ant-card,
+.ant-modal-content {
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-light);
+  background: var(--ivory);
   box-shadow: var(--shadow-sm);
 }
 
-/* 菜单样式 */
+.ant-modal-header {
+  background: transparent;
+}
+
+.ant-modal-title,
+.ant-card-head-title {
+  color: var(--near-black);
+  font-family: var(--font-serif);
+  font-weight: 500;
+}
+
 .ant-menu {
   border-bottom: none;
+  background: transparent;
 }
 
-/* 分页样式 */
-.ant-pagination-item {
-  border-radius: var(--radius-md);
-}
-
-/* Alert 样式 */
-.ant-alert {
+.ant-pagination-item,
+.ant-alert,
+.ant-tag {
   border-radius: var(--radius-md);
 }
 </style>

@@ -126,7 +126,11 @@ public class AiCodeGeneratorFacade {
                     .onCompleteResponse((ChatResponse response) -> {
                         // 执行 Vue 项目构建（同步执行，确保预览时项目已就绪）
                         String projectDirName = "vue_project_" + appId;
-                        vueProjectBuilder.buildProject(projectDirName);
+                        boolean buildSuccess = vueProjectBuilder.buildProject(projectDirName);
+                        if (!buildSuccess) {
+                            sink.error(new BusinessException(ErrorCode.SYSTEM_ERROR, "Vue 项目构建失败"));
+                            return;
+                        }
                         sink.complete();
                     })
                     .onError((Throwable error) -> {
@@ -162,6 +166,7 @@ public class AiCodeGeneratorFacade {
                 log.info("保存成功，目录为：{}", saveDir.getAbsolutePath());
             } catch (Exception e) {
                 log.error("保存失败: {}", e.getMessage());
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "保存代码失败: " + e.getMessage());
             }
         });
     }

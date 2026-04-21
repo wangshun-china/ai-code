@@ -6,6 +6,7 @@ import com.ws.codecraft.model.dto.app.AppAddRequest;
 import com.ws.codecraft.model.dto.app.AppQueryRequest;
 import com.ws.codecraft.model.entity.App;
 import com.ws.codecraft.model.entity.User;
+import com.ws.codecraft.model.vo.AppDeployResultVO;
 import com.ws.codecraft.model.vo.AppVO;
 import reactor.core.publisher.Flux;
 
@@ -44,7 +45,7 @@ public interface AppService extends IService<App> {
      * @param loginUser 登录用户
      * @return 可访问的部署地址
      */
-    String deployApp(Long appId, User loginUser);
+    AppDeployResultVO deployApp(Long appId, User loginUser);
 
     /**
      * 异步生成应用截图并更新封面

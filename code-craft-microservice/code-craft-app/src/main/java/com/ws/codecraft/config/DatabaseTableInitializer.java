@@ -2,77 +2,66 @@ package com.ws.codecraft.config;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.stream.Collectors;
 
 /**
- * 数据库表初始化器
- * 应用启动时自动创建不存在的表
+ * 数据库表初始化器。
+ * 作为 Flyway 基线切换期的兼容兜底开关保留。
  */
 @Component
 @Slf4j
 public class DatabaseTableInitializer {
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
+
+    @Value("${app.database.init.enabled:true}")
+    private boolean databaseInitEnabled;
+
+    public DatabaseTableInitializer(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
     @PostConstruct
     @Transactional
     public void initializeTables() {
-        log.info("开始初始化数据库表...");
+        if (!databaseInitEnabled) {
+            log.info("Database table initializer is disabled by configuration.");
+            return;
+        }
 
+        log.info("开始初始化数据库表...");
         try {
-            // 检查并创建 ai_usage_record 表
             if (!tableExists("ai_usage_record")) {
                 log.info("创建 ai_usage_record 表...");
                 createAiUsageRecordTable();
             }
-
-            // 检查并创建 ai_daily_statistics 表
             if (!tableExists("ai_daily_statistics")) {
                 log.info("创建 ai_daily_statistics 表...");
                 createAiDailyStatisticsTable();
             }
-
             log.info("数据库表初始化完成");
         } catch (Exception e) {
             log.error("数据库表初始化失败: {}", e.getMessage(), e);
         }
     }
 
-    /**
-     * 检查表是否存在
-     */
     private boolean tableExists(String tableName) {
-        try {
-            Connection conn = jdbcTemplate.getDataSource().getConnection();
-            ResultSet rs = conn.getMetaData().getTables(null, null, tableName, null);
-            boolean exists = rs.next();
-            rs.close();
-            conn.close();
-            return exists;
+        try (Connection conn = jdbcTemplate.getDataSource().getConnection();
+             ResultSet rs = conn.getMetaData().getTables(null, null, tableName, null)) {
+            return rs.next();
         } catch (SQLException e) {
-            log.error("检查表是否存在失败: {}", e.getMessage());
+            log.error("检查表是否存在失败: {}", e.getMessage(), e);
             return false;
         }
     }
 
-    /**
-     * 创建 ai_usage_record 表
-     */
     private void createAiUsageRecordTable() {
         String sql = """
             CREATE TABLE IF NOT EXISTS ai_usage_record (
@@ -96,20 +85,17 @@ public class DatabaseTableInitializer {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI使用记录表'
             """;
         jdbcTemplate.execute(sql);
-        log.info("ai_usage_record 表创建成功");
+        log.info("ai_usage_record 表创建完成");
     }
 
-    /**
-     * 创建 ai_daily_statistics 表
-     */
     private void createAiDailyStatisticsTable() {
         String sql = """
             CREATE TABLE IF NOT EXISTS ai_daily_statistics (
                 id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
                 stat_date DATE NOT NULL COMMENT '统计日期',
-                user_id VARCHAR(64) COMMENT '用户ID（为空表示全局统计）',
-                app_id VARCHAR(64) COMMENT '应用ID（为空表示用户级统计）',
-                model_name VARCHAR(64) COMMENT '模型名称（为空表示全模型统计）',
+                user_id VARCHAR(64) COMMENT '用户ID，为空表示全局统计',
+                app_id VARCHAR(64) COMMENT '应用ID，为空表示用户级统计',
+                model_name VARCHAR(64) COMMENT '模型名称，为空表示全模型统计',
                 total_requests INT DEFAULT 0 COMMENT '总请求次数',
                 success_requests INT DEFAULT 0 COMMENT '成功请求次数',
                 error_requests INT DEFAULT 0 COMMENT '失败请求次数',
@@ -125,6 +111,6 @@ public class DatabaseTableInitializer {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI每日统计表'
             """;
         jdbcTemplate.execute(sql);
-        log.info("ai_daily_statistics 表创建成功");
+        log.info("ai_daily_statistics 表创建完成");
     }
 }

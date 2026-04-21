@@ -1,5 +1,6 @@
 package com.ws.codecraft.service.impl;
 
+import com.ws.codecraft.innerservice.InnerUserService;
 import com.ws.codecraft.mapper.AppMapper;
 import com.ws.codecraft.model.entity.User;
 import com.ws.codecraft.model.vo.AiMetricsVO;
@@ -13,12 +14,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
- * 统计服务实现 - 从数据库读取数据
+ * 统计服务实现。
  */
 @Service
 @Slf4j
@@ -37,32 +43,30 @@ public class StatisticsServiceImpl implements StatisticsService {
     private JdbcTemplate jdbcTemplate;
 
     @DubboReference
-    private com.ws.codecraft.innerservice.InnerUserService userService;
+    private InnerUserService userService;
 
     @Override
     public AiMetricsVO getAiMetrics(String startDate, String endDate) {
-        // 查询使用记录统计
+        DateRange dateRange = resolveDateRange(startDate, endDate);
         String sql = """
-            SELECT
-                COALESCE(SUM(total_tokens), 0) as total_tokens,
-                COALESCE(SUM(input_tokens), 0) as input_tokens,
-                COALESCE(SUM(output_tokens), 0) as output_tokens,
-                COUNT(*) as total_requests,
-                SUM(CASE WHEN request_status = 'error' THEN 1 ELSE 0 END) as total_errors,
-                COALESCE(AVG(response_time_ms), 0) as avg_response_time
-            FROM ai_usage_record
-            """;
+                SELECT
+                    COALESCE(SUM(total_tokens), 0) as total_tokens,
+                    COALESCE(SUM(input_tokens), 0) as input_tokens,
+                    COALESCE(SUM(output_tokens), 0) as output_tokens,
+                    COUNT(*) as total_requests,
+                    SUM(CASE WHEN request_status = 'error' THEN 1 ELSE 0 END) as total_errors,
+                    COALESCE(AVG(response_time_ms), 0) as avg_response_time
+                FROM ai_usage_record
+                WHERE request_time >= ? AND request_time < ?
+                """;
 
-        Map<String, Object> result = jdbcTemplate.queryForMap(sql);
-
+        Map<String, Object> result = jdbcTemplate.queryForMap(sql, dateRange.start(), dateRange.endExclusive());
         long totalTokens = getLongValue(result, "total_tokens");
         long inputTokens = getLongValue(result, "input_tokens");
         long outputTokens = getLongValue(result, "output_tokens");
         long totalRequests = getLongValue(result, "total_requests");
         long totalErrors = getLongValue(result, "total_errors");
         double avgResponseTime = getDoubleValue(result, "avg_response_time");
-
-        // 计算错误率
         double errorRate = totalRequests > 0 ? (double) totalErrors / totalRequests * 100 : 0;
 
         return AiMetricsVO.builder()
@@ -74,78 +78,34 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .errorRate(errorRate)
                 .dailyStats(getDailyStats(startDate, endDate))
                 .modelStats(getModelStats(startDate, endDate))
-                .userStats(getUserTokenRanking(10))
+                .userStats(getUserTokenRanking(10, dateRange))
                 .build();
     }
 
     @Override
     public List<AiMetricsVO.UserStat> getUserTokenRanking(Integer limit) {
-        String sql = """
-            SELECT
-                user_id,
-                SUM(total_tokens) as total_tokens,
-                COUNT(*) as total_requests,
-                SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens
-            FROM ai_usage_record
-            GROUP BY user_id
-            ORDER BY total_tokens DESC
-            LIMIT ?
-            """;
-
-        List<Map<String, Object>> records = jdbcTemplate.queryForList(sql, limit);
-
-        List<AiMetricsVO.UserStat> result = new ArrayList<>();
-        for (Map<String, Object> record : records) {
-            String userId = (String) record.get("user_id");
-            if (userId == null) continue;
-            try {
-                User user = userService.getById(Long.parseLong(userId));
-                // 统计用户的应用数量
-                String countSql = "SELECT COUNT(*) FROM app WHERE user_id = ?";
-                Long appCount = jdbcTemplate.queryForObject(countSql, Long.class, userId);
-
-                result.add(AiMetricsVO.UserStat.builder()
-                        .userId(userId)
-                        .userName(user != null ? user.getUserName() : "未知用户")
-                        .totalTokens(getLongValue(record, "total_tokens"))
-                        .requests(getLongValue(record, "total_requests"))
-                        .appCount(appCount != null ? appCount.intValue() : 0)
-                        .build());
-            } catch (Exception e) {
-                log.warn("获取用户信息失败: {}", userId);
-                // 即使获取用户信息失败，仍然添加统计数据
-                result.add(AiMetricsVO.UserStat.builder()
-                        .userId(userId)
-                        .userName("未知用户")
-                        .totalTokens(getLongValue(record, "total_tokens"))
-                        .requests(getLongValue(record, "total_requests"))
-                        .appCount(0)
-                        .build());
-            }
-        }
-
-        return result;
+        return getUserTokenRanking(limit, null);
     }
 
     @Override
     public List<AiMetricsVO.ModelStat> getModelStats(String startDate, String endDate) {
+        DateRange dateRange = resolveDateRange(startDate, endDate);
         String sql = """
-            SELECT
-                model_name,
-                SUM(total_tokens) as total_tokens,
-                COUNT(*) as total_requests,
-                SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens,
-                SUM(CASE WHEN request_status = 'error' THEN 1 ELSE 0 END) as total_errors,
-                AVG(response_time_ms) as avg_response_time
-            FROM ai_usage_record
-            GROUP BY model_name
-            ORDER BY total_tokens DESC
-            """;
+                SELECT
+                    model_name,
+                    SUM(total_tokens) as total_tokens,
+                    COUNT(*) as total_requests,
+                    SUM(input_tokens) as input_tokens,
+                    SUM(output_tokens) as output_tokens,
+                    SUM(CASE WHEN request_status = 'error' THEN 1 ELSE 0 END) as total_errors,
+                    AVG(response_time_ms) as avg_response_time
+                FROM ai_usage_record
+                WHERE request_time >= ? AND request_time < ?
+                GROUP BY model_name
+                ORDER BY total_tokens DESC
+                """;
 
-        List<Map<String, Object>> records = jdbcTemplate.queryForList(sql);
-
+        List<Map<String, Object>> records = jdbcTemplate.queryForList(sql, dateRange.start(), dateRange.endExclusive());
         return records.stream().map(record -> AiMetricsVO.ModelStat.builder()
                 .modelName((String) record.get("model_name"))
                 .requests(getLongValue(record, "total_requests"))
@@ -159,27 +119,23 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     @Override
     public List<AiMetricsVO.DailyStat> getDailyStats(String startDate, String endDate) {
-        LocalDate start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().minusDays(7);
-        LocalDate end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
-
+        DateRange dateRange = resolveDateRange(startDate, endDate);
         String sql = """
-            SELECT
-                DATE(request_time) as stat_date,
-                COUNT(*) as total_requests,
-                SUM(total_tokens) as total_tokens,
-                SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens,
-                SUM(CASE WHEN request_status = 'error' THEN 1 ELSE 0 END) as total_errors,
-                AVG(response_time_ms) as avg_response_time
-            FROM ai_usage_record
-            WHERE request_time >= ? AND request_time < ?
-            GROUP BY DATE(request_time)
-            ORDER BY stat_date ASC
-            """;
+                SELECT
+                    DATE(request_time) as stat_date,
+                    COUNT(*) as total_requests,
+                    SUM(total_tokens) as total_tokens,
+                    SUM(input_tokens) as input_tokens,
+                    SUM(output_tokens) as output_tokens,
+                    SUM(CASE WHEN request_status = 'error' THEN 1 ELSE 0 END) as total_errors,
+                    AVG(response_time_ms) as avg_response_time
+                FROM ai_usage_record
+                WHERE request_time >= ? AND request_time < ?
+                GROUP BY DATE(request_time)
+                ORDER BY stat_date ASC
+                """;
 
-        List<Map<String, Object>> records = jdbcTemplate.queryForList(sql,
-                start.atStartOfDay(), end.plusDays(1).atStartOfDay());
-
+        List<Map<String, Object>> records = jdbcTemplate.queryForList(sql, dateRange.start(), dateRange.endExclusive());
         return records.stream().map(record -> AiMetricsVO.DailyStat.builder()
                 .date(record.get("stat_date").toString())
                 .requests(getLongValue(record, "total_requests"))
@@ -191,9 +147,110 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .build()).toList();
     }
 
-    /**
-     * 安全获取 Long 值
-     */
+    private List<AiMetricsVO.UserStat> getUserTokenRanking(Integer limit, DateRange dateRange) {
+        StringBuilder sqlBuilder = new StringBuilder("""
+                SELECT
+                    user_id,
+                    SUM(total_tokens) as total_tokens,
+                    COUNT(*) as total_requests,
+                    SUM(input_tokens) as input_tokens,
+                    SUM(output_tokens) as output_tokens
+                FROM ai_usage_record
+                """);
+        List<Object> params = new ArrayList<>();
+        if (dateRange != null) {
+            sqlBuilder.append(" WHERE request_time >= ? AND request_time < ? ");
+            params.add(dateRange.start());
+            params.add(dateRange.endExclusive());
+        }
+        sqlBuilder.append("""
+                GROUP BY user_id
+                ORDER BY total_tokens DESC
+                LIMIT ?
+                """);
+        params.add(limit);
+
+        List<Map<String, Object>> records = jdbcTemplate.queryForList(sqlBuilder.toString(), params.toArray());
+        if (records.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, User> userMap = loadUsers(records);
+        Map<Long, Integer> appCountMap = loadAppCounts(userMap.keySet());
+        return buildUserStats(records, userMap, appCountMap);
+    }
+
+    private Map<Long, User> loadUsers(List<Map<String, Object>> records) {
+        List<Long> userIds = records.stream()
+                .map(record -> parseUserId((String) record.get("user_id")))
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return userService.listByIds(userIds).stream()
+                .collect(Collectors.toMap(User::getId, user -> user));
+    }
+
+    private Map<Long, Integer> loadAppCounts(Collection<Long> userIds) {
+        if (userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        String placeholders = userIds.stream().map(id -> "?").collect(Collectors.joining(","));
+        String sql = "SELECT user_id, COUNT(*) AS app_count FROM app WHERE user_id IN (" + placeholders + ") GROUP BY user_id";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, userIds.toArray());
+        Map<Long, Integer> appCountMap = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Object userId = row.get("user_id");
+            Object appCount = row.get("app_count");
+            if (userId instanceof Number userIdNumber && appCount instanceof Number appCountNumber) {
+                appCountMap.put(userIdNumber.longValue(), appCountNumber.intValue());
+            }
+        }
+        return appCountMap;
+    }
+
+    private List<AiMetricsVO.UserStat> buildUserStats(List<Map<String, Object>> records,
+                                                      Map<Long, User> userMap,
+                                                      Map<Long, Integer> appCountMap) {
+        List<AiMetricsVO.UserStat> result = new ArrayList<>(records.size());
+        for (Map<String, Object> record : records) {
+            String userId = (String) record.get("user_id");
+            if (userId == null) {
+                continue;
+            }
+            Long userIdLong = parseUserId(userId);
+            User user = userIdLong == null ? null : userMap.get(userIdLong);
+            result.add(AiMetricsVO.UserStat.builder()
+                    .userId(userId)
+                    .userName(user != null ? user.getUserName() : "未知用户")
+                    .totalTokens(getLongValue(record, "total_tokens"))
+                    .requests(getLongValue(record, "total_requests"))
+                    .appCount(userIdLong == null ? 0 : appCountMap.getOrDefault(userIdLong, 0))
+                    .build());
+        }
+        return result;
+    }
+
+    private Long parseUserId(String userId) {
+        if (userId == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException e) {
+            log.warn("Invalid user id in ai_usage_record: {}", userId);
+            return null;
+        }
+    }
+
+    private DateRange resolveDateRange(String startDate, String endDate) {
+        LocalDate start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().minusDays(7);
+        LocalDate end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
+        return new DateRange(start.atStartOfDay(), end.plusDays(1).atStartOfDay());
+    }
+
     private long getLongValue(Map<String, Object> map, String key) {
         Object value = map.get(key);
         if (value == null) {
@@ -202,14 +259,14 @@ public class StatisticsServiceImpl implements StatisticsService {
         return ((Number) value).longValue();
     }
 
-    /**
-     * 安全获取 Double 值
-     */
     private double getDoubleValue(Map<String, Object> map, String key) {
         Object value = map.get(key);
         if (value == null) {
             return 0.0;
         }
         return ((Number) value).doubleValue();
+    }
+
+    private record DateRange(LocalDateTime start, LocalDateTime endExclusive) {
     }
 }

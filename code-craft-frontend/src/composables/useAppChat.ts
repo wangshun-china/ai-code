@@ -1,8 +1,13 @@
 import { ref, nextTick, computed, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { getAppVoById, deployApp as deployAppApi, deleteApp as deleteAppApi } from '@/api/appController'
+import {
+  getAppVoById,
+  deployApp as deployAppApi,
+  deleteApp as deleteAppApi,
+  getDeployTask,
+} from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { CodeGenTypeEnum } from '@/utils/codeGenTypes'
 import request from '@/request'
@@ -50,6 +55,10 @@ export function useAppChat() {
   const deploying = ref(false)
   const deployModalVisible = ref(false)
   const deployUrl = ref('')
+  const deployTerminalVisible = ref(false)
+  const deployLogs = ref<string[]>([])
+  const deployTask = ref<API.AppDeployTaskVO>()
+  let deployPollTimer: number | undefined
 
   // 下载相关
   const downloading = ref(false)
@@ -337,6 +346,75 @@ export function useAppChat() {
     }
   }
 
+  const getErrorMessage = (error: any, defaultMessage: string) => {
+    return error?.response?.data?.message || error?.message || defaultMessage
+  }
+
+  const stopDeployPolling = () => {
+    if (deployPollTimer) {
+      window.clearTimeout(deployPollTimer)
+      deployPollTimer = undefined
+    }
+  }
+
+  const hideDeployTerminalLater = () => {
+    window.setTimeout(() => {
+      deployTerminalVisible.value = false
+    }, 1200)
+  }
+
+  const syncDeployLogs = (task: API.AppDeployTaskVO) => {
+    const lines = (task.logText || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (lines.length > 0) {
+      deployLogs.value = lines
+    }
+  }
+
+  const pollDeployTask = async (taskId: number) => {
+    stopDeployPolling()
+    const poll = async () => {
+      try {
+        const res = await getDeployTask({ taskId })
+        if (res.data.code === 0 && res.data.data) {
+          const task = res.data.data
+          deployTask.value = task
+          syncDeployLogs(task)
+          if (task.deployUrl) {
+            deployUrl.value = task.deployUrl
+          }
+
+          if (task.status === 'success') {
+            stopDeployPolling()
+            deploying.value = false
+            hideDeployTerminalLater()
+            deployModalVisible.value = true
+            message.success('部署成功')
+            await fetchAppInfo()
+            return
+          }
+
+          if (task.status === 'failed') {
+            stopDeployPolling()
+            deploying.value = false
+            hideDeployTerminalLater()
+            Modal.error({
+              title: '部署失败',
+              content: task.errorMessage || '部署失败，请查看终端日志',
+            })
+            return
+          }
+        }
+      } catch (error) {
+        deployLogs.value.push(`轮询部署任务失败：${getErrorMessage(error, '网络异常')}`)
+      }
+      deployPollTimer = window.setTimeout(poll, 1000)
+    }
+    await poll()
+  }
+
   // 部署应用
   const deployApp = async () => {
     if (!appId.value) {
@@ -344,20 +422,39 @@ export function useAppChat() {
       return
     }
     deploying.value = true
+    deployTerminalVisible.value = true
+    deployLogs.value = ['正在提交部署任务...']
+    deployTask.value = undefined
     try {
       const res = await deployAppApi({ appId: appId.value as unknown as number })
       if (res.data.code === 0 && res.data.data) {
-        deployUrl.value = res.data.data
-        deployModalVisible.value = true
-        message.success('部署成功')
+        const deployResult = res.data.data
+        if (!deployResult.taskId) {
+          throw new Error('部署任务 ID 为空')
+        }
+        deployUrl.value = deployResult.deployUrl || ''
+        deployTask.value = {
+          id: deployResult.taskId,
+          appId: deployResult.appId,
+          deployKey: deployResult.deployKey,
+          deployUrl: deployResult.deployUrl,
+          status: deployResult.status,
+        }
+        deployLogs.value.push('部署任务已创建，等待执行...')
+        await pollDeployTask(deployResult.taskId)
       } else {
-        message.error('部署失败：' + res.data.message)
+        throw new Error(res.data.message || '部署失败')
       }
     } catch (error) {
       console.error('部署失败：', error)
-      message.error('部署失败，请重试')
-    } finally {
+      stopDeployPolling()
       deploying.value = false
+      deployLogs.value.push(`部署失败：${getErrorMessage(error, '请重试')}`)
+      hideDeployTerminalLater()
+      Modal.error({
+        title: '部署失败',
+        content: getErrorMessage(error, '部署失败，请重试'),
+      })
     }
   }
 
@@ -400,6 +497,10 @@ export function useAppChat() {
     }
   }
 
+  onUnmounted(() => {
+    stopDeployPolling()
+  })
+
   return {
     // 状态
     appInfo,
@@ -415,6 +516,9 @@ export function useAppChat() {
     deploying,
     deployModalVisible,
     deployUrl,
+    deployTerminalVisible,
+    deployLogs,
+    deployTask,
     downloading,
     appDetailVisible,
     isOwner,
