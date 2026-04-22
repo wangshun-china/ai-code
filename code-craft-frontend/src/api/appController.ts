@@ -86,6 +86,63 @@ export async function chatToGenCode(
   })
 }
 
+/** 生成应用实现方案 POST /app/chat/plan */
+export async function generateAppPlan(
+  body: API.AppGeneratePlanRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseAppGenerationPlanVO>('/app/chat/plan', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 上传应用附件 POST /app/attachment/upload */
+export async function uploadAppAttachment(
+  params: API.uploadAppAttachmentParams,
+  body: FormData,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseAppAttachmentVO>('/app/attachment/upload', {
+    method: 'POST',
+    params: {
+      ...params,
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 查询应用附件 GET /app/attachment/list */
+export async function listAppAttachments(
+  params: API.listAppAttachmentsParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseAppAttachmentVOArray>('/app/attachment/list', {
+    method: 'GET',
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  })
+}
+
+/** 删除应用附件 POST /app/attachment/delete */
+export async function deleteAppAttachment(body: API.DeleteRequest, options?: { [key: string]: any }) {
+  return request<API.BaseResponseBoolean>('/app/attachment/delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 POST /app/delete */
 export async function deleteApp(body: API.DeleteRequest, options?: { [key: string]: any }) {
   return request<API.BaseResponseBoolean>('/app/delete', {

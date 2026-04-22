@@ -9,11 +9,33 @@ import {
   getDeployTask,
   listAppSourceFiles,
   getAppSourceFileContent,
+  generateAppPlan,
+  uploadAppAttachment,
+  listAppAttachments,
+  deleteAppAttachment,
+  updateApp,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { CodeGenTypeEnum } from '@/utils/codeGenTypes'
 import request from '@/request'
 import { API_BASE_URL, getStaticPreviewUrl } from '@/config/env'
+
+const AI_SLOW_REQUEST_TIMEOUT = 180000
+const PLAN_TRIGGER_KEYWORDS = [
+  '方案',
+  '分析',
+  '规划',
+  '重新设计',
+  '重构',
+  '整体',
+  '架构',
+  '根据附件',
+  '附件',
+  '简历',
+  '设计稿',
+  'pdf',
+  '文档',
+]
 
 /**
  * 消息类型
@@ -23,6 +45,8 @@ export interface Message {
   content: string
   loading?: boolean
   createTime?: string
+  plan?: API.AppGenerationPlanVO
+  planPending?: boolean
 }
 
 /**
@@ -41,7 +65,12 @@ export function useAppChat() {
   const messages = ref<Message[]>([])
   const userInput = ref('')
   const isGenerating = ref(false)
+  const isPlanning = ref(false)
   const messagesContainer = ref<HTMLElement>()
+  const appAttachments = ref<API.AppAttachmentVO[]>([])
+  const attachmentUploading = ref(false)
+  const hasNewAttachmentContext = ref(false)
+  const modelSwitching = ref(false)
 
   // 对话历史相关
   const loadingHistory = ref(false)
@@ -157,6 +186,9 @@ export function useAppChat() {
           updatePreview()
         }
         await loadSourceFiles()
+        if (isOwner.value) {
+          await loadAttachments()
+        }
         if (
           appInfo.value.initPrompt &&
           isOwner.value &&
@@ -177,7 +209,7 @@ export function useAppChat() {
   }
 
   // 生成代码 - 使用 EventSource 处理流式响应
-  const generateCode = async (userMessage: string, aiMessageIndex: number) => {
+  const generateCode = async (userMessage: string, aiMessageIndex: number, planId?: string) => {
     let eventSource: EventSource | null = null
     let streamCompleted = false
 
@@ -187,6 +219,9 @@ export function useAppChat() {
         appId: appId.value || '',
         message: userMessage,
       })
+      if (planId) {
+        params.set('planId', planId)
+      }
       const url = `${baseURL}/app/chat/gen/code?${params}`
 
       eventSource = new EventSource(url, { withCredentials: true })
@@ -267,22 +302,83 @@ export function useAppChat() {
     isGenerating.value = false
   }
 
-  // 发送初始消息
-  const sendInitialMessage = async (prompt: string) => {
-    messages.value.push({ type: 'user', content: prompt })
+  const requestGenerationPlan = async (messageContent: string) => {
+    if (!appId.value || isPlanning.value || isGenerating.value) return
+    isPlanning.value = true
+    const aiMessageIndex = messages.value.length
+    messages.value.push({ type: 'ai', content: '', loading: true })
+    await nextTick()
+    scrollToBottom()
+    try {
+      const res = await generateAppPlan({
+        appId: appId.value as unknown as number,
+        message: messageContent,
+      }, {
+        timeout: AI_SLOW_REQUEST_TIMEOUT,
+      })
+      if (res.data.code === 0 && res.data.data) {
+        const plan = res.data.data
+        messages.value[aiMessageIndex] = {
+          type: 'ai',
+          content: plan.plan || '方案生成完成，请确认是否开始生成代码。',
+          loading: false,
+          plan,
+          planPending: true,
+        }
+        scrollToBottom()
+      } else {
+        throw new Error(res.data.message || '方案生成失败')
+      }
+    } catch (error) {
+      console.error('生成方案失败：', error)
+      messages.value[aiMessageIndex].content = '方案生成失败，请重试。'
+      messages.value[aiMessageIndex].loading = false
+      message.error('方案生成失败')
+    } finally {
+      isPlanning.value = false
+    }
+  }
+
+  const confirmGenerationPlan = async (messageItem: Message) => {
+    if (!messageItem.plan || isGenerating.value || isPlanning.value) return
+    messageItem.planPending = false
+    hasNewAttachmentContext.value = false
     const aiMessageIndex = messages.value.length
     messages.value.push({ type: 'ai', content: '', loading: true })
     await nextTick()
     scrollToBottom()
     isGenerating.value = true
-    await generateCode(prompt, aiMessageIndex)
+    await generateCode(messageItem.plan.message || '', aiMessageIndex, messageItem.plan.planId)
+  }
+
+  // 发送初始消息
+  const sendInitialMessage = async (prompt: string) => {
+    messages.value.push({ type: 'user', content: prompt })
+    await nextTick()
+    scrollToBottom()
+    await requestGenerationPlan(prompt)
+  }
+
+  const shouldRequestPlan = (messageContent: string, selectedElementInfo?: any) => {
+    if (selectedElementInfo) {
+      return false
+    }
+    const status = appInfo.value?.status
+    if (!status || status === 'draft' || status === 'generate_failed') {
+      return true
+    }
+    if (hasNewAttachmentContext.value) {
+      return true
+    }
+    const normalizedMessage = messageContent.toLowerCase()
+    return PLAN_TRIGGER_KEYWORDS.some((keyword) => normalizedMessage.includes(keyword.toLowerCase()))
   }
 
   // 发送消息
   const sendMessage = async (selectedElementInfo?: any) => {
-    if (!userInput.value.trim() || isGenerating.value) return
+    if ((!userInput.value.trim() && appAttachments.value.length === 0) || isGenerating.value) return
 
-    let messageContent = userInput.value.trim()
+    let messageContent = userInput.value.trim() || '请根据已上传附件生成网页。'
     if (selectedElementInfo) {
       let elementContext = `\n\n选中元素信息：`
       if (selectedElementInfo.pagePath) {
@@ -297,13 +393,111 @@ export function useAppChat() {
     userInput.value = ''
 
     messages.value.push({ type: 'user', content: messageContent })
-    const aiMessageIndex = messages.value.length
-    messages.value.push({ type: 'ai', content: '', loading: true })
 
     await nextTick()
     scrollToBottom()
-    isGenerating.value = true
-    await generateCode(messageContent, aiMessageIndex)
+    if (!shouldRequestPlan(messageContent, selectedElementInfo)) {
+      const aiMessageIndex = messages.value.length
+      messages.value.push({ type: 'ai', content: '', loading: true })
+      isGenerating.value = true
+      await generateCode(messageContent, aiMessageIndex)
+      return
+    }
+    await requestGenerationPlan(messageContent)
+  }
+
+  const loadAttachments = async () => {
+    if (!appId.value) {
+      appAttachments.value = []
+      return
+    }
+    try {
+      const res = await listAppAttachments({ appId: appId.value as unknown as number })
+      if (res.data.code === 0) {
+        appAttachments.value = res.data.data || []
+      }
+    } catch (error) {
+      console.warn('加载附件失败：', error)
+      appAttachments.value = []
+    }
+  }
+
+  const uploadAttachment = async (options: any) => {
+    if (!appId.value || !options?.file) {
+      return
+    }
+    const file = options.file as File
+    attachmentUploading.value = true
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await uploadAppAttachment(
+        { appId: appId.value as unknown as number },
+        formData,
+        { timeout: AI_SLOW_REQUEST_TIMEOUT }
+      )
+      if (res.data.code === 0 && res.data.data) {
+        appAttachments.value.push(res.data.data)
+        hasNewAttachmentContext.value = true
+        message.success('附件解析完成，已加入生成上下文')
+        options.onSuccess?.(res.data.data, file)
+      } else {
+        throw new Error(res.data.message || '附件上传失败')
+      }
+    } catch (error) {
+      console.error('附件上传失败：', error)
+      message.error(getErrorMessage(error, '附件上传失败'))
+      options.onError?.(error)
+    } finally {
+      attachmentUploading.value = false
+    }
+  }
+
+  const deleteAttachment = async (attachmentId?: number) => {
+    if (!attachmentId) {
+      return
+    }
+    try {
+      const res = await deleteAppAttachment({ id: attachmentId })
+      if (res.data.code === 0) {
+        appAttachments.value = appAttachments.value.filter((item) => item.id !== attachmentId)
+        message.success('附件已移除')
+      } else {
+        message.error(res.data.message || '删除附件失败')
+      }
+    } catch (error) {
+      console.error('删除附件失败：', error)
+      message.error('删除附件失败')
+    }
+  }
+
+  const switchModel = async (modelKey: string) => {
+    if (!appInfo.value?.id || !modelKey || modelKey === appInfo.value.modelKey) {
+      return
+    }
+    modelSwitching.value = true
+    try {
+      const res = await updateApp({
+        id: appInfo.value.id,
+        appName: appInfo.value.appName,
+        modelKey,
+      })
+      if (res.data.code === 0) {
+        appInfo.value = {
+          ...appInfo.value,
+          modelKey,
+        }
+        message.success('模型已切换，后续生成将使用新模型')
+      } else {
+        throw new Error(res.data.message || '模型切换失败')
+      }
+    } catch (error) {
+      console.error('模型切换失败：', error)
+      message.error(getErrorMessage(error, '模型切换失败'))
+      await fetchAppInfo()
+    } finally {
+      modelSwitching.value = false
+    }
   }
 
   // 更新预览
@@ -422,6 +616,9 @@ export function useAppChat() {
   }
 
   const getErrorMessage = (error: any, defaultMessage: string) => {
+    if (error?.code === 'ECONNABORTED') {
+      return '请求超时，AI 处理附件或生成方案时间较长，请稍后重试'
+    }
     return error?.response?.data?.message || error?.message || defaultMessage
   }
 
@@ -583,7 +780,11 @@ export function useAppChat() {
     messages,
     userInput,
     isGenerating,
+    isPlanning,
     messagesContainer,
+    appAttachments,
+    attachmentUploading,
+    modelSwitching,
     loadingHistory,
     hasMoreHistory,
     previewUrl,
@@ -611,6 +812,10 @@ export function useAppChat() {
     fetchAppInfo,
     sendInitialMessage,
     sendMessage,
+    confirmGenerationPlan,
+    uploadAttachment,
+    deleteAttachment,
+    switchModel,
     updatePreview,
     loadSourceFiles,
     openSourceFile,

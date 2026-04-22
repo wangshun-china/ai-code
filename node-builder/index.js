@@ -114,11 +114,12 @@ function execBuild(projectPath) {
     child.on('close', (code) => {
       if (code === 0) {
         resolve({ success: true, stdout, stderr });
-      } else {
-        // 如果失败，返回详细的 stderr
+    } else {
+        // 如果失败，返回 stdout + stderr，便于后端把完整诊断交给 AI 自动修复
+        const combinedOutput = [stdout, stderr].filter(Boolean).join('\n');
         resolve({
           success: false,
-          error: stderr || `构建进程退出码: ${code}`,
+          error: combinedOutput || `构建进程退出码: ${code}`,
           stdout,
           stderr
         });

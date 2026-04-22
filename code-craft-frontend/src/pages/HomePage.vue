@@ -2,11 +2,18 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
+import type { UploadProps } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { addApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
+import {
+  addApp,
+  listMyAppVoByPage,
+  listGoodAppVoByPage,
+  uploadAppAttachment,
+} from '@/api/appController'
 import { getDeployUrl } from '@/config/env'
+import { AI_MODEL_OPTIONS, DEFAULT_AI_MODEL } from '@/utils/aiModels'
 import AppCard from '@/components/AppCard.vue'
-import { ThunderboltOutlined, AppstoreOutlined, StarOutlined, MailOutlined, GithubOutlined, HomeOutlined, SettingOutlined, UserOutlined, LogoutOutlined, BarChartOutlined } from '@ant-design/icons-vue'
+import { ThunderboltOutlined, AppstoreOutlined, StarOutlined, MailOutlined, GithubOutlined, HomeOutlined, SettingOutlined, BarChartOutlined, PaperClipOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { userLogout } from '@/api/userController'
 import { PlusOutlined } from '@ant-design/icons-vue'
 
@@ -15,6 +22,9 @@ const loginUserStore = useLoginUserStore()
 
 const userPrompt = ref('')
 const creating = ref(false)
+const pendingAttachments = ref<File[]>([])
+const AI_SLOW_REQUEST_TIMEOUT = 180000
+const selectedModelKey = ref(DEFAULT_AI_MODEL)
 
 const myApps = ref<API.AppVO[]>([])
 const myAppsPage = reactive({
@@ -34,8 +44,53 @@ const setPrompt = (prompt: string) => {
   userPrompt.value = prompt
 }
 
+const beforeAttachmentSelect: UploadProps['beforeUpload'] = (file) => {
+  if (pendingAttachments.value.length >= 5) {
+    message.warning('最多上传 5 个附件')
+    return false
+  }
+  const rawFile = file as File
+  if (rawFile.size > 10 * 1024 * 1024) {
+    message.warning('单个附件不能超过 10MB')
+    return false
+  }
+  pendingAttachments.value.push(rawFile)
+  return false
+}
+
+const removePendingAttachment = (index: number) => {
+  pendingAttachments.value.splice(index, 1)
+}
+
+const uploadPendingAttachments = async (appId: string) => {
+  if (pendingAttachments.value.length === 0) {
+    return
+  }
+  message.loading({
+    content: `正在解析 ${pendingAttachments.value.length} 个附件...`,
+    key: 'home-attachment-upload',
+    duration: 0,
+  })
+  for (const file of pendingAttachments.value) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await uploadAppAttachment(
+      { appId: appId as unknown as number },
+      formData,
+      { timeout: AI_SLOW_REQUEST_TIMEOUT }
+    )
+    if (res.data.code !== 0) {
+      throw new Error(res.data.message || `附件 ${file.name} 上传失败`)
+    }
+  }
+  message.success({
+    content: '附件解析完成',
+    key: 'home-attachment-upload',
+  })
+}
+
 const createApp = async () => {
-  if (!userPrompt.value.trim()) {
+  if (!userPrompt.value.trim() && pendingAttachments.value.length === 0) {
     message.warning('请输入应用描述')
     return
   }
@@ -48,13 +103,16 @@ const createApp = async () => {
 
   creating.value = true
   try {
+    const initPrompt = userPrompt.value.trim() || '请根据我上传的设计稿、简历或文档生成一个完整网页。'
     const res = await addApp({
-      initPrompt: userPrompt.value.trim(),
+      initPrompt,
+      modelKey: selectedModelKey.value,
     })
 
     if (res.data.code === 0 && res.data.data) {
-      message.success('应用创建成功')
       const appId = String(res.data.data)
+      await uploadPendingAttachments(appId)
+      message.success('应用创建成功')
       await router.push(`/app/chat/${appId}`)
     } else {
       message.error('创建失败：' + res.data.message)
@@ -252,6 +310,47 @@ onMounted(() => {
               :maxlength="1000"
               class="prompt-textarea"
             />
+            <div class="home-attachment-panel">
+              <a-select
+                v-model:value="selectedModelKey"
+                class="home-model-select"
+                :options="AI_MODEL_OPTIONS"
+                :disabled="creating"
+              />
+              <a-upload
+                :show-upload-list="false"
+                :before-upload="beforeAttachmentSelect"
+                accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.docx,.txt,.md,.markdown,.json,.csv,.html,.css,.js,.ts,.vue"
+                :disabled="creating"
+              >
+                <a-button class="home-attachment-btn" :disabled="creating">
+                  <template #icon><PaperClipOutlined /></template>
+                  上传设计稿 / 简历 / 文档
+                </a-button>
+              </a-upload>
+              <span class="home-attachment-tip">创建后会先解析附件，再进入对话生成</span>
+            </div>
+            <div v-if="pendingAttachments.length > 0" class="home-attachment-list">
+              <div
+                v-for="(file, index) in pendingAttachments"
+                :key="`${file.name}-${file.size}-${index}`"
+                class="home-attachment-item"
+              >
+                <div class="home-attachment-meta">
+                  <PaperClipOutlined />
+                  <span>{{ file.name }}</span>
+                  <small>{{ (file.size / 1024 / 1024).toFixed(2) }}MB</small>
+                </div>
+                <a-button
+                  type="text"
+                  size="small"
+                  :disabled="creating"
+                  @click="removePendingAttachment(index)"
+                >
+                  <template #icon><DeleteOutlined /></template>
+                </a-button>
+              </div>
+            </div>
             <a-button
               type="primary"
               size="large"
@@ -701,6 +800,73 @@ onMounted(() => {
   border-color: var(--focus-blue);
   box-shadow: 0 0 0 3px rgba(56, 152, 236, 0.14);
   outline: none;
+}
+
+.home-attachment-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: -4px;
+}
+
+.home-model-select {
+  min-width: 220px;
+}
+
+.home-attachment-btn {
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--warm-sand);
+  border-color: var(--ring-warm);
+  color: var(--charcoal-warm);
+  font-weight: 600;
+}
+
+.home-attachment-btn:hover {
+  color: var(--primary-dark);
+  border-color: var(--primary-light);
+}
+
+.home-attachment-tip {
+  color: var(--stone-gray);
+  font-size: 12px;
+}
+
+.home-attachment-list {
+  display: grid;
+  gap: 8px;
+}
+
+.home-attachment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-cream);
+  border-radius: 14px;
+  background: rgba(250, 249, 245, 0.6);
+}
+
+.home-attachment-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--charcoal-warm);
+  font-size: 13px;
+}
+
+.home-attachment-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-attachment-meta small {
+  flex: 0 0 auto;
+  color: var(--muted-warm);
 }
 
 .submit-btn {

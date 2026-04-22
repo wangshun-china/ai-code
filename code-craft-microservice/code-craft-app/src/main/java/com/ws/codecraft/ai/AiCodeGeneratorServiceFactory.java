@@ -2,18 +2,22 @@ package com.ws.codecraft.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.ws.codecraft.ai.config.ReasoningStreamingChatModelConfig;
+import com.ws.codecraft.ai.config.StreamingChatModelConfig;
 import com.ws.codecraft.ai.guardrail.PromptSafetyInputGuardrail;
 import com.ws.codecraft.ai.tools.*;
 import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
+import com.ws.codecraft.model.enums.AiModelEnum;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import com.ws.codecraft.service.ChatHistoryService;
-import com.ws.codecraft.utils.SpringContextUtil;
 import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.service.AiServices;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +35,12 @@ public class AiCodeGeneratorServiceFactory {
 
     @Resource(name = "openAiChatModel")
     private ChatModel chatModel;
+
+    @Resource
+    private StreamingChatModelConfig streamingChatModelConfig;
+
+    @Resource
+    private ReasoningStreamingChatModelConfig reasoningStreamingChatModelConfig;
 
     @Resource
     private RedisChatMemoryStore redisChatMemoryStore;
@@ -75,8 +85,13 @@ public class AiCodeGeneratorServiceFactory {
      * @return
      */
     public AiCodeGeneratorService getAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenType) {
-        String cacheKey = buildCacheKey(appId, codeGenType);
-        return serviceCache.get(cacheKey, key -> createAiCodeGeneratorService(appId, codeGenType));
+        return getAiCodeGeneratorService(appId, codeGenType, null);
+    }
+
+    public AiCodeGeneratorService getAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenType, String modelKey) {
+        String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        String cacheKey = buildCacheKey(appId, codeGenType, normalizedModelKey);
+        return serviceCache.get(cacheKey, key -> createAiCodeGeneratorService(appId, codeGenType, normalizedModelKey));
     }
 
     /**
@@ -86,8 +101,9 @@ public class AiCodeGeneratorServiceFactory {
      * @param codeGenType 生成类型
      * @return
      */
-    private AiCodeGeneratorService createAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenType) {
-        log.info("为 appId: {} 创建新的 AI 服务实例", appId);
+    private AiCodeGeneratorService createAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenType, String modelKey) {
+        log.info("为 appId: {} 创建新的 AI 服务实例, model={}", appId, modelKey);
+        ChatModel selectedChatModel = createChatModel(modelKey);
         // 根据 appId 构建独立的对话记忆
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory
                 .builder()
@@ -100,10 +116,9 @@ public class AiCodeGeneratorServiceFactory {
         return switch (codeGenType) {
             // Vue 项目生成，使用工具调用和推理模型
             case VUE_PROJECT -> {
-                // 使用多例模式的 StreamingChatModel 解决并发问题
-                StreamingChatModel reasoningStreamingChatModel = SpringContextUtil.getBean("reasoningStreamingChatModelPrototype", StreamingChatModel.class);
+                StreamingChatModel reasoningStreamingChatModel = createReasoningStreamingChatModel(modelKey);
                 yield AiServices.builder(AiCodeGeneratorService.class)
-                        .chatModel(chatModel)
+                        .chatModel(selectedChatModel)
                         .streamingChatModel(reasoningStreamingChatModel)
                         .chatMemoryProvider(memoryId -> chatMemory)
                         .tools(toolManager.getAllTools())
@@ -119,10 +134,9 @@ public class AiCodeGeneratorServiceFactory {
             }
             // HTML 和 多文件生成，使用流式对话模型
             case HTML, MULTI_FILE -> {
-                // 使用多例模式的 StreamingChatModel 解决并发问题
-                StreamingChatModel openAiStreamingChatModel = SpringContextUtil.getBean("streamingChatModelPrototype", StreamingChatModel.class);
+                StreamingChatModel openAiStreamingChatModel = createStreamingChatModel(modelKey);
                 yield AiServices.builder(AiCodeGeneratorService.class)
-                        .chatModel(chatModel)
+                        .chatModel(selectedChatModel)
                         .streamingChatModel(openAiStreamingChatModel)
                         .chatMemory(chatMemory)
                         .inputGuardrails(new PromptSafetyInputGuardrail()) // 添加输入护轨
@@ -152,6 +166,46 @@ public class AiCodeGeneratorServiceFactory {
      * @return
      */
     private String buildCacheKey(long appId, CodeGenTypeEnum codeGenType) {
-        return appId + "_" + codeGenType.getValue();
+        return buildCacheKey(appId, codeGenType, AiModelEnum.DEFAULT_MODEL_KEY);
+    }
+
+    private String buildCacheKey(long appId, CodeGenTypeEnum codeGenType, String modelKey) {
+        return appId + "_" + codeGenType.getValue() + "_" + AiModelEnum.normalize(modelKey);
+    }
+
+    private ChatModel createChatModel(String modelKey) {
+        return OpenAiChatModel.builder()
+                .apiKey(streamingChatModelConfig.getApiKey())
+                .baseUrl(streamingChatModelConfig.getBaseUrl())
+                .modelName(AiModelEnum.normalize(modelKey))
+                .maxTokens(streamingChatModelConfig.getMaxTokens())
+                .temperature(streamingChatModelConfig.getTemperature())
+                .logRequests(streamingChatModelConfig.isLogRequests())
+                .logResponses(streamingChatModelConfig.isLogResponses())
+                .build();
+    }
+
+    private StreamingChatModel createStreamingChatModel(String modelKey) {
+        return OpenAiStreamingChatModel.builder()
+                .apiKey(streamingChatModelConfig.getApiKey())
+                .baseUrl(streamingChatModelConfig.getBaseUrl())
+                .modelName(AiModelEnum.normalize(modelKey))
+                .maxTokens(streamingChatModelConfig.getMaxTokens())
+                .temperature(streamingChatModelConfig.getTemperature())
+                .logRequests(streamingChatModelConfig.isLogRequests())
+                .logResponses(streamingChatModelConfig.isLogResponses())
+                .build();
+    }
+
+    private StreamingChatModel createReasoningStreamingChatModel(String modelKey) {
+        return OpenAiStreamingChatModel.builder()
+                .apiKey(reasoningStreamingChatModelConfig.getApiKey())
+                .baseUrl(reasoningStreamingChatModelConfig.getBaseUrl())
+                .modelName(AiModelEnum.normalize(modelKey))
+                .maxTokens(reasoningStreamingChatModelConfig.getMaxTokens())
+                .temperature(reasoningStreamingChatModelConfig.getTemperature())
+                .logRequests(reasoningStreamingChatModelConfig.getLogRequests())
+                .logResponses(reasoningStreamingChatModelConfig.getLogResponses())
+                .build();
     }
 }

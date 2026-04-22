@@ -47,6 +47,16 @@ public interface AiCodeGeneratorService {
     Flux<String> generateMultiFileCodeStream(String userMessage);
 
     /**
+     * 生成应用实现方案
+     *
+     * @param appId       应用 ID
+     * @param userMessage 用户提示词
+     * @return 方案内容
+     */
+    @SystemMessage(fromResource = "prompt/codegen-plan-system-prompt.txt")
+    String generateAppPlan(@UserMessage String userMessage);
+
+    /**
      * 生成 Vue 项目代码（流式）
      *
      * @param userMessage 用户提示词
@@ -54,4 +64,14 @@ public interface AiCodeGeneratorService {
      */
     @SystemMessage(fromResource = "prompt/codegen-vue-project-system-prompt.txt")
     TokenStream generateVueProjectCodeStream(@MemoryId long appId, @UserMessage String userMessage);
+
+    /**
+     * 修复 Vue 项目构建失败问题（流式）
+     *
+     * @param appId       应用 ID
+     * @param repairPrompt 修复提示词
+     * @return AI 的输出结果
+     */
+    @SystemMessage(fromResource = "prompt/codegen-vue-project-system-prompt.txt")
+    TokenStream repairVueProjectBuildStream(@MemoryId long appId, @UserMessage String repairPrompt);
 }

@@ -5,10 +5,14 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ws.codecraft.ai.AiCodeGenTypeRoutingService;
 import com.ws.codecraft.ai.AiCodeGenTypeRoutingServiceFactory;
+import com.ws.codecraft.ai.AiCodeGeneratorService;
+import com.ws.codecraft.ai.AiCodeGeneratorServiceFactory;
 import com.ws.codecraft.config.CodeProjectProperties;
 import com.ws.codecraft.constant.AppConstant;
 import com.ws.codecraft.core.AiCodeGeneratorFacade;
@@ -29,14 +33,17 @@ import com.ws.codecraft.model.entity.User;
 import com.ws.codecraft.model.enums.AppDeployTaskStatusEnum;
 import com.ws.codecraft.model.enums.AppStatusEnum;
 import com.ws.codecraft.model.enums.AppVersionSourceTypeEnum;
+import com.ws.codecraft.model.enums.AiModelEnum;
 import com.ws.codecraft.model.enums.ChatHistoryMessageTypeEnum;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import com.ws.codecraft.model.vo.AppDeployResultVO;
+import com.ws.codecraft.model.vo.AppGenerationPlanVO;
 import com.ws.codecraft.model.vo.AppVO;
 import com.ws.codecraft.model.vo.UserVO;
 import com.ws.codecraft.monitor.MonitorContext;
 import com.ws.codecraft.monitor.MonitorContextHolder;
 import com.ws.codecraft.service.AppDeployTaskService;
+import com.ws.codecraft.service.AppAttachmentService;
 import com.ws.codecraft.service.AppService;
 import com.ws.codecraft.service.AppVersionService;
 import com.ws.codecraft.service.ChatHistoryService;
@@ -49,11 +56,13 @@ import reactor.core.publisher.Flux;
 
 import java.io.File;
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -63,6 +72,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
+    private final Cache<String, AppGenerationPlanVO> generationPlanCache = Caffeine.newBuilder()
+            .maximumSize(2000)
+            .expireAfterWrite(Duration.ofMinutes(30))
+            .build();
+
     @DubboReference
     private InnerUserService userService;
 
@@ -70,10 +84,16 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     private AiCodeGeneratorFacade aiCodeGeneratorFacade;
 
     @Resource
+    private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
+
+    @Resource
     private ChatHistoryService chatHistoryService;
 
     @Resource
     private AppDeployTaskService appDeployTaskService;
+
+    @Resource
+    private AppAttachmentService appAttachmentService;
 
     @Resource
     private AppVersionService appVersionService;
@@ -97,7 +117,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     private CodeProjectProperties codeProjectProperties;
 
     @Override
-    public Flux<String> chatToGenCode(Long appId, String message, User loginUser) {
+    public Flux<String> chatToGenCode(Long appId, String message, String planId, User loginUser) {
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 错误");
         ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "提示词不能为空");
 
@@ -117,9 +137,11 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 .appId(String.valueOf(appId))
                 .build());
 
+        String generationMessage = buildGenerationMessage(app, message, planId, appId, loginUser.getId());
+
         chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         updateAppStatus(appId, AppStatusEnum.GENERATING);
-        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, codeGenTypeEnum, appId);
+        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(generationMessage, codeGenTypeEnum, appId, app.getModelKey());
         return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, codeGenTypeEnum)
                 .doOnComplete(() -> {
                     updateAppStatus(appId, AppStatusEnum.GENERATE_SUCCESS);
@@ -131,17 +153,125 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     }
 
     @Override
+    public AppGenerationPlanVO generateAppPlan(Long appId, String message, User loginUser) {
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 错误");
+        ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "提示词不能为空");
+
+        App app = this.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
+        if (!app.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限访问该应用");
+        }
+
+        CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(app.getCodeGenType());
+        if (codeGenTypeEnum == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用代码生成类型错误");
+        }
+
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory
+                .getAiCodeGeneratorService(appId, codeGenTypeEnum, app.getModelKey());
+        String attachmentContext = buildAttachmentContextIfNeeded(app, message, loginUser.getId());
+        String attachmentPromptBlock = StrUtil.isBlank(attachmentContext) ? "" : "\n\n" + attachmentContext;
+        String planPrompt = String.format("""
+                用户原始需求：
+                %s
+
+                %s
+
+                当前应用生成类型：%s
+                请基于该生成类型输出正式编码前的实现方案。
+                """, message, attachmentPromptBlock, codeGenTypeEnum.getValue());
+        String plan;
+        try {
+            plan = aiCodeGeneratorService.generateAppPlan(planPrompt);
+        } catch (RuntimeException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, getAiFriendlyErrorMessage(e));
+        }
+
+        AppGenerationPlanVO planVO = new AppGenerationPlanVO();
+        planVO.setAppId(appId);
+        planVO.setPlanId(UUID.randomUUID().toString());
+        planVO.setMessage(message);
+        planVO.setPlan(plan);
+        generationPlanCache.put(planVO.getPlanId(), planVO);
+        return planVO;
+    }
+
+    private String buildGenerationMessage(App app, String message, String planId, Long appId, Long userId) {
+        String attachmentContext = buildAttachmentContextIfNeeded(app, message, userId);
+        if (StrUtil.isBlank(planId)) {
+            if (StrUtil.isNotBlank(attachmentContext)) {
+                return String.format("""
+                        用户原始需求：
+                        %s
+
+                        %s
+                        """, message, attachmentContext);
+            }
+            return message;
+        }
+        AppGenerationPlanVO planVO = generationPlanCache.getIfPresent(planId);
+        if (planVO == null || !appId.equals(planVO.getAppId())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成方案已过期，请重新生成方案");
+        }
+        generationPlanCache.invalidate(planId);
+        return String.format("""
+                用户原始需求：
+                %s
+
+                %s
+
+                用户已确认以下生成方案，请严格按方案生成代码：
+                %s
+                """, message, StrUtil.blankToDefault(attachmentContext, ""), planVO.getPlan());
+    }
+
+    private String buildAttachmentContextIfNeeded(App app, String message, Long userId) {
+        if (app == null || app.getId() == null || userId == null) {
+            return "";
+        }
+        if (shouldUseAttachmentContext(app, message)) {
+            return appAttachmentService.buildAttachmentContext(app.getId(), userId);
+        }
+        return "";
+    }
+
+    private boolean shouldUseAttachmentContext(App app, String message) {
+        String status = app.getStatus();
+        if (StrUtil.isBlank(status)
+                || AppStatusEnum.DRAFT.getValue().equals(status)
+                || AppStatusEnum.GENERATE_FAILED.getValue().equals(status)) {
+            return true;
+        }
+        String normalizedMessage = StrUtil.blankToDefault(message, "").toLowerCase();
+        return normalizedMessage.contains("附件")
+                || normalizedMessage.contains("简历")
+                || normalizedMessage.contains("设计稿")
+                || normalizedMessage.contains("上传")
+                || normalizedMessage.contains("pdf")
+                || normalizedMessage.contains("文档")
+                || normalizedMessage.contains("文件");
+    }
+
+    @Override
     public Long createApp(AppAddRequest appAddRequest, User loginUser) {
         String initPrompt = appAddRequest.getInitPrompt();
         ThrowUtils.throwIf(StrUtil.isBlank(initPrompt), ErrorCode.PARAMS_ERROR, "初始化 prompt 不能为空");
 
         App app = new App();
         BeanUtil.copyProperties(appAddRequest, app);
+        app.setModelKey(AiModelEnum.normalize(appAddRequest.getModelKey()));
         app.setUserId(loginUser.getId());
         app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
 
-        AiCodeGenTypeRoutingService routingService = aiCodeGenTypeRoutingServiceFactory.createAiCodeGenTypeRoutingService();
-        CodeGenTypeEnum selectedCodeGenType = routingService.routeCodeGenType(initPrompt);
+        AiCodeGenTypeRoutingService routingService = aiCodeGenTypeRoutingServiceFactory
+                .createAiCodeGenTypeRoutingService(app.getModelKey());
+        CodeGenTypeEnum selectedCodeGenType;
+        try {
+            selectedCodeGenType = routingService.routeCodeGenType(initPrompt);
+        } catch (RuntimeException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, getAiFriendlyErrorMessage(e));
+        }
         app.setCodeGenType(selectedCodeGenType.getValue());
         app.setStatus(AppStatusEnum.DRAFT.getValue());
 
@@ -306,6 +436,14 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     private String getErrorMessage(Exception e) {
         return StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
+    }
+
+    private String getAiFriendlyErrorMessage(Throwable e) {
+        String message = e == null ? "" : StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
+        if (message.contains("AllocationQuota.FreeTierOnly") || message.contains("403")) {
+            return "当前模型免费额度已用完，请切换其他模型后重试";
+        }
+        return message;
     }
 
     @Override

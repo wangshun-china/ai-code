@@ -5,14 +5,14 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 应用创建请求
+ * App generation plan request.
  */
 @Data
-public class AppAddRequest implements Serializable {
+public class AppGeneratePlanRequest implements Serializable {
 
-    private String initPrompt;
+    private Long appId;
 
-    private String modelKey;
+    private String message;
 
     private static final long serialVersionUID = 1L;
 }

@@ -7,6 +7,7 @@ import com.ws.codecraft.model.dto.app.AppQueryRequest;
 import com.ws.codecraft.model.entity.App;
 import com.ws.codecraft.model.entity.User;
 import com.ws.codecraft.model.vo.AppDeployResultVO;
+import com.ws.codecraft.model.vo.AppGenerationPlanVO;
 import com.ws.codecraft.model.vo.AppVO;
 import reactor.core.publisher.Flux;
 
@@ -27,7 +28,17 @@ public interface AppService extends IService<App> {
      * @param loginUser 登录用户
      * @return
      */
-    Flux<String> chatToGenCode(Long appId, String message, User loginUser);
+    Flux<String> chatToGenCode(Long appId, String message, String planId, User loginUser);
+
+    /**
+     * 生成应用实现方案（不写入聊天历史，不修改应用状态）
+     *
+     * @param appId     应用 ID
+     * @param message   提示词
+     * @param loginUser 登录用户
+     * @return 生成方案
+     */
+    AppGenerationPlanVO generateAppPlan(Long appId, String message, User loginUser);
 
     /**
      * 创建应用

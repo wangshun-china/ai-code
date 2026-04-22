@@ -7,6 +7,16 @@
         <a-tag v-if="appInfo?.codeGenType" color="blue" class="code-gen-type-tag">
           {{ formatCodeGenType(appInfo.codeGenType) }}
         </a-tag>
+        <a-select
+          v-if="isOwner"
+          class="model-select"
+          size="small"
+          :value="appInfo?.modelKey || DEFAULT_AI_MODEL"
+          :options="AI_MODEL_OPTIONS"
+          :loading="modelSwitching"
+          :disabled="isGenerating || isPlanning || modelSwitching"
+          @change="handleModelChange"
+        />
       </div>
       <div class="header-right">
         <a-button type="default" class="header-btn" @click="showAppDetail">
@@ -181,7 +191,18 @@
                   <MarkdownRenderer v-if="message.content" :content="message.content" />
                   <div v-if="message.loading" class="loading-indicator">
                     <a-spin size="small" />
-                    <span>AI 正在思考...</span>
+                    <span>{{ isPlanning ? 'AI 正在生成方案...' : 'AI 正在思考...' }}</span>
+                  </div>
+                  <div v-if="message.planPending" class="plan-actions">
+                    <a-button
+                      type="primary"
+                      size="small"
+                      :loading="isGenerating"
+                      @click="confirmGenerationPlan(message)"
+                    >
+                      确认生成
+                    </a-button>
+                    <span>不满意可以继续补充需求，我会重新出方案。</span>
                   </div>
                 </div>
               </div>
@@ -231,7 +252,7 @@
                   :rows="4"
                   :maxlength="1000"
                   @keydown.enter.prevent="handleSendMessage"
-                  :disabled="isGenerating || !isOwner"
+                  :disabled="isGenerating || isPlanning || !isOwner"
                   class="chat-input"
                 />
               </a-tooltip>
@@ -242,14 +263,53 @@
                 :rows="4"
                 :maxlength="1000"
                 @keydown.enter.prevent="handleSendMessage"
-                :disabled="isGenerating"
+                :disabled="isGenerating || isPlanning"
                 class="chat-input"
               />
               <div class="input-actions">
-                <a-button type="primary" @click="handleSendMessage" :loading="isGenerating" :disabled="!isOwner" class="send-btn">
+                <a-upload
+                  v-if="isOwner"
+                  :show-upload-list="false"
+                  :custom-request="handleAttachmentUpload"
+                  accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.docx,.txt,.md,.markdown,.json,.csv,.html,.css,.js,.ts,.vue"
+                  :disabled="isGenerating || isPlanning || attachmentUploading"
+                >
+                  <a-button
+                    type="default"
+                    shape="circle"
+                    class="attachment-upload-btn"
+                    :loading="attachmentUploading"
+                    :disabled="isGenerating || isPlanning"
+                  >
+                    <template #icon><PaperClipOutlined /></template>
+                  </a-button>
+                </a-upload>
+                <a-button
+                  type="primary"
+                  @click="handleSendMessage"
+                  :loading="isGenerating || isPlanning"
+                  :disabled="!isOwner"
+                  class="send-btn"
+                >
                   <template #icon><SendOutlined /></template>
                 </a-button>
               </div>
+            </div>
+            <div v-if="appAttachments.length > 0" class="attachment-list">
+              <a-tag
+                v-for="attachment in appAttachments"
+                :key="attachment.id"
+                closable
+                class="attachment-tag"
+                @close="(event: MouseEvent) => handleAttachmentClose(event, attachment.id)"
+              >
+                <PaperClipOutlined />
+                <span>{{ attachment.fileName }}</span>
+                <small>{{ attachment.parseStatus === 'success' ? '已解析' : attachment.parseStatus }}</small>
+              </a-tag>
+            </div>
+            <div v-else-if="isOwner" class="attachment-hint">
+              可上传设计稿、PDF 简历、DOCX 或文本，让 AI 按附件生成页面
             </div>
           </div>
         </div>
@@ -293,6 +353,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { formatCodeGenType } from '@/utils/codeGenTypes'
+import { AI_MODEL_OPTIONS, DEFAULT_AI_MODEL } from '@/utils/aiModels'
 import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
 import { useAppChat } from '@/composables/useAppChat'
 
@@ -308,6 +369,7 @@ import {
   InfoCircleOutlined,
   DownloadOutlined,
   EditOutlined,
+  PaperClipOutlined,
 } from '@ant-design/icons-vue'
 
 const loginUserStore = useLoginUserStore()
@@ -317,7 +379,11 @@ const {
   messages,
   userInput,
   isGenerating,
+  isPlanning,
   messagesContainer,
+  appAttachments,
+  attachmentUploading,
+  modelSwitching,
   loadingHistory,
   hasMoreHistory,
   previewUrl,
@@ -341,6 +407,10 @@ const {
   loadMoreHistory,
   fetchAppInfo,
   sendMessage,
+  confirmGenerationPlan,
+  uploadAttachment,
+  deleteAttachment,
+  switchModel,
   loadSourceFiles,
   openSourceFile,
   closeSourceTab,
@@ -385,6 +455,12 @@ const handleFileSelect = (_selectedKeys: string[], info: any) => {
   const fileNode = info?.node?.fileNode as API.AppSourceFileNodeVO | undefined
   if (fileNode && !fileNode.directory) {
     openSourceFile(fileNode)
+  }
+}
+
+const handleModelChange = (value: unknown) => {
+  if (typeof value === 'string') {
+    switchModel(value)
   }
 }
 
@@ -436,6 +512,15 @@ const handleSendMessage = async () => {
       toggleEditMode()
     }
   }
+}
+
+const handleAttachmentUpload = (options: any) => {
+  uploadAttachment(options)
+}
+
+const handleAttachmentClose = (event: MouseEvent, attachmentId?: number) => {
+  event.preventDefault()
+  deleteAttachment(attachmentId)
 }
 
 const onIframeLoad = () => {
@@ -513,6 +598,10 @@ onUnmounted(() => {
 .code-gen-type-tag {
   font-size: 12px;
   border-radius: 12px;
+}
+
+.model-select {
+  min-width: 210px;
 }
 
 .app-name {
@@ -634,6 +723,20 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
+.plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(20, 20, 19, 0.08);
+}
+
+.plan-actions span {
+  color: #5f5b52;
+  font-size: 13px;
+}
+
 .load-more-container {
   text-align: center;
   padding: 8px 0;
@@ -667,12 +770,19 @@ onUnmounted(() => {
   position: absolute;
   bottom: 10px;
   right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.send-btn {
+.send-btn,
+.attachment-upload-btn {
   width: 44px;
   height: 44px;
   border-radius: 50%;
+}
+
+.send-btn {
   background: var(--primary-gradient);
   border: none;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
@@ -682,6 +792,49 @@ onUnmounted(() => {
 .send-btn:hover:not(:disabled) {
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.attachment-upload-btn {
+  border-color: var(--border-warm);
+  color: var(--charcoal-warm);
+  background: var(--ivory);
+  box-shadow: 0 0 0 1px var(--ring-warm);
+}
+
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.attachment-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--warm-sand);
+  border-color: var(--ring-warm);
+  color: var(--charcoal-warm);
+}
+
+.attachment-tag span {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-tag small {
+  color: var(--muted-warm);
+}
+
+.attachment-hint {
+  margin-top: 8px;
+  color: var(--muted-warm);
+  font-size: 12px;
 }
 
 /* 右侧预览区域 */
@@ -1191,6 +1344,7 @@ onUnmounted(() => {
   border: 1px solid var(--border-warm);
   border-radius: 18px;
   background: var(--parchment);
+  padding-right: 112px;
 }
 
 .chat-input:focus {

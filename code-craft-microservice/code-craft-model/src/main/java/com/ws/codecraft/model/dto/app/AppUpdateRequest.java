@@ -20,5 +20,10 @@ public class AppUpdateRequest implements Serializable {
      */
     private String appName;
 
+    /**
+     * AI 模型标识
+     */
+    private String modelKey;
+
     private static final long serialVersionUID = 1L;
 } 

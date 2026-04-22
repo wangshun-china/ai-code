@@ -8,7 +8,7 @@ import com.ws.codecraft.ai.model.MultiFileCodeResult;
 import com.ws.codecraft.ai.model.message.AiResponseMessage;
 import com.ws.codecraft.ai.model.message.ToolExecutedMessage;
 import com.ws.codecraft.ai.model.message.ToolRequestMessage;
-import com.ws.codecraft.constant.AppConstant;
+import com.ws.codecraft.core.builder.VueProjectBuildResult;
 import com.ws.codecraft.core.builder.VueProjectBuilder;
 import com.ws.codecraft.core.parser.CodeParserExecutor;
 import com.ws.codecraft.core.saver.CodeFileSaverExecutor;
@@ -22,8 +22,12 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
 
 import java.io.File;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * AI 代码生成门面类，组合代码生成和保存功能
@@ -31,6 +35,10 @@ import java.io.File;
 @Service
 @Slf4j
 public class AiCodeGeneratorFacade {
+
+    private static final int MAX_BUILD_REPAIR_ATTEMPTS = 2;
+    private static final int REPAIR_TIMEOUT_MINUTES = 10;
+    private static final int MAX_BUILD_ERROR_CHARS = 6000;
 
     @Resource
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
@@ -47,11 +55,15 @@ public class AiCodeGeneratorFacade {
      * @return 保存的目录
      */
     public File generateAndSaveCode(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId) {
+        return generateAndSaveCode(userMessage, codeGenTypeEnum, appId, null);
+    }
+
+    public File generateAndSaveCode(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId, String modelKey) {
         if (codeGenTypeEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成类型不能为空");
         }
         // 根据 appId 获取相应的 AI 服务实例
-        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId, codeGenTypeEnum);
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId, codeGenTypeEnum, modelKey);
         return switch (codeGenTypeEnum) {
             case HTML -> {
                 HtmlCodeResult result = aiCodeGeneratorService.generateHtmlCode(userMessage);
@@ -77,11 +89,15 @@ public class AiCodeGeneratorFacade {
      * @return 保存的目录
      */
     public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId) {
+        return generateAndSaveCodeStream(userMessage, codeGenTypeEnum, appId, null);
+    }
+
+    public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId, String modelKey) {
         if (codeGenTypeEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成类型不能为空");
         }
         // 根据 appId 获取相应的 AI 服务实例
-        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId, codeGenTypeEnum);
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId, codeGenTypeEnum, modelKey);
         return switch (codeGenTypeEnum) {
             case HTML -> {
                 Flux<String> codeStream = aiCodeGeneratorService.generateHtmlCodeStream(userMessage);
@@ -93,7 +109,7 @@ public class AiCodeGeneratorFacade {
             }
             case VUE_PROJECT -> {
                 TokenStream tokenStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
-                yield processTokenStream(tokenStream, appId);
+                yield processTokenStream(tokenStream, aiCodeGeneratorService, appId);
             }
             default -> {
                 String errorMessage = "不支持的生成类型：" + codeGenTypeEnum.getValue();
@@ -109,7 +125,7 @@ public class AiCodeGeneratorFacade {
      * @param appId       应用 ID
      * @return Flux<String> 流式响应
      */
-    private Flux<String> processTokenStream(TokenStream tokenStream, Long appId) {
+    private Flux<String> processTokenStream(TokenStream tokenStream, AiCodeGeneratorService aiCodeGeneratorService, Long appId) {
         return Flux.create(sink -> {
             tokenStream.onPartialResponse((String partialResponse) -> {
                         AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
@@ -125,10 +141,10 @@ public class AiCodeGeneratorFacade {
                     })
                     .onCompleteResponse((ChatResponse response) -> {
                         // 执行 Vue 项目构建（同步执行，确保预览时项目已就绪）
-                        String projectDirName = "vue_project_" + appId;
-                        boolean buildSuccess = vueProjectBuilder.buildProject(projectDirName);
-                        if (!buildSuccess) {
-                            sink.error(new BusinessException(ErrorCode.SYSTEM_ERROR, "Vue 项目构建失败"));
+                        VueProjectBuildResult buildResult = buildVueProjectWithAutoRepair(aiCodeGeneratorService, appId, sink);
+                        if (!buildResult.isSuccess()) {
+                            sink.error(new BusinessException(ErrorCode.SYSTEM_ERROR,
+                                    "Vue 项目构建失败: " + buildResult.getMessage()));
                             return;
                         }
                         sink.complete();
@@ -139,6 +155,117 @@ public class AiCodeGeneratorFacade {
                     })
                     .start();
         });
+    }
+
+    private VueProjectBuildResult buildVueProjectWithAutoRepair(AiCodeGeneratorService aiCodeGeneratorService,
+                                                                Long appId,
+                                                                FluxSink<String> sink) {
+        String projectDirName = "vue_project_" + appId;
+        VueProjectBuildResult lastBuildResult = null;
+        for (int attempt = 0; attempt <= MAX_BUILD_REPAIR_ATTEMPTS; attempt++) {
+            lastBuildResult = vueProjectBuilder.buildProjectWithResult(projectDirName);
+            if (lastBuildResult.isSuccess()) {
+                if (attempt > 0) {
+                    emitAiMessage(sink, "\n\n自动修复完成，Vue 项目已成功构建。");
+                }
+                return lastBuildResult;
+            }
+
+            if (attempt >= MAX_BUILD_REPAIR_ATTEMPTS) {
+                break;
+            }
+
+            int repairAttempt = attempt + 1;
+            emitAiMessage(sink, String.format("""
+
+
+                    检测到 Vue 项目构建失败，正在进行第 %d 次自动修复...
+                    """, repairAttempt));
+            boolean repaired = runBuildRepairStream(aiCodeGeneratorService, appId, repairAttempt,
+                    lastBuildResult.getMessage(), sink);
+            if (!repaired) {
+                return VueProjectBuildResult.failure("自动修复未完成: " + lastBuildResult.getMessage());
+            }
+        }
+        return lastBuildResult == null ? VueProjectBuildResult.failure("未知构建失败") : lastBuildResult;
+    }
+
+    private boolean runBuildRepairStream(AiCodeGeneratorService aiCodeGeneratorService,
+                                         Long appId,
+                                         int repairAttempt,
+                                         String buildError,
+                                         FluxSink<String> sink) {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Throwable> errorRef = new AtomicReference<>();
+        TokenStream repairStream = aiCodeGeneratorService.repairVueProjectBuildStream(appId,
+                buildRepairPrompt(repairAttempt, buildError));
+        repairStream.onPartialResponse((String partialResponse) -> emitAiMessage(sink, partialResponse))
+                .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
+                    ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
+                    sink.next(JSONUtil.toJsonStr(toolRequestMessage));
+                })
+                .onToolExecuted((ToolExecution toolExecution) -> {
+                    ToolExecutedMessage toolExecutedMessage = new ToolExecutedMessage(toolExecution);
+                    sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
+                })
+                .onCompleteResponse((ChatResponse response) -> latch.countDown())
+                .onError((Throwable error) -> {
+                    errorRef.set(error);
+                    latch.countDown();
+                })
+                .start();
+
+        try {
+            boolean completed = latch.await(REPAIR_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+            if (!completed) {
+                log.error("Vue 项目自动修复超时, appId={}, attempt={}", appId, repairAttempt);
+                return false;
+            }
+            Throwable error = errorRef.get();
+            if (error != null) {
+                log.error("Vue 项目自动修复失败, appId={}, attempt={}", appId, repairAttempt, error);
+                return false;
+            }
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Vue 项目自动修复被中断, appId={}, attempt={}", appId, repairAttempt, e);
+            return false;
+        }
+    }
+
+    private String buildRepairPrompt(int repairAttempt, String buildError) {
+        return String.format("""
+                当前 Vue 项目在第 %d 次构建时失败。请进入构建修复模式，只修复导致构建失败的问题，不要重做整个项目，不要额外添加新功能。
+
+                构建错误信息：
+                ```text
+                %s
+                ```
+
+                修复要求：
+                1. 先使用目录读取工具了解当前项目结构。
+                2. 根据错误日志读取相关文件，定位根因。
+                3. 如果缺少 Vue 工程骨架，必须补齐 package.json、vite.config.js、index.html、src/main.js、src/App.vue。
+                4. 优先使用文件修改工具做最小修改；只有确实需要时才重写文件。
+                5. 不要删除用户已生成的主要页面和样式，不要改变原始需求方向。
+                6. 修复完成后简要说明修改了哪些文件，然后结束。
+                """, repairAttempt, truncateBuildError(buildError));
+    }
+
+    private String truncateBuildError(String buildError) {
+        if (buildError == null || buildError.isBlank()) {
+            return "node-builder 未返回具体构建错误。";
+        }
+        if (buildError.length() <= MAX_BUILD_ERROR_CHARS) {
+            return buildError;
+        }
+        return buildError.substring(0, MAX_BUILD_ERROR_CHARS) + "\n...（错误日志已截断）";
+    }
+
+    private void emitAiMessage(FluxSink<String> sink, String content) {
+        AiResponseMessage aiResponseMessage = new AiResponseMessage(content);
+        sink.next(JSONUtil.toJsonStr(aiResponseMessage));
     }
 
     /**

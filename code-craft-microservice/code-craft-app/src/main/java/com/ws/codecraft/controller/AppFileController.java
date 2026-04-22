@@ -80,8 +80,9 @@ public class AppFileController {
                                                                    HttpServletRequest request) {
         App app = validateAppAccess(appId, request);
         Path rootPath = getAppSourceRoot(app);
-        ThrowUtils.throwIf(!Files.exists(rootPath) || !Files.isDirectory(rootPath),
-                ErrorCode.NOT_FOUND_ERROR, "应用代码目录不存在，请先生成代码");
+        if (!Files.exists(rootPath) || !Files.isDirectory(rootPath)) {
+            return ResultUtils.success(List.of());
+        }
         return ResultUtils.success(listChildren(rootPath, rootPath));
     }
 

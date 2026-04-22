@@ -1,6 +1,7 @@
 declare namespace API {
   type AppAddRequest = {
     initPrompt?: string
+    modelKey?: string
   }
 
   type AppAdminUpdateRequest = {
@@ -39,6 +40,31 @@ declare namespace API {
     updateTime?: string
   }
 
+  type AppAttachmentVO = {
+    id?: number
+    appId?: number
+    fileName?: string
+    fileType?: string
+    mimeType?: string
+    fileSize?: number
+    parsedContent?: string
+    parseStatus?: string
+    errorMessage?: string
+    createTime?: string
+  }
+
+  type AppGeneratePlanRequest = {
+    appId?: number
+    message?: string
+  }
+
+  type AppGenerationPlanVO = {
+    appId?: number
+    planId?: string
+    message?: string
+    plan?: string
+  }
+
   type AppSourceFileNodeVO = {
     name?: string
     path?: string
@@ -74,6 +100,7 @@ declare namespace API {
   type AppUpdateRequest = {
     id?: number
     appName?: string
+    modelKey?: string
   }
 
   type AppVO = {
@@ -82,6 +109,7 @@ declare namespace API {
     cover?: string
     initPrompt?: string
     codeGenType?: string
+    modelKey?: string
     deployKey?: string
     deployedTime?: string
     status?: string
@@ -107,6 +135,24 @@ declare namespace API {
   type BaseResponseAppDeployTaskVO = {
     code?: number
     data?: AppDeployTaskVO
+    message?: string
+  }
+
+  type BaseResponseAppGenerationPlanVO = {
+    code?: number
+    data?: AppGenerationPlanVO
+    message?: string
+  }
+
+  type BaseResponseAppAttachmentVO = {
+    code?: number
+    data?: AppAttachmentVO
+    message?: string
+  }
+
+  type BaseResponseAppAttachmentVOArray = {
+    code?: number
+    data?: AppAttachmentVO[]
     message?: string
   }
 
@@ -203,6 +249,7 @@ declare namespace API {
   type chatToGenCodeParams = {
     appId: number
     message: string
+    planId?: string
   }
 
   type DeleteRequest = {
@@ -223,6 +270,14 @@ declare namespace API {
 
   type getDeployTaskParams = {
     taskId: number
+  }
+
+  type uploadAppAttachmentParams = {
+    appId: number
+  }
+
+  type listAppAttachmentsParams = {
+    appId: number
   }
 
   type listAppSourceFilesParams = {

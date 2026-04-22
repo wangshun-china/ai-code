@@ -19,8 +19,10 @@ import com.ws.codecraft.innerservice.InnerUserService;
 import com.ws.codecraft.model.dto.app.*;
 import com.ws.codecraft.model.entity.AppDeployTask;
 import com.ws.codecraft.model.entity.User;
+import com.ws.codecraft.model.enums.AiModelEnum;
 import com.ws.codecraft.model.vo.AppDeployResultVO;
 import com.ws.codecraft.model.vo.AppDeployTaskVO;
+import com.ws.codecraft.model.vo.AppGenerationPlanVO;
 import com.ws.codecraft.model.vo.AppVO;
 import com.ws.codecraft.ratelimter.annotation.RateLimit;
 import com.ws.codecraft.ratelimter.enums.RateLimitType;
@@ -69,6 +71,7 @@ public class AppController {
     @RateLimit(limitType = RateLimitType.USER, rate = 5, rateInterval = 60, message = "AI 对话请求过于频繁，请稍后再试")
     public Flux<ServerSentEvent<String>> chatToGenCode(@RequestParam Long appId,
                                                        @RequestParam String message,
+                                                       @RequestParam(required = false) String planId,
                                                        HttpServletRequest request) {
         // 参数校验
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 id 错误");
@@ -76,7 +79,7 @@ public class AppController {
         // 获取当前登录用户
         User loginUser = InnerUserService.getLoginUser(request);
         // 调用服务生成代码（SSE 流式返回）
-        Flux<String> contentFlux = appService.chatToGenCode(appId, message, loginUser);
+        Flux<String> contentFlux = appService.chatToGenCode(appId, message, planId, loginUser);
         return contentFlux
                 .map(chunk -> {
                     Map<String, String> wrapper = Map.of("d", chunk);
@@ -85,6 +88,16 @@ public class AppController {
                             .data(jsonData)
                             .build();
                 })
+                .onErrorResume(error -> Mono.just(
+                        ServerSentEvent.<String>builder()
+                                .event("business-error")
+                                .data(JSONUtil.toJsonStr(Map.of(
+                                        "error", true,
+                                        "code", ErrorCode.SYSTEM_ERROR.getCode(),
+                                        "message", getAiFriendlyErrorMessage(error)
+                                )))
+                                .build()
+                ))
                 .concatWith(Mono.just(
                         // 发送结束事件
                         ServerSentEvent.<String>builder()
@@ -92,6 +105,37 @@ public class AppController {
                                 .data("")
                                 .build()
                 ));
+    }
+
+    private String getAiFriendlyErrorMessage(Throwable error) {
+        String errorMessage = error == null ? "" : StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName());
+        if (errorMessage.contains("AllocationQuota.FreeTierOnly") || errorMessage.contains("403")) {
+            return "当前模型免费额度已用完，请切换其他模型后重试";
+        }
+        if (error instanceof BusinessException businessException) {
+            return businessException.getMessage();
+        }
+        return "AI 生成失败，请稍后重试";
+    }
+
+    /**
+     * 生成应用实现方案，用户确认后再正式生成代码。
+     *
+     * @param appGeneratePlanRequest 方案请求
+     * @param request                请求
+     * @return 生成方案
+     */
+    @PostMapping("/chat/plan")
+    @RateLimit(limitType = RateLimitType.USER, rate = 10, rateInterval = 60, message = "AI 方案生成请求过于频繁，请稍后再试")
+    public BaseResponse<AppGenerationPlanVO> generateAppPlan(@RequestBody AppGeneratePlanRequest appGeneratePlanRequest,
+                                                             HttpServletRequest request) {
+        ThrowUtils.throwIf(appGeneratePlanRequest == null, ErrorCode.PARAMS_ERROR, "请求参数为空");
+        Long appId = appGeneratePlanRequest.getAppId();
+        String message = appGeneratePlanRequest.getMessage();
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 id 错误");
+        ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "提示词不能为空");
+        User loginUser = InnerUserService.getLoginUser(request);
+        return ResultUtils.success(appService.generateAppPlan(appId, message, loginUser));
     }
 
     /**
@@ -213,6 +257,11 @@ public class AppController {
         App app = new App();
         app.setId(id);
         app.setAppName(appUpdateRequest.getAppName());
+        if (appUpdateRequest.getModelKey() != null) {
+            ThrowUtils.throwIf(AiModelEnum.getEnumByValue(appUpdateRequest.getModelKey()) == null,
+                    ErrorCode.PARAMS_ERROR, "不支持的 AI 模型");
+            app.setModelKey(appUpdateRequest.getModelKey());
+        }
         // 设置编辑时间
         app.setEditTime(LocalDateTime.now());
         boolean result = appService.updateById(app);

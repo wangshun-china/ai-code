@@ -24,6 +24,11 @@ public class CodeProjectProperties {
     private String deployRootDir = "G:/project/code-craft/tmp/code_deploy";
 
     /**
+     * 用户上传附件目录。
+     */
+    private String uploadRootDir = "G:/project/code-craft/tmp/uploads";
+
+    /**
      * 线上构建服务地址。
      */
     private String nodeBuilderUrl = "http://localhost:8020/build";
