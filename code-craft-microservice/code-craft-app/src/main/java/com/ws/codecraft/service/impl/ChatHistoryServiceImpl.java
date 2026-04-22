@@ -124,6 +124,23 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         }
     }
 
+    @Override
+    public List<ChatHistory> listRecentChatHistory(Long appId, Long userId, int maxCount) {
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID不能为空");
+        ThrowUtils.throwIf(userId == null || userId <= 0, ErrorCode.PARAMS_ERROR, "用户ID不能为空");
+        int safeMaxCount = Math.min(Math.max(maxCount, 1), 30);
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .eq(ChatHistory::getAppId, appId)
+                .eq(ChatHistory::getUserId, userId)
+                .orderBy(ChatHistory::getCreateTime, false)
+                .limit(1, safeMaxCount);
+        List<ChatHistory> historyList = this.list(queryWrapper);
+        if (CollUtil.isEmpty(historyList)) {
+            return List.of();
+        }
+        return historyList.reversed();
+    }
+
     /**
      * 获取查询包装类
      *

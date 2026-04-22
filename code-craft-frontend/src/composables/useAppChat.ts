@@ -14,6 +14,7 @@ import {
   listAppAttachments,
   deleteAppAttachment,
   updateApp,
+  chatToAppMessage,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { CodeGenTypeEnum } from '@/utils/codeGenTypes'
@@ -36,6 +37,7 @@ const PLAN_TRIGGER_KEYWORDS = [
   'pdf',
   '文档',
 ]
+export type AppChatMode = 'chat' | 'generate'
 
 /**
  * 消息类型
@@ -66,6 +68,7 @@ export function useAppChat() {
   const userInput = ref('')
   const isGenerating = ref(false)
   const isPlanning = ref(false)
+  const messageMode = ref<AppChatMode>('chat')
   const messagesContainer = ref<HTMLElement>()
   const appAttachments = ref<API.AppAttachmentVO[]>([])
   const attachmentUploading = ref(false)
@@ -374,11 +377,38 @@ export function useAppChat() {
     return PLAN_TRIGGER_KEYWORDS.some((keyword) => normalizedMessage.includes(keyword.toLowerCase()))
   }
 
+  const requestPlainChat = async (messageContent: string, aiMessageIndex: number) => {
+    try {
+      const res = await chatToAppMessage({
+        appId: appId.value as unknown as number,
+        message: messageContent,
+      }, {
+        timeout: AI_SLOW_REQUEST_TIMEOUT,
+      })
+      if (res.data.code === 0) {
+        messages.value[aiMessageIndex].content = res.data.data || '已收到。'
+        messages.value[aiMessageIndex].loading = false
+        scrollToBottom()
+      } else {
+        throw new Error(res.data.message || '聊天失败')
+      }
+    } catch (error) {
+      console.error('普通聊天失败：', error)
+      messages.value[aiMessageIndex].content = getErrorMessage(error, '聊天失败，请稍后重试。')
+      messages.value[aiMessageIndex].loading = false
+      message.error(getErrorMessage(error, '聊天失败'))
+    }
+  }
+
   // 发送消息
   const sendMessage = async (selectedElementInfo?: any) => {
     if ((!userInput.value.trim() && appAttachments.value.length === 0) || isGenerating.value) return
 
-    let messageContent = userInput.value.trim() || '请根据已上传附件生成网页。'
+    const isGenerateMode = messageMode.value === 'generate' || !!selectedElementInfo
+    let messageContent = userInput.value.trim()
+    if (!messageContent) {
+      messageContent = isGenerateMode ? '请根据已上传附件生成网页。' : '请根据已上传附件进行需求分析。'
+    }
     if (selectedElementInfo) {
       let elementContext = `\n\n选中元素信息：`
       if (selectedElementInfo.pagePath) {
@@ -396,6 +426,12 @@ export function useAppChat() {
 
     await nextTick()
     scrollToBottom()
+    if (!isGenerateMode) {
+      const aiMessageIndex = messages.value.length
+      messages.value.push({ type: 'ai', content: '', loading: true })
+      await requestPlainChat(messageContent, aiMessageIndex)
+      return
+    }
     if (!shouldRequestPlan(messageContent, selectedElementInfo)) {
       const aiMessageIndex = messages.value.length
       messages.value.push({ type: 'ai', content: '', loading: true })
@@ -781,6 +817,7 @@ export function useAppChat() {
     userInput,
     isGenerating,
     isPlanning,
+    messageMode,
     messagesContainer,
     appAttachments,
     attachmentUploading,

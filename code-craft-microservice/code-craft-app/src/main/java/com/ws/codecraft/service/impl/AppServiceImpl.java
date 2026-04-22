@@ -29,8 +29,11 @@ import com.ws.codecraft.model.dto.app.AppAddRequest;
 import com.ws.codecraft.model.dto.app.AppQueryRequest;
 import com.ws.codecraft.model.entity.App;
 import com.ws.codecraft.model.entity.AppDeployTask;
+import com.ws.codecraft.model.entity.AppGenerationTask;
+import com.ws.codecraft.model.entity.ChatHistory;
 import com.ws.codecraft.model.entity.User;
 import com.ws.codecraft.model.enums.AppDeployTaskStatusEnum;
+import com.ws.codecraft.model.enums.AppGenerationTaskModeEnum;
 import com.ws.codecraft.model.enums.AppStatusEnum;
 import com.ws.codecraft.model.enums.AppVersionSourceTypeEnum;
 import com.ws.codecraft.model.enums.AiModelEnum;
@@ -44,15 +47,21 @@ import com.ws.codecraft.monitor.MonitorContext;
 import com.ws.codecraft.monitor.MonitorContextHolder;
 import com.ws.codecraft.service.AppDeployTaskService;
 import com.ws.codecraft.service.AppAttachmentService;
+import com.ws.codecraft.service.AppGenerationTaskService;
 import com.ws.codecraft.service.AppService;
 import com.ws.codecraft.service.AppVersionService;
 import com.ws.codecraft.service.ChatHistoryService;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.SignalType;
 
 import java.io.File;
 import java.io.Serializable;
@@ -62,6 +71,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -99,6 +109,12 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     private AppVersionService appVersionService;
 
     @Resource
+    private AppGenerationTaskService appGenerationTaskService;
+
+    @Resource
+    private RedissonClient redissonClient;
+
+    @Resource
     private StreamHandlerExecutor streamHandlerExecutor;
 
     @Resource
@@ -132,24 +148,84 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用代码生成类型错误");
         }
 
+        String generationMessage = buildGenerationMessage(app, message, planId, appId, loginUser.getId());
+
+        AppGenerationTask generationTask = appGenerationTaskService.createTask(app, loginUser.getId(),
+                AppGenerationTaskModeEnum.GENERATE.getValue(), message);
+        String lockToken = acquireGenerationLock(appId);
+        if (lockToken == null) {
+            String errorMessage = "当前应用正在生成中，请等待上一轮生成完成后再试";
+            appGenerationTaskService.markFailed(generationTask.getId(), errorMessage);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, errorMessage);
+        }
+
         MonitorContextHolder.setContext(MonitorContext.builder()
                 .userId(String.valueOf(loginUser.getId()))
                 .appId(String.valueOf(appId))
                 .build());
 
-        String generationMessage = buildGenerationMessage(app, message, planId, appId, loginUser.getId());
-
-        chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+        if (StrUtil.isBlank(planId)) {
+            chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+        }
         updateAppStatus(appId, AppStatusEnum.GENERATING);
+        appGenerationTaskService.markRunning(generationTask.getId());
         Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(generationMessage, codeGenTypeEnum, appId, app.getModelKey());
+        StringBuilder aiResponseBuilder = new StringBuilder();
         return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, codeGenTypeEnum)
+                .doOnNext(aiResponseBuilder::append)
                 .doOnComplete(() -> {
                     updateAppStatus(appId, AppStatusEnum.GENERATE_SUCCESS);
+                    appGenerationTaskService.markSuccess(generationTask.getId(), aiResponseBuilder.toString());
                     appVersionService.createVersion(app, AppVersionSourceTypeEnum.GENERATE.getValue(),
                             getSourceDirPath(app), app.getDeployKey(), message, loginUser.getId());
                 })
-                .doOnError(error -> updateAppStatus(appId, AppStatusEnum.GENERATE_FAILED))
-                .doFinally(signalType -> MonitorContextHolder.clearContext());
+                .doOnError(error -> {
+                    updateAppStatus(appId, AppStatusEnum.GENERATE_FAILED);
+                    appGenerationTaskService.markFailed(generationTask.getId(), getAiFriendlyErrorMessage(error));
+                })
+                .doFinally(signalType -> {
+                    if (SignalType.CANCEL.equals(signalType)) {
+                        String errorMessage = "客户端断开连接或请求被取消";
+                        updateAppStatus(appId, AppStatusEnum.GENERATE_FAILED);
+                        appGenerationTaskService.markCanceled(generationTask.getId(), errorMessage);
+                        chatHistoryService.addChatMessage(appId, "AI 回复中断：" + errorMessage,
+                                ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                    }
+                    releaseGenerationLock(appId, lockToken);
+                    MonitorContextHolder.clearContext();
+                });
+    }
+
+    @Override
+    public String chatToApp(Long appId, String message, User loginUser) {
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 错误");
+        ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "提示词不能为空");
+
+        App app = this.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
+        if (!app.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限访问该应用");
+        }
+
+        AppGenerationTask chatTask = appGenerationTaskService.createTask(app, loginUser.getId(),
+                AppGenerationTaskModeEnum.CHAT.getValue(), message);
+        appGenerationTaskService.markRunning(chatTask.getId());
+        String chatPrompt = buildPlainChatPrompt(app, message, loginUser.getId());
+        ChatModel plainChatModel = aiCodeGeneratorServiceFactory.createPlainChatModel(app.getModelKey());
+        chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+        String aiResponse;
+        try {
+            aiResponse = plainChatModel.chat(UserMessage.from(chatPrompt)).aiMessage().text();
+        } catch (RuntimeException e) {
+            String errorMessage = getAiFriendlyErrorMessage(e);
+            appGenerationTaskService.markFailed(chatTask.getId(), errorMessage);
+            chatHistoryService.addChatMessage(appId, "AI 回复失败：" + errorMessage,
+                    ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, errorMessage);
+        }
+        chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+        appGenerationTaskService.markSuccess(chatTask.getId(), aiResponse);
+        return aiResponse;
     }
 
     @Override
@@ -181,11 +257,19 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 当前应用生成类型：%s
                 请基于该生成类型输出正式编码前的实现方案。
                 """, message, attachmentPromptBlock, codeGenTypeEnum.getValue());
+        AppGenerationTask planTask = appGenerationTaskService.createTask(app, loginUser.getId(),
+                AppGenerationTaskModeEnum.PLAN.getValue(), message);
+        appGenerationTaskService.markRunning(planTask.getId());
+        chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         String plan;
         try {
             plan = aiCodeGeneratorService.generateAppPlan(planPrompt);
         } catch (RuntimeException e) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, getAiFriendlyErrorMessage(e));
+            String errorMessage = getAiFriendlyErrorMessage(e);
+            appGenerationTaskService.markFailed(planTask.getId(), errorMessage);
+            chatHistoryService.addChatMessage(appId, "方案生成失败：" + errorMessage,
+                    ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, errorMessage);
         }
 
         AppGenerationPlanVO planVO = new AppGenerationPlanVO();
@@ -194,19 +278,24 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         planVO.setMessage(message);
         planVO.setPlan(plan);
         generationPlanCache.put(planVO.getPlanId(), planVO);
+        chatHistoryService.addChatMessage(appId, "实现方案：\n" + plan,
+                ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+        appGenerationTaskService.markSuccess(planTask.getId(), plan);
         return planVO;
     }
 
     private String buildGenerationMessage(App app, String message, String planId, Long appId, Long userId) {
         String attachmentContext = buildAttachmentContextIfNeeded(app, message, userId);
+        String recentConversationContext = buildRecentConversationContext(appId, userId, 12);
         if (StrUtil.isBlank(planId)) {
-            if (StrUtil.isNotBlank(attachmentContext)) {
+            String contextBlock = buildOptionalContextBlock(recentConversationContext, attachmentContext);
+            if (StrUtil.isNotBlank(contextBlock)) {
                 return String.format("""
-                        用户原始需求：
+                        用户当前生成/修改需求：
                         %s
 
                         %s
-                        """, message, attachmentContext);
+                        """, message, contextBlock);
             }
             return message;
         }
@@ -215,6 +304,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成方案已过期，请重新生成方案");
         }
         generationPlanCache.invalidate(planId);
+        String contextBlock = buildOptionalContextBlock(recentConversationContext, attachmentContext);
         return String.format("""
                 用户原始需求：
                 %s
@@ -223,7 +313,57 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
                 用户已确认以下生成方案，请严格按方案生成代码：
                 %s
-                """, message, StrUtil.blankToDefault(attachmentContext, ""), planVO.getPlan());
+                """, message, StrUtil.blankToDefault(contextBlock, ""), planVO.getPlan());
+    }
+
+    private String buildPlainChatPrompt(App app, String message, Long userId) {
+        String recentConversationContext = buildRecentConversationContext(app.getId(), userId, 12);
+        String attachmentContext = buildAttachmentContextIfNeeded(app, message, userId);
+        String contextBlock = buildOptionalContextBlock(recentConversationContext, attachmentContext);
+        return String.format("""
+                你是 CodeCraft 应用构建助手，当前处于普通聊天模式。
+                你可以和用户对齐需求、解释当前应用、给出建议，但禁止声称已经修改代码，禁止输出会写入文件的工具调用。
+                如果用户想真正修改代码，请提醒他切换到“改代码”模式后发送明确修改需求。
+
+                当前应用信息：
+                - appId: %s
+                - 代码类型: %s
+                - 当前状态: %s
+                - 当前模型: %s
+
+                %s
+
+                用户当前问题：
+                %s
+                """, app.getId(), app.getCodeGenType(), app.getStatus(), app.getModelKey(),
+                StrUtil.blankToDefault(contextBlock, "暂无额外上下文。"), message);
+    }
+
+    private String buildOptionalContextBlock(String recentConversationContext, String attachmentContext) {
+        List<String> blocks = new ArrayList<>();
+        if (StrUtil.isNotBlank(recentConversationContext)) {
+            blocks.add(recentConversationContext);
+        }
+        if (StrUtil.isNotBlank(attachmentContext)) {
+            blocks.add(attachmentContext);
+        }
+        return String.join("\n\n", blocks);
+    }
+
+    private String buildRecentConversationContext(Long appId, Long userId, int maxCount) {
+        List<ChatHistory> historyList = chatHistoryService.listRecentChatHistory(appId, userId, maxCount);
+        if (CollUtil.isEmpty(historyList)) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder("最近对话上下文（供理解需求使用，不代表必须修改代码）：\n");
+        for (ChatHistory history : historyList) {
+            String role = ChatHistoryMessageTypeEnum.USER.getValue().equals(history.getMessageType()) ? "用户" : "AI";
+            builder.append(role)
+                    .append("：")
+                    .append(truncateText(removeMarkdownCodeFenceMarkers(history.getMessage()), 600))
+                    .append('\n');
+        }
+        return builder.toString();
     }
 
     private String buildAttachmentContextIfNeeded(App app, String message, Long userId) {
@@ -436,6 +576,40 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     private String getErrorMessage(Exception e) {
         return StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
+    }
+
+    private String acquireGenerationLock(Long appId) {
+        String lockKey = "code-craft:app:generation-lock:" + appId;
+        String lockToken = UUID.randomUUID().toString();
+        RBucket<String> lockBucket = redissonClient.getBucket(lockKey);
+        boolean locked = lockBucket.trySet(lockToken, 30, TimeUnit.MINUTES);
+        return locked ? lockToken : null;
+    }
+
+    private void releaseGenerationLock(Long appId, String lockToken) {
+        if (appId == null || StrUtil.isBlank(lockToken)) {
+            return;
+        }
+        String lockKey = "code-craft:app:generation-lock:" + appId;
+        RBucket<String> lockBucket = redissonClient.getBucket(lockKey);
+        String currentToken = lockBucket.get();
+        if (lockToken.equals(currentToken)) {
+            lockBucket.delete();
+        }
+    }
+
+    private String truncateText(String text, int maxLength) {
+        if (StrUtil.isBlank(text) || text.length() <= maxLength) {
+            return StrUtil.blankToDefault(text, "");
+        }
+        return text.substring(0, maxLength) + "...";
+    }
+
+    private String removeMarkdownCodeFenceMarkers(String text) {
+        if (StrUtil.isBlank(text)) {
+            return "";
+        }
+        return text.replaceAll("(?m)^\\s*```[\\w.+-]*\\s*$", "[代码块边界已省略]");
     }
 
     private String getAiFriendlyErrorMessage(Throwable e) {

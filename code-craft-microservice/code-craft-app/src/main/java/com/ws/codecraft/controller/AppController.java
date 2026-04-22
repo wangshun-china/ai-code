@@ -107,6 +107,22 @@ public class AppController {
                 ));
     }
 
+    /**
+     * 普通聊天，不触发代码生成和文件写入。
+     */
+    @PostMapping("/chat/message")
+    @RateLimit(limitType = RateLimitType.USER, rate = 10, rateInterval = 60, message = "AI 对话请求过于频繁，请稍后再试")
+    public BaseResponse<String> chatToApp(@RequestBody AppChatRequest appChatRequest,
+                                          HttpServletRequest request) {
+        ThrowUtils.throwIf(appChatRequest == null, ErrorCode.PARAMS_ERROR);
+        Long appId = appChatRequest.getAppId();
+        String message = appChatRequest.getMessage();
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 id 错误");
+        ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "提示词不能为空");
+        User loginUser = InnerUserService.getLoginUser(request);
+        return ResultUtils.success(appService.chatToApp(appId, message, loginUser));
+    }
+
     private String getAiFriendlyErrorMessage(Throwable error) {
         String errorMessage = error == null ? "" : StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName());
         if (errorMessage.contains("AllocationQuota.FreeTierOnly") || errorMessage.contains("403")) {

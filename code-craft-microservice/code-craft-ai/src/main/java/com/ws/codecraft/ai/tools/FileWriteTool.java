@@ -38,7 +38,8 @@ public class FileWriteTool extends BaseTool {
             if (parentDir != null) {
                 Files.createDirectories(parentDir);
             }
-            Files.write(path, content.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            String cleanContent = stripMarkdownCodeFence(content);
+            Files.write(path, cleanContent.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
             log.info("成功写入文件: {}", path.toAbsolutePath());
             return "文件写入成功: " + relativeFilePath;
         } catch (IOException e) {
@@ -72,12 +73,20 @@ public class FileWriteTool extends BaseTool {
     public String generateToolExecutedResult(JSONObject arguments) {
         String relativeFilePath = arguments.getStr("relativeFilePath");
         String suffix = FileUtil.getSuffix(relativeFilePath);
-        String content = arguments.getStr("content");
+        String content = stripMarkdownCodeFence(arguments.getStr("content"));
         return String.format("""
                         [工具调用] %s %s
                         ```%s
                         %s
                         ```
                         """, getDisplayName(), relativeFilePath, suffix, content);
+    }
+
+    @Override
+    public String generateToolExecutedSummary(JSONObject arguments) {
+        String relativeFilePath = arguments.getStr("relativeFilePath");
+        String content = stripMarkdownCodeFence(arguments.getStr("content"));
+        int length = content == null ? 0 : content.length();
+        return String.format("[工具调用] %s %s，已写入 %d 个字符", getDisplayName(), relativeFilePath, length);
     }
 }

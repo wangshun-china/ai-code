@@ -251,7 +251,7 @@
                   :placeholder="getInputPlaceholder()"
                   :rows="4"
                   :maxlength="1000"
-                  @keydown.enter.prevent="handleSendMessage"
+                  @keydown.enter.exact.prevent="handleSendMessage"
                   :disabled="isGenerating || isPlanning || !isOwner"
                   class="chat-input"
                 />
@@ -262,11 +262,19 @@
                 :placeholder="getInputPlaceholder()"
                 :rows="4"
                 :maxlength="1000"
-                @keydown.enter.prevent="handleSendMessage"
+                @keydown.enter.exact.prevent="handleSendMessage"
                 :disabled="isGenerating || isPlanning"
                 class="chat-input"
               />
               <div class="input-actions">
+                <a-segmented
+                  v-if="isOwner"
+                  v-model:value="messageMode"
+                  :options="messageModeOptions"
+                  size="small"
+                  class="message-mode-switch"
+                  :disabled="isGenerating || isPlanning || !!selectedElementInfo"
+                />
                 <a-upload
                   v-if="isOwner"
                   :show-upload-list="false"
@@ -295,6 +303,7 @@
                 </a-button>
               </div>
             </div>
+            <div class="input-hint">Enter 发送，Shift + Enter 换行</div>
             <div v-if="appAttachments.length > 0" class="attachment-list">
               <a-tag
                 v-for="attachment in appAttachments"
@@ -380,6 +389,7 @@ const {
   userInput,
   isGenerating,
   isPlanning,
+  messageMode,
   messagesContainer,
   appAttachments,
   attachmentUploading,
@@ -427,11 +437,16 @@ const isEditMode = ref(false)
 const selectedElementInfo = ref<ElementInfo | null>(null)
 const workspaceShell = ref<HTMLElement>()
 const sourcePanelWidth = ref(46)
+const messageModeOptions = [
+  { label: '聊天', value: 'chat' },
+  { label: '改代码', value: 'generate' },
+]
 type ChatMode = 'floating' | 'maximized' | 'minimized'
 const chatMode = ref<ChatMode>('floating')
 const visualEditor = new VisualEditor({
   onElementSelected: (elementInfo: ElementInfo) => {
     selectedElementInfo.value = elementInfo
+    messageMode.value = 'generate'
   },
 })
 
@@ -550,7 +565,10 @@ const getInputPlaceholder = () => {
   if (selectedElementInfo.value) {
     return `正在编辑 ${selectedElementInfo.value.tagName.toLowerCase()} 元素，描述您想要的修改...`
   }
-  return '请描述你想生成的网站，越详细效果越好哦'
+  if (messageMode.value === 'chat') {
+    return '先聊需求、问方案或讨论当前应用；聊天模式不会修改代码'
+  }
+  return '描述要生成或修改的代码，发送后会进入方案确认/生成流程'
 }
 
 const handleWindowMessage = (event: MessageEvent) => {
@@ -773,6 +791,21 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.message-mode-switch {
+  padding: 2px;
+  border: 1px solid var(--border-warm);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 0 0 1px var(--ring-warm);
+}
+
+.input-hint {
+  margin-top: 6px;
+  padding-right: 4px;
+  color: var(--muted-warm);
+  font-size: 12px;
+  text-align: right;
 }
 
 .send-btn,

@@ -53,6 +53,11 @@ declare namespace API {
     createTime?: string
   }
 
+  type AppChatRequest = {
+    appId?: number
+    message?: string
+  }
+
   type AppGeneratePlanRequest = {
     appId?: number
     message?: string

@@ -125,3 +125,4 @@ const router = createRouter({
 - 【文件修改工具】：修改现有文件的部分内容
 - 【文件写入工具】：创建新文件或完全重写文件
 - 【文件删除工具】：删除不需要的文件
+3）调用文件写入工具或文件修改工具时，content、oldContent、newContent 参数必须是原始文件内容，禁止包含 Markdown 代码块围栏，例如禁止写入 ```html、```vue、```js、```css 和结尾 ```。

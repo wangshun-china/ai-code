@@ -31,6 +31,11 @@ public interface AppService extends IService<App> {
     Flux<String> chatToGenCode(Long appId, String message, String planId, User loginUser);
 
     /**
+     * 普通对话，不触发代码写入。
+     */
+    String chatToApp(Long appId, String message, User loginUser);
+
+    /**
      * 生成应用实现方案（不写入聊天历史，不修改应用状态）
      *
      * @param appId     应用 ID

@@ -102,9 +102,10 @@ public class JsonMessageStreamHandler {
                 String toolName = toolExecutedMessage.getName();
                 BaseTool tool = toolManager.getTool(toolName);
                 String result = tool.generateToolExecutedResult(jsonObject);
-                // 输出前端和要持久化的内容
+                String summary = tool.generateToolExecutedSummary(jsonObject);
+                // 前端展示完整工具结果，历史只保存摘要，避免源码代码块污染后续上下文。
                 String output = String.format("\n\n%s\n\n", result);
-                chatHistoryStringBuilder.append(output);
+                chatHistoryStringBuilder.append("\n\n").append(summary).append("\n\n");
                 return output;
             }
             default -> {

@@ -39,11 +39,13 @@ public class FileModifyTool extends BaseTool {
             }
 
             String originalContent = Files.readString(path);
-            if (!originalContent.contains(oldContent)) {
+            String cleanOldContent = stripMarkdownCodeFence(oldContent);
+            String cleanNewContent = stripMarkdownCodeFence(newContent);
+            if (!originalContent.contains(cleanOldContent)) {
                 return "警告：文件中未找到要替换的内容，文件未修改 - " + relativeFilePath;
             }
 
-            String modifiedContent = originalContent.replace(oldContent, newContent);
+            String modifiedContent = originalContent.replace(cleanOldContent, cleanNewContent);
             if (originalContent.equals(modifiedContent)) {
                 return "信息：替换后文件内容未发生变化 - " + relativeFilePath;
             }
@@ -81,8 +83,8 @@ public class FileModifyTool extends BaseTool {
     @Override
     public String generateToolExecutedResult(JSONObject arguments) {
         String relativeFilePath = arguments.getStr("relativeFilePath");
-        String oldContent = arguments.getStr("oldContent");
-        String newContent = arguments.getStr("newContent");
+        String oldContent = stripMarkdownCodeFence(arguments.getStr("oldContent"));
+        String newContent = stripMarkdownCodeFence(arguments.getStr("newContent"));
         return String.format("""
                 [工具调用] %s %s
 
@@ -96,5 +98,16 @@ public class FileModifyTool extends BaseTool {
                 %s
                 ```
                 """, getDisplayName(), relativeFilePath, oldContent, newContent);
+    }
+
+    @Override
+    public String generateToolExecutedSummary(JSONObject arguments) {
+        String relativeFilePath = arguments.getStr("relativeFilePath");
+        String oldContent = stripMarkdownCodeFence(arguments.getStr("oldContent"));
+        String newContent = stripMarkdownCodeFence(arguments.getStr("newContent"));
+        int oldLength = oldContent == null ? 0 : oldContent.length();
+        int newLength = newContent == null ? 0 : newContent.length();
+        return String.format("[工具调用] %s %s，替换 %d 个字符为 %d 个字符",
+                getDisplayName(), relativeFilePath, oldLength, newLength);
     }
 }

@@ -9,6 +9,7 @@ import com.ws.codecraft.model.entity.User;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 对话历史 服务层。
@@ -58,6 +59,11 @@ public interface ChatHistoryService extends IService<ChatHistory> {
      * @return 加载成功的条数
      */
     int loadChatHistoryToMemory(Long appId, MessageWindowChatMemory chatMemory, int maxCount);
+
+    /**
+     * 查询最近的对话历史，返回时间正序。
+     */
+    List<ChatHistory> listRecentChatHistory(Long appId, Long userId, int maxCount);
 
     /**
      * 构造查询条件

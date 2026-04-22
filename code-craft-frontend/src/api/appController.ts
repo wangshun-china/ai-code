@@ -86,6 +86,21 @@ export async function chatToGenCode(
   })
 }
 
+/** 普通应用聊天 POST /app/chat/message */
+export async function chatToAppMessage(
+  body: API.AppChatRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseString>('/app/chat/message', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 生成应用实现方案 POST /app/chat/plan */
 export async function generateAppPlan(
   body: API.AppGeneratePlanRequest,

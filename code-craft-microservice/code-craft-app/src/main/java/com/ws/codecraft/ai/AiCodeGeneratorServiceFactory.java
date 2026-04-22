@@ -95,6 +95,13 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     /**
+     * 创建普通聊天模型实例。该模型不挂载任何写文件工具。
+     */
+    public ChatModel createPlainChatModel(String modelKey) {
+        return createChatModel(modelKey);
+    }
+
+    /**
      * 创建新的 AI 服务实例
      *
      * @param appId       应用 id
