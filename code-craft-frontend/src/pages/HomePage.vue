@@ -266,9 +266,19 @@ onMounted(() => {
           <span>联系方式</span>
         </div>
         <p class="contact-text">
-          本项目运行在阿里云服务器<br>
+          本项目运行在云服务器<br>
           使用阿里百炼平台 API<br>
+          感谢天翼云为本项目提供了一定的赞助<br>
           如遇到问题请联系：
+        </p>
+        <div class="sponsor-link-row">
+          友情链接：
+          <a href="https://www.ctyun.cn/" target="_blank" rel="noopener noreferrer" class="sponsor-link">
+            天翼云
+          </a>
+        </div>
+        <p class="sponsor-note">
+          天翼云秉承央企使命，致力于成为数字经济主力军，投身科技强国伟大事业，为用户提供安全、普惠云服务
         </p>
         <a href="mailto:2606209307@qq.com" class="contact-email">
           2606209307@qq.com
@@ -664,6 +674,29 @@ onMounted(() => {
 
 .contact-email:hover {
   color: var(--primary-dark);
+}
+
+.sponsor-link-row {
+  margin: 0 0 8px;
+  color: var(--olive-gray);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sponsor-link {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.sponsor-link:hover {
+  color: var(--primary-dark);
+}
+
+.sponsor-note {
+  margin: 0 0 12px;
+  color: rgba(75, 72, 64, 0.68);
+  font-size: 11px;
+  line-height: 1.65;
 }
 
 .sidebar-footer {
