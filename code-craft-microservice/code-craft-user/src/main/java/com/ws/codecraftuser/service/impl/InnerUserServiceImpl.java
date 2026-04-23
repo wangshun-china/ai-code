@@ -31,6 +31,14 @@ public class InnerUserServiceImpl implements InnerUserService {
     }
 
     @Override
+    public User getAuthUserById(Serializable id) {
+        if (id == null) {
+            return null;
+        }
+        return userService.getAuthUserById(Long.valueOf(String.valueOf(id)));
+    }
+
+    @Override
     public UserVO getUserVO(User user) {
         return userService.getUserVO(user);
     }

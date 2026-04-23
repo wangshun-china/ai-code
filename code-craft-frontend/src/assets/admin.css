@@ -1,0 +1,85 @@
+.admin-page-shell {
+  background:
+    linear-gradient(135deg, rgba(48, 48, 46, 0.08), rgba(201, 100, 66, 0.08)),
+    var(--parchment);
+  color: var(--near-black);
+}
+
+.admin-page-shell .page-header {
+  padding: 20px 24px;
+  border: 1px solid rgba(48, 48, 46, 0.16);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--dark-surface), #242422);
+  box-shadow: rgba(20, 20, 19, 0.14) 0 14px 36px;
+}
+
+.admin-page-shell .page-title {
+  color: var(--ivory) !important;
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.admin-page-shell .page-desc {
+  color: var(--warm-sand) !important;
+}
+
+.admin-page-shell .search-card,
+.admin-page-shell .table-card,
+.admin-page-shell .chart-card,
+.admin-page-shell .stat-card,
+.admin-page-shell .ant-card {
+  background: #fffdf8 !important;
+  border: 1px solid var(--ring-warm) !important;
+  box-shadow: rgba(20, 20, 19, 0.08) 0 12px 32px !important;
+}
+
+.admin-page-shell .ant-form-item-label > label,
+.admin-page-shell .ant-table,
+.admin-page-shell .ant-table-cell,
+.admin-page-shell .ant-card,
+.admin-page-shell .ant-card-head-title {
+  color: var(--near-black) !important;
+}
+
+.admin-page-shell .ant-input,
+.admin-page-shell .ant-select-selector,
+.admin-page-shell .ant-picker {
+  background: #fffaf0 !important;
+  border-color: var(--ring-warm) !important;
+  color: var(--near-black) !important;
+}
+
+.admin-page-shell .ant-input::placeholder {
+  color: var(--neutral-600);
+}
+
+.admin-page-shell .ant-table-thead > tr > th {
+  background: var(--dark-surface) !important;
+  color: var(--ivory) !important;
+  border-bottom: 1px solid var(--near-black) !important;
+}
+
+.admin-page-shell .ant-table-tbody > tr.even-row > td {
+  background: #fffdf8 !important;
+}
+
+.admin-page-shell .ant-table-tbody > tr.odd-row > td {
+  background: #f5f2e8 !important;
+}
+
+.admin-page-shell .ant-table-tbody > tr:hover > td {
+  background: #efe4d3 !important;
+}
+
+.admin-page-shell .ant-pagination,
+.admin-page-shell .ant-pagination-total-text,
+.admin-page-shell .ant-pagination-item a {
+  color: var(--charcoal-warm) !important;
+}
+
+.admin-page-shell .ant-btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: var(--ivory) !important;
+  box-shadow: rgba(201, 100, 66, 0.24) 0 8px 20px !important;
+}

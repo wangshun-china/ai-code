@@ -1,5 +1,5 @@
 <template>
-  <div id="appManagePage">
+  <div id="appManagePage" class="admin-page-shell">
     <div class="page-header">
       <h2 class="page-title">应用管理</h2>
       <p class="page-desc">管理所有应用，支持编辑、精选和删除操作</p>
@@ -131,7 +131,7 @@ const columns = [
 ]
 
 const { data, searchParams, pagination, doTableChange, doSearch, fetchData, onMountedFetch } =
-  useAdminTable<API.AppVO, API.AppQueryRequest>(listAppVoByPageByAdmin)
+  useAdminTable<API.AppVO, API.AppQueryRequest>(listAppVoByPageByAdmin, { ensureAdmin: true })
 
 onMountedFetch()
 

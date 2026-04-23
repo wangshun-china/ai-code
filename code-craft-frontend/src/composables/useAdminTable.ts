@@ -1,5 +1,10 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import { ensureAdminAccess, isNoAuthCode } from '@/composables/useAdminGuard'
+
+type AdminTableOptions = {
+  ensureAdmin?: boolean
+}
 
 /**
  * 管理页面表格通用逻辑
@@ -7,6 +12,7 @@ import { message } from 'ant-design-vue'
  */
 export function useAdminTable<T, P extends { pageNum?: number; pageSize?: number }>(
   fetchFn: (params: P) => Promise<any>,
+  options: AdminTableOptions = {},
 ) {
   // 数据
   const data = ref<T[]>([])
@@ -23,10 +29,29 @@ export function useAdminTable<T, P extends { pageNum?: number; pageSize?: number
   const fetchData = async (params?: Partial<P>) => {
     loading.value = true
     try {
-      const res = await fetchFn({
+      if (options.ensureAdmin) {
+        const hasAccess = await ensureAdminAccess({ silent: true })
+        if (!hasAccess) {
+          data.value = []
+          total.value = 0
+          message.error('没有管理员权限，请重新登录后再试')
+          return
+        }
+      }
+
+      const requestParams = {
         ...searchParams,
         ...params,
-      } as P)
+      } as P
+      let res = await fetchFn(requestParams)
+
+      if (isNoAuthCode(res.data?.code) && options.ensureAdmin) {
+        const hasAccess = await ensureAdminAccess({ silent: true, force: true })
+        if (hasAccess) {
+          res = await fetchFn(requestParams)
+        }
+      }
+
       if (res.data.data) {
         data.value = res.data.data.records ?? []
         total.value = res.data.data.totalRow ?? 0

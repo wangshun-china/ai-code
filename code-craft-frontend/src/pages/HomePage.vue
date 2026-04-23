@@ -268,21 +268,21 @@ onMounted(() => {
         <p class="contact-text">
           本项目运行在云服务器<br>
           使用阿里百炼平台 API<br>
-          感谢天翼云为本项目提供了一定的赞助<br>
           如遇到问题请联系：
         </p>
-        <div class="sponsor-link-row">
-          友情链接：
-          <a href="https://www.ctyun.cn/" target="_blank" rel="noopener noreferrer" class="sponsor-link">
-            天翼云
-          </a>
-        </div>
-        <p class="sponsor-note">
-          天翼云秉承央企使命，致力于成为数字经济主力军，投身科技强国伟大事业，为用户提供安全、普惠云服务
-        </p>
+        <div class="contact-label">联系邮箱</div>
         <a href="mailto:2606209307@qq.com" class="contact-email">
           2606209307@qq.com
         </a>
+        <div class="sponsor-card">
+          <div class="sponsor-title">感谢天翼云为本项目提供了一定的支持</div>
+          <a href="https://www.ctyun.cn/" target="_blank" rel="noopener noreferrer" class="sponsor-link">
+            友情链接：天翼云 https://www.ctyun.cn/
+          </a>
+          <p class="sponsor-note">
+            天翼云秉承央企使命，致力于成为数字经济主力军，投身科技强国伟大事业，为用户提供安全、普惠云服务
+          </p>
+        </div>
       </div>
 
       <div class="sidebar-footer">
@@ -486,7 +486,9 @@ onMounted(() => {
 .home-layout {
   display: flex;
   min-height: 100vh;
-  background: transparent;
+  background:
+    radial-gradient(circle at 26% 10%, rgba(201, 100, 66, 0.13), transparent 28%),
+    linear-gradient(135deg, #efe8d8 0%, #f8f1e4 46%, #e6eef0 100%);
 }
 
 .sidebar {
@@ -638,10 +640,10 @@ onMounted(() => {
 .contact-box {
   margin: 0 16px 16px;
   padding: 20px;
-  background: var(--ivory);
+  background: linear-gradient(180deg, #fffaf0 0%, #f4ead7 100%);
   border-radius: 20px;
-  border: 1px solid rgba(250, 249, 245, 0.18);
-  box-shadow: inset 0 0 0 1px rgba(201, 100, 66, 0.08);
+  border: 1px solid rgba(201, 100, 66, 0.28);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
 .contact-header {
@@ -656,45 +658,73 @@ onMounted(() => {
 
 .contact-text {
   font-size: 12px;
-  color: var(--olive-gray);
+  color: #3e3a32;
   line-height: 1.8;
   margin: 0 0 12px;
+}
+
+.contact-label {
+  margin-bottom: 6px;
+  color: #7a442f;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 
 .contact-email {
   display: inline-block;
   padding: 8px 12px;
-  background-color: var(--warm-sand);
+  background-color: #201f1c;
   color: var(--charcoal-warm);
   font-size: 13px;
   font-weight: 600;
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px var(--ring-warm);
+  box-shadow: 0 0 0 1px rgba(32, 31, 28, 0.12);
+}
+
+.contact-email,
+.contact-email:hover {
+  color: #fff7e7;
 }
 
 .contact-email:hover {
-  color: var(--primary-dark);
+  background-color: #7a442f;
 }
 
-.sponsor-link-row {
-  margin: 0 0 8px;
-  color: var(--olive-gray);
+.sponsor-card {
+  margin-top: 14px;
+  padding: 14px;
+  background: #f8fbff;
+  border: 1px solid rgba(55, 110, 180, 0.28);
+  border-radius: 16px;
+  box-shadow: inset 3px 0 0 #2f6fbb;
+}
+
+.sponsor-title {
+  margin-bottom: 8px;
+  color: #17385f;
   font-size: 12px;
-  line-height: 1.6;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 .sponsor-link {
-  color: var(--primary);
+  display: block;
+  margin-bottom: 8px;
+  color: #0f62b5;
+  font-size: 12px;
   font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .sponsor-link:hover {
-  color: var(--primary-dark);
+  color: #08427a;
 }
 
 .sponsor-note {
-  margin: 0 0 12px;
-  color: rgba(75, 72, 64, 0.68);
+  margin: 0;
+  color: #34465f;
   font-size: 11px;
   line-height: 1.65;
 }
@@ -737,10 +767,10 @@ onMounted(() => {
   align-items: start;
   margin-bottom: 34px;
   padding: 48px;
-  background: var(--ivory);
+  background: linear-gradient(135deg, #fffdf7 0%, #f6ead8 100%);
   border-radius: 32px;
-  border: 1px solid var(--border-cream);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(122, 68, 47, 0.2);
+  box-shadow: 0 24px 70px rgba(67, 49, 31, 0.16);
   position: relative;
   overflow: hidden;
 }
@@ -817,9 +847,9 @@ onMounted(() => {
   padding: 20px;
   font-size: 15px;
   line-height: 1.7;
-  border: 1px solid var(--border-warm);
+  border: 1px solid rgba(122, 68, 47, 0.28);
   border-radius: 18px;
-  background-color: var(--parchment);
+  background-color: #fffaf0;
   resize: none;
   transition: all var(--transition-fast);
   box-shadow: inset 0 0 0 1px rgba(20, 20, 19, 0.02);
@@ -957,11 +987,11 @@ onMounted(() => {
 }
 
 .content-section {
-  background-color: var(--ivory);
+  background: #fffdf7;
   border-radius: 28px;
-  border: 1px solid var(--border-cream);
+  border: 1px solid rgba(122, 68, 47, 0.16);
   padding: 28px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 16px 42px rgba(67, 49, 31, 0.1);
   min-height: 420px;
 }
 

@@ -3,6 +3,8 @@ package com.ws.codecraftuser.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ws.codecraft.exception.BusinessException;
@@ -14,13 +16,17 @@ import com.ws.codecraft.model.enums.UserRoleEnum;
 import com.ws.codecraft.model.vo.LoginUserVO;
 import com.ws.codecraft.model.vo.UserVO;
 import com.ws.codecraftuser.service.UserService;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.ws.codecraft.constant.UserConstant.USER_LOGIN_STATE;
@@ -31,7 +37,18 @@ import static com.ws.codecraft.constant.UserConstant.USER_LOGIN_STATE;
  * @author code-craft-mother
  */
 @Service
+@Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+
+    private static final String AUTH_USER_CACHE_KEY_PREFIX = "codecraft:user_auth:";
+
+    private static final long AUTH_USER_CACHE_TTL_MINUTES = 5;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private ObjectMapper objectMapper;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -104,6 +121,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         // 4. 如果用户存在，记录用户的登录态
         request.getSession().setAttribute(USER_LOGIN_STATE, user);
+        evictAuthUserCache(user.getId());
         // 5. 返回脱敏的用户信息
         return this.getLoginUserVO(user);
     }
@@ -118,11 +136,70 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         // 从数据库查询当前用户信息
         long userId = currentUser.getId();
-        currentUser = this.getById(userId);
+        currentUser = this.getAuthUserById(userId);
         if (currentUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
+        request.getSession().setAttribute(USER_LOGIN_STATE, currentUser);
         return currentUser;
+    }
+
+    @Override
+    public User getAuthUserById(Long userId) {
+        if (userId == null || userId <= 0) {
+            return null;
+        }
+        String cacheKey = getAuthUserCacheKey(userId);
+        String cachedUser = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (StrUtil.isNotBlank(cachedUser)) {
+            try {
+                return objectMapper.readValue(cachedUser, User.class);
+            } catch (JsonProcessingException e) {
+                log.warn("用户鉴权缓存反序列化失败，删除缓存后回源查询, userId={}", userId, e);
+                stringRedisTemplate.delete(cacheKey);
+            }
+        }
+
+        User user = this.getById(userId);
+        if (user == null) {
+            return null;
+        }
+        User authUser = buildAuthUser(user);
+        try {
+            stringRedisTemplate.opsForValue().set(
+                    cacheKey,
+                    objectMapper.writeValueAsString(authUser),
+                    AUTH_USER_CACHE_TTL_MINUTES,
+                    TimeUnit.MINUTES
+            );
+        } catch (JsonProcessingException e) {
+            log.warn("用户鉴权缓存序列化失败，将直接返回数据库结果, userId={}", userId, e);
+        }
+        return authUser;
+    }
+
+    @Override
+    public void evictAuthUserCache(Long userId) {
+        if (userId == null || userId <= 0) {
+            return;
+        }
+        stringRedisTemplate.delete(getAuthUserCacheKey(userId));
+    }
+
+    private String getAuthUserCacheKey(Long userId) {
+        return AUTH_USER_CACHE_KEY_PREFIX + userId;
+    }
+
+    private User buildAuthUser(User user) {
+        User authUser = new User();
+        authUser.setId(user.getId());
+        authUser.setUserAccount(user.getUserAccount());
+        authUser.setUserName(user.getUserName());
+        authUser.setUserAvatar(user.getUserAvatar());
+        authUser.setUserProfile(user.getUserProfile());
+        authUser.setUserRole(user.getUserRole());
+        authUser.setIsDelete(user.getIsDelete());
+        return authUser;
     }
 
     @Override

@@ -215,6 +215,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         String aiResponse;
         try {
+            MonitorContextHolder.setContext(MonitorContext.builder()
+                    .userId(String.valueOf(loginUser.getId()))
+                    .appId(String.valueOf(appId))
+                    .build());
             aiResponse = plainChatModel.chat(UserMessage.from(chatPrompt)).aiMessage().text();
         } catch (RuntimeException e) {
             String errorMessage = getAiFriendlyErrorMessage(e);
@@ -222,6 +226,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             chatHistoryService.addChatMessage(appId, "AI 回复失败：" + errorMessage,
                     ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, errorMessage);
+        } finally {
+            MonitorContextHolder.clearContext();
         }
         chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
         appGenerationTaskService.markSuccess(chatTask.getId(), aiResponse);
@@ -263,6 +269,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         String plan;
         try {
+            MonitorContextHolder.setContext(MonitorContext.builder()
+                    .userId(String.valueOf(loginUser.getId()))
+                    .appId(String.valueOf(appId))
+                    .build());
             plan = aiCodeGeneratorService.generateAppPlan(planPrompt);
         } catch (RuntimeException e) {
             String errorMessage = getAiFriendlyErrorMessage(e);
@@ -270,6 +280,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             chatHistoryService.addChatMessage(appId, "方案生成失败：" + errorMessage,
                     ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, errorMessage);
+        } finally {
+            MonitorContextHolder.clearContext();
         }
 
         AppGenerationPlanVO planVO = new AppGenerationPlanVO();
@@ -408,9 +420,14 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 .createAiCodeGenTypeRoutingService(app.getModelKey());
         CodeGenTypeEnum selectedCodeGenType;
         try {
+            MonitorContextHolder.setContext(MonitorContext.builder()
+                    .userId(String.valueOf(loginUser.getId()))
+                    .build());
             selectedCodeGenType = routingService.routeCodeGenType(initPrompt);
         } catch (RuntimeException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, getAiFriendlyErrorMessage(e));
+        } finally {
+            MonitorContextHolder.clearContext();
         }
         app.setCodeGenType(selectedCodeGenType.getValue());
         app.setStatus(AppStatusEnum.DRAFT.getValue());

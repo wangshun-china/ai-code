@@ -41,9 +41,6 @@ public class AiModelMonitorListener implements ChatModelListener {
     @DubboReference
     private InnerAiUsageRecordService innerAiUsageRecordService;
 
-    // 临时存储正在进行的请求记录（用于更新）
-    private final Map<String, Long> pendingRecords = new ConcurrentHashMap<>();
-
     @Override
     public void onRequest(ChatModelRequestContext requestContext) {
         // 获取当前时间戳
@@ -132,9 +129,12 @@ public class AiModelMonitorListener implements ChatModelListener {
 
     @Override
     public void onError(ChatModelErrorContext errorContext) {
-        // 从监控上下文中获取信息
-        MonitorContext context = MonitorContextHolder.getContext();
         Map<Object, Object> attributes = errorContext.attributes();
+        // 优先使用请求阶段存入 attributes 的上下文，避免异步线程丢失 ThreadLocal
+        MonitorContext context = (MonitorContext) attributes.get(MONITOR_CONTEXT_KEY);
+        if (context == null) {
+            context = MonitorContextHolder.getContext();
+        }
         if (context != null) {
             String userId = context.getUserId();
             String appId = context.getAppId();

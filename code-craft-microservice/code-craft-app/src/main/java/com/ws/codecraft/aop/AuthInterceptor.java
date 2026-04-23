@@ -7,6 +7,7 @@ import com.ws.codecraft.innerservice.InnerUserService;
 import com.ws.codecraft.model.entity.User;
 import com.ws.codecraft.model.enums.UserRoleEnum;
 import jakarta.servlet.http.HttpServletRequest;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -18,6 +19,9 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Aspect
 @Component
 public class AuthInterceptor {
+
+    @DubboReference
+    private InnerUserService innerUserService;
 
     /**
      * 执行拦截
@@ -33,7 +37,11 @@ public class AuthInterceptor {
         RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
         // 获取当前登录用户
-        User loginUser = InnerUserService.getLoginUser(request);
+        Long loginUserId = InnerUserService.getLoginUserId(request);
+        User loginUser = innerUserService.getAuthUserById(loginUserId);
+        if (loginUser == null || loginUser.getId() == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+        }
         UserRoleEnum mustRoleEnum = UserRoleEnum.getEnumByValue(mustRole);
         // 不需要权限，直接放行
         if (mustRoleEnum == null) {

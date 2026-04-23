@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { h } from 'vue'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick, onBeforeUnmount } from 'vue'
 import { Card, Row, Col, Table, Tag, DatePicker, Button, message } from 'ant-design-vue'
 import { Chart } from '@antv/g2'
-import type { Dayjs } from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { ReloadOutlined, LineChartOutlined, ApiOutlined, ClockCircleOutlined, DollarOutlined } from '@ant-design/icons-vue'
 import { getAiMetrics } from '@/api/statisticsController'
 
@@ -26,13 +26,13 @@ const dateRange = ref<[Dayjs, Dayjs] | null>(null)
 
 // 计算属性
 const todayRequests = computed(() => {
-  const today = new Date().toISOString().split('T')[0]
+  const today = dayjs().format('YYYY-MM-DD')
   const todayStat = metricsData.value.dailyStats.find((s: any) => s.date === today)
   return todayStat?.requests || 0
 })
 
 const todayTokens = computed(() => {
-  const today = new Date().toISOString().split('T')[0]
+  const today = dayjs().format('YYYY-MM-DD')
   const todayStat = metricsData.value.dailyStats.find((s: any) => s.date === today)
   return todayStat?.tokens || 0
 })
@@ -50,14 +50,8 @@ const fetchMetrics = async () => {
     const res = await getAiMetrics(params)
     if (res.data.code === 0 && res.data.data) {
       metricsData.value = res.data.data
-      // 延迟渲染图表，确保 DOM 已更新
-      setTimeout(() => {
-        try {
-          renderCharts()
-        } catch (chartError) {
-          console.error('图表渲染失败:', chartError)
-        }
-      }, 0)
+      await nextTick()
+      renderCharts()
     }
   } catch (error) {
     console.error('获取统计数据失败:', error)
@@ -71,20 +65,29 @@ const fetchMetrics = async () => {
 let tokenChart: any = null
 let requestChart: any = null
 
+const destroyCharts = () => {
+  if (tokenChart) {
+    tokenChart.destroy()
+    tokenChart = null
+  }
+  if (requestChart) {
+    requestChart.destroy()
+    requestChart = null
+  }
+}
+
 const renderCharts = () => {
   try {
-    // 清理旧图表
-    if (tokenChart) {
-      tokenChart.destroy()
-      tokenChart = null
-    }
-    if (requestChart) {
-      requestChart.destroy()
-      requestChart = null
-    }
+    destroyCharts()
 
     // 如果没有数据，不渲染图表
     if (!metricsData.value.dailyStats || metricsData.value.dailyStats.length === 0) {
+      return
+    }
+
+    const tokenContainer = document.getElementById('token-chart')
+    const requestContainer = document.getElementById('request-chart')
+    if (!tokenContainer || !requestContainer) {
       return
     }
 
@@ -102,23 +105,33 @@ const renderCharts = () => {
       value: Number(s.outputTokens) || 0
     })))
 
-    tokenChart = new Chart({
-      container: 'token-chart',
-      autoFit: true,
-      height: 300
-    })
-
-    tokenChart.data(tokenData)
-    tokenChart.scale('value', { nice: true })
-    tokenChart.tooltip({ shared: true })
-
+    tokenChart = new Chart({ container: tokenContainer, autoFit: true, height: 300 })
     if (isSingleDay) {
-      // 单天数据使用柱状图
-      tokenChart.interval().position('type*value').color('type').adjust([{ type: 'dodge' }])
+      tokenChart.options({
+        type: 'interval',
+        data: tokenData,
+        encode: { x: 'type', y: 'value', color: 'type' },
+        axis: { x: { title: false }, y: { title: false } },
+        legend: { color: { position: 'top' } }
+      })
     } else {
-      // 多天数据使用折线图
-      tokenChart.line().position('date*value').color('type').shape('smooth')
-      tokenChart.point().position('date*value').color('type').shape('circle')
+      tokenChart.options({
+        type: 'view',
+        children: [
+          {
+            type: 'line',
+            data: tokenData,
+            encode: { x: 'date', y: 'value', color: 'type' },
+            axis: { x: { title: false }, y: { title: false } },
+            legend: { color: { position: 'top' } }
+          },
+          {
+            type: 'point',
+            data: tokenData,
+            encode: { x: 'date', y: 'value', color: 'type' }
+          }
+        ]
+      })
     }
     tokenChart.render()
 
@@ -129,23 +142,40 @@ const renderCharts = () => {
       errors: Number(s.errors) || 0
     }))
 
-    requestChart = new Chart({
-      container: 'request-chart',
-      autoFit: true,
-      height: 300
-    })
-
-    requestChart.data(requestData)
-    requestChart.scale('requests', { nice: true })
-    requestChart.tooltip({ shared: true })
-
+    requestChart = new Chart({ container: requestContainer, autoFit: true, height: 300 })
     if (isSingleDay) {
-      // 单天数据使用柱状图显示请求和错误
-      requestChart.interval().position('date*requests').color('#0d9488')
+      requestChart.options({
+        type: 'interval',
+        data: requestData,
+        encode: { x: 'date', y: 'requests' },
+        style: { fill: '#0d9488' },
+        axis: { x: { title: false }, y: { title: false } }
+      })
     } else {
-      // 多天数据使用折线图
-      requestChart.interval().position('date*requests').color('#0d9488').label('requests')
-      requestChart.line().position('date*errors').color('#ef4444').shape('smooth')
+      requestChart.options({
+        type: 'view',
+        children: [
+          {
+            type: 'interval',
+            data: requestData,
+            encode: { x: 'date', y: 'requests' },
+            style: { fill: '#0d9488' },
+            axis: { x: { title: false }, y: { title: false } }
+          },
+          {
+            type: 'line',
+            data: requestData,
+            encode: { x: 'date', y: 'errors' },
+            style: { stroke: '#ef4444', lineWidth: 2 }
+          },
+          {
+            type: 'point',
+            data: requestData,
+            encode: { x: 'date', y: 'errors' },
+            style: { fill: '#ef4444' }
+          }
+        ]
+      })
     }
     requestChart.render()
   } catch (error) {
@@ -175,10 +205,14 @@ const userColumns = [
 onMounted(() => {
   fetchMetrics()
 })
+
+onBeforeUnmount(() => {
+  destroyCharts()
+})
 </script>
 
 <template>
-  <div class="statistics-page">
+  <div class="statistics-page admin-page-shell">
     <div class="page-header">
       <h1 class="page-title">AI 使用统计</h1>
       <div class="filter-bar">

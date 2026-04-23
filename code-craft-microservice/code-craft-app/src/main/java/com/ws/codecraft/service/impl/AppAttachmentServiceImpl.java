@@ -15,6 +15,8 @@ import com.ws.codecraft.model.entity.App;
 import com.ws.codecraft.model.entity.AppAttachment;
 import com.ws.codecraft.model.entity.User;
 import com.ws.codecraft.model.vo.AppAttachmentVO;
+import com.ws.codecraft.monitor.MonitorContext;
+import com.ws.codecraft.monitor.MonitorContextHolder;
 import com.ws.codecraft.service.AppAttachmentService;
 import com.ws.codecraft.service.AttachmentAnalysisService;
 import jakarta.annotation.Resource;
@@ -85,7 +87,16 @@ public class AppAttachmentServiceImpl extends ServiceImpl<AppAttachmentMapper, A
             attachment.setParseStatus("processing");
             this.save(attachment);
 
-            String parsedContent = attachmentAnalysisService.analyze(targetPath, originalFileName, fileType, mimeType);
+            MonitorContextHolder.setContext(MonitorContext.builder()
+                    .userId(String.valueOf(loginUser.getId()))
+                    .appId(String.valueOf(appId))
+                    .build());
+            String parsedContent;
+            try {
+                parsedContent = attachmentAnalysisService.analyze(targetPath, originalFileName, fileType, mimeType);
+            } finally {
+                MonitorContextHolder.clearContext();
+            }
             AppAttachment updateAttachment = new AppAttachment();
             updateAttachment.setId(attachment.getId());
             updateAttachment.setParsedContent(parsedContent);

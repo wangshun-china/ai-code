@@ -1,5 +1,7 @@
 package com.ws.codecraft.service;
 
+import com.ws.codecraft.ai.AiCodeGeneratorServiceFactory;
+import com.ws.codecraft.model.enums.AiModelEnum;
 import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
@@ -34,8 +36,8 @@ public class AttachmentAnalysisService {
     private static final int MAX_TEXT_CHARS = 6000;
     private static final int MAX_SUMMARY_CHARS = 4000;
 
-    @Resource(name = "openAiChatModel")
-    private ChatModel chatModel;
+    @Resource
+    private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
 
     public String analyze(Path filePath, String fileName, String fileType, String mimeType) {
         try {
@@ -53,6 +55,7 @@ public class AttachmentAnalysisService {
     }
 
     private String analyzeImage(Path filePath, String fileName, String mimeType) throws IOException {
+        ChatModel chatModel = aiCodeGeneratorServiceFactory.createPlainChatModel(AiModelEnum.DEFAULT_MODEL_KEY);
         String base64 = Base64.getEncoder().encodeToString(Files.readAllBytes(filePath));
         List<Content> contents = new ArrayList<>();
         contents.add(TextContent.from("""

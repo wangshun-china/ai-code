@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.ws.codecraft.ai.config.ReasoningStreamingChatModelConfig;
 import com.ws.codecraft.ai.config.StreamingChatModelConfig;
 import com.ws.codecraft.ai.guardrail.PromptSafetyInputGuardrail;
+import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
 import com.ws.codecraft.ai.tools.*;
 import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
@@ -16,6 +17,7 @@ import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.service.AiServices;
@@ -25,6 +27,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
+import java.util.List;
 
 /**
  * AI 服务创建工厂
@@ -50,6 +53,9 @@ public class AiCodeGeneratorServiceFactory {
 
     @Resource
     private ToolManager toolManager;
+
+    @Resource
+    private AiModelMonitorListener aiModelMonitorListener;
 
     /**
      * AI 服务实例缓存
@@ -181,6 +187,7 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     private ChatModel createChatModel(String modelKey) {
+        List<ChatModelListener> listeners = List.of(aiModelMonitorListener);
         return OpenAiChatModel.builder()
                 .apiKey(streamingChatModelConfig.getApiKey())
                 .baseUrl(streamingChatModelConfig.getBaseUrl())
@@ -189,10 +196,12 @@ public class AiCodeGeneratorServiceFactory {
                 .temperature(streamingChatModelConfig.getTemperature())
                 .logRequests(streamingChatModelConfig.isLogRequests())
                 .logResponses(streamingChatModelConfig.isLogResponses())
+                .listeners(listeners)
                 .build();
     }
 
     private StreamingChatModel createStreamingChatModel(String modelKey) {
+        List<ChatModelListener> listeners = List.of(aiModelMonitorListener);
         return OpenAiStreamingChatModel.builder()
                 .apiKey(streamingChatModelConfig.getApiKey())
                 .baseUrl(streamingChatModelConfig.getBaseUrl())
@@ -201,10 +210,12 @@ public class AiCodeGeneratorServiceFactory {
                 .temperature(streamingChatModelConfig.getTemperature())
                 .logRequests(streamingChatModelConfig.isLogRequests())
                 .logResponses(streamingChatModelConfig.isLogResponses())
+                .listeners(listeners)
                 .build();
     }
 
     private StreamingChatModel createReasoningStreamingChatModel(String modelKey) {
+        List<ChatModelListener> listeners = List.of(aiModelMonitorListener);
         return OpenAiStreamingChatModel.builder()
                 .apiKey(reasoningStreamingChatModelConfig.getApiKey())
                 .baseUrl(reasoningStreamingChatModelConfig.getBaseUrl())
@@ -213,6 +224,7 @@ public class AiCodeGeneratorServiceFactory {
                 .temperature(reasoningStreamingChatModelConfig.getTemperature())
                 .logRequests(reasoningStreamingChatModelConfig.getLogRequests())
                 .logResponses(reasoningStreamingChatModelConfig.getLogResponses())
+                .listeners(listeners)
                 .build();
     }
 }

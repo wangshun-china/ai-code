@@ -21,9 +21,20 @@ public interface InnerUserService {
 
     User getById(Serializable id);
 
+    User getAuthUserById(Serializable id);
+
     UserVO getUserVO(User user);
 
-    // 静态方法，避免跨服务调用
+    static Long getLoginUserId(HttpServletRequest request) {
+        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        User currentUser = (User) userObj;
+        if (currentUser == null || currentUser.getId() == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+        }
+        return currentUser.getId();
+    }
+
+    // 静态方法，仅用于读取会话身份；权限字段必须通过用户服务的权限快照获取
     static User getLoginUser(HttpServletRequest request) {
         Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
         User currentUser = (User) userObj;

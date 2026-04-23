@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import com.ws.codecraft.model.entity.User;
 import com.ws.codecraftuser.service.UserService;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -70,7 +71,16 @@ public class UserController {
     }
 
     @GetMapping("/get/login")
-    public BaseResponse<LoginUserVO> getLoginUser(HttpServletRequest request) {
+    public BaseResponse<LoginUserVO> getLoginUser(
+            HttpServletRequest request,
+            @RequestParam(required = false, defaultValue = "false") Boolean refreshAuth
+    ) {
+        if (Boolean.TRUE.equals(refreshAuth)) {
+            Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+            if (userObj instanceof User currentUser && currentUser.getId() != null) {
+                userService.evictAuthUserCache(currentUser.getId());
+            }
+        }
         User loginUser = userService.getLoginUser(request);
         return ResultUtils.success(userService.getLoginUserVO(loginUser));
     }
@@ -138,6 +148,7 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         boolean b = userService.removeById(deleteRequest.getId());
+        userService.evictAuthUserCache(deleteRequest.getId());
         return ResultUtils.success(b);
     }
 
@@ -154,6 +165,7 @@ public class UserController {
         BeanUtil.copyProperties(userUpdateRequest, user);
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        userService.evictAuthUserCache(userUpdateRequest.getId());
         return ResultUtils.success(true);
     }
 

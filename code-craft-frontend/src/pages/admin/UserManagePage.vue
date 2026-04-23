@@ -1,5 +1,5 @@
 <template>
-  <div id="userManagePage">
+  <div id="userManagePage" class="admin-page-shell">
     <div class="page-header">
       <h2 class="page-title">用户管理</h2>
       <p class="page-desc">管理系统用户，支持搜索和删除操作</p>

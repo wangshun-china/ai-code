@@ -1,11 +1,9 @@
 package com.ws.codecraft.service.impl;
 
 import com.ws.codecraft.innerservice.InnerUserService;
-import com.ws.codecraft.mapper.AppMapper;
+import com.ws.codecraft.mapper.StatisticsMapper;
 import com.ws.codecraft.model.entity.User;
 import com.ws.codecraft.model.vo.AiMetricsVO;
-import com.ws.codecraft.service.AiDailyStatisticsService;
-import com.ws.codecraft.service.AiUsageRecordService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,7 +13,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -26,8 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,16 +33,7 @@ import static org.mockito.Mockito.when;
 class StatisticsServiceImplTest {
 
     @Mock
-    private AppMapper appMapper;
-
-    @Mock
-    private AiUsageRecordService aiUsageRecordService;
-
-    @Mock
-    private AiDailyStatisticsService aiDailyStatisticsService;
-
-    @Mock
-    private JdbcTemplate jdbcTemplate;
+    private StatisticsMapper statisticsMapper;
 
     @Mock
     private InnerUserService userService;
@@ -71,8 +57,7 @@ class StatisticsServiceImplTest {
 
     @Test
     void getAiMetrics_shouldApplyDateRangeAndBatchLoadUsers() {
-        doReturn(totalMetrics).when(jdbcTemplate).queryForMap(
-                contains("FROM ai_usage_record"),
+        doReturn(totalMetrics).when(statisticsMapper).selectTotalMetrics(
                 any(LocalDateTime.class),
                 any(LocalDateTime.class));
         doReturn(List.of(
@@ -85,7 +70,8 @@ class StatisticsServiceImplTest {
                         "total_errors", 1L,
                         "avg_response_time", 180.0
                 )
-        )).doReturn(List.of(
+        )).when(statisticsMapper).selectDailyStats(any(LocalDateTime.class), any(LocalDateTime.class));
+        doReturn(List.of(
                 Map.of(
                         "model_name", "qwen3.5-plus",
                         "total_requests", 3L,
@@ -95,7 +81,7 @@ class StatisticsServiceImplTest {
                         "total_errors", 1L,
                         "avg_response_time", 180.0
                 )
-        )).when(jdbcTemplate).queryForList(any(String.class), any(LocalDateTime.class), any(LocalDateTime.class));
+        )).when(statisticsMapper).selectModelStats(any(LocalDateTime.class), any(LocalDateTime.class));
         doReturn(List.of(
                 Map.of(
                         "user_id", "1",
@@ -104,14 +90,12 @@ class StatisticsServiceImplTest {
                         "input_tokens", 30L,
                         "output_tokens", 70L
                 )
-        )).when(jdbcTemplate).queryForList(
-                any(String.class),
+        )).when(statisticsMapper).selectUserTokenRanking(
                 any(LocalDateTime.class),
                 any(LocalDateTime.class),
                 any(Integer.class));
-        doReturn(List.of(Map.of("user_id", 1L, "app_count", 2L))).when(jdbcTemplate).queryForList(
-                eq("SELECT user_id, COUNT(*) AS app_count FROM app WHERE user_id IN (?) GROUP BY user_id"),
-                any(Object[].class));
+        doReturn(List.of(Map.of("user_id", 1L, "app_count", 2L)))
+                .when(statisticsMapper).selectAppCountsByUserIds(any());
         when(userService.listByIds(List.of(1L))).thenReturn(List.of(User.builder().id(1L).userName("ws").build()));
 
         AiMetricsVO result = statisticsService.getAiMetrics("2026-04-20", "2026-04-21");
@@ -126,9 +110,9 @@ class StatisticsServiceImplTest {
         verify(userService).listByIds(List.of(1L));
         verify(userService, never()).getById(any());
 
-        ArgumentCaptor<Object> startCaptor = ArgumentCaptor.forClass(Object.class);
-        ArgumentCaptor<Object> endCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(jdbcTemplate).queryForMap(any(String.class), startCaptor.capture(), endCaptor.capture());
+        ArgumentCaptor<LocalDateTime> startCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> endCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(statisticsMapper).selectTotalMetrics(startCaptor.capture(), endCaptor.capture());
         assertTrue(startCaptor.getValue().toString().contains("2026-04-20T00:00"));
         assertTrue(endCaptor.getValue().toString().contains("2026-04-22T00:00"));
     }

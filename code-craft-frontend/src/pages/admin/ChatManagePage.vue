@@ -1,5 +1,5 @@
 <template>
-  <div id="chatManagePage">
+  <div id="chatManagePage" class="admin-page-shell">
     <div class="page-header">
       <h2 class="page-title">对话管理</h2>
       <p class="page-desc">管理所有对话历史，支持搜索和删除操作</p>
@@ -101,7 +101,9 @@ const columns = [
 ]
 
 const { data, searchParams, pagination, doTableChange, doSearch, fetchData, onMountedFetch } =
-  useAdminTable<API.ChatHistory, API.ChatHistoryQueryRequest>(listAllChatHistoryByPageForAdmin)
+  useAdminTable<API.ChatHistory, API.ChatHistoryQueryRequest>(listAllChatHistoryByPageForAdmin, {
+    ensureAdmin: true,
+  })
 
 onMountedFetch()
 

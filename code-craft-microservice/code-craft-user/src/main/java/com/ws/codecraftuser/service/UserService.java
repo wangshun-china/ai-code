@@ -53,6 +53,21 @@ public interface UserService extends IService<User> {
     User getLoginUser(HttpServletRequest request);
 
     /**
+     * 获取鉴权用用户快照，优先走缓存，缓存不存在时才查询数据库。
+     *
+     * @param userId 用户 id
+     * @return 鉴权用用户信息
+     */
+    User getAuthUserById(Long userId);
+
+    /**
+     * 清理指定用户的鉴权缓存。
+     *
+     * @param userId 用户 id
+     */
+    void evictAuthUserCache(Long userId);
+
+    /**
      * 获取脱敏后的用户信息
      *
      * @param user 用户信息

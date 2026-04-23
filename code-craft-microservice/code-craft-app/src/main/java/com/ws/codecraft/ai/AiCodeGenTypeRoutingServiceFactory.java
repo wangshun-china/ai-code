@@ -1,15 +1,19 @@
 package com.ws.codecraft.ai;
 
 import com.ws.codecraft.ai.config.RoutingAiModelConfig;
+import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
 import com.ws.codecraft.model.enums.AiModelEnum;
 import com.ws.codecraft.utils.SpringContextUtil;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.AiServices;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
 
 /**
  * AI代码生成类型路由服务工厂
@@ -23,6 +27,9 @@ public class AiCodeGenTypeRoutingServiceFactory {
     @Resource
     private RoutingAiModelConfig routingAiModelConfig;
 
+    @Resource
+    private AiModelMonitorListener aiModelMonitorListener;
+
     /**
      * 创建AI代码生成类型路由服务实例
      */
@@ -34,6 +41,7 @@ public class AiCodeGenTypeRoutingServiceFactory {
     }
 
     public AiCodeGenTypeRoutingService createAiCodeGenTypeRoutingService(String modelKey) {
+        List<ChatModelListener> listeners = List.of(aiModelMonitorListener);
         ChatModel chatModel = OpenAiChatModel.builder()
                 .apiKey(routingAiModelConfig.getApiKey())
                 .baseUrl(routingAiModelConfig.getBaseUrl())
@@ -42,6 +50,7 @@ public class AiCodeGenTypeRoutingServiceFactory {
                 .temperature(routingAiModelConfig.getTemperature())
                 .logRequests(routingAiModelConfig.getLogRequests())
                 .logResponses(routingAiModelConfig.getLogResponses())
+                .listeners(listeners)
                 .build();
         return AiServices.builder(AiCodeGenTypeRoutingService.class)
                 .chatModel(chatModel)

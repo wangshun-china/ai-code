@@ -12,11 +12,14 @@ export const useLoginUserStore = defineStore('loginUser', () => {
   })
 
   // 获取登录用户信息
-  async function fetchLoginUser() {
-    const res = await getLoginUser()
+  async function fetchLoginUser(options?: { force?: boolean }) {
+    const res = await getLoginUser({
+      params: options?.force ? { refreshAuth: true } : undefined,
+    })
     if (res.data.code === 0 && res.data.data) {
       loginUser.value = res.data.data
     }
+    return loginUser.value
   }
 
   // 更新登录用户信息
