@@ -14,10 +14,13 @@ on:
           - aliyun
           - wsl
       deploy_ref:
-        description: '请输入要部署的分支名或 ref（如 main、edu）'
+        description: '请选择要部署的分支'
         required: true
         default: 'main'
-        type: string
+        type: choice
+        options:
+          - main
+          - edu
 
 env:
   # 镜像仓库配置 (Single Source of Truth)
