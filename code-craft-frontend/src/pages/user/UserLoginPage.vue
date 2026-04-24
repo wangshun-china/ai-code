@@ -11,12 +11,12 @@
             <div class="shape shape-4"></div>
           </div>
           <div class="brand-section">
-            <h2 class="brand-title">AI 应用生成平台</h2>
-            <p class="brand-desc">不写一行代码，生成完整应用</p>
+            <h2 class="brand-title">EduCraft AI</h2>
+            <p class="brand-desc">面向课程主页与教学内容展示的应用生成平台</p>
             <div class="feature-list">
               <div class="feature-item">
                 <RocketOutlined class="feature-icon" />
-                <span>智能生成</span>
+                <span>课程生成</span>
               </div>
               <div class="feature-item">
                 <ThunderboltOutlined class="feature-icon" />
@@ -24,7 +24,7 @@
               </div>
               <div class="feature-item">
                 <SafetyOutlined class="feature-icon" />
-                <span>安全可靠</span>
+                <span>多轮修改</span>
               </div>
             </div>
           </div>
@@ -35,7 +35,7 @@
         <div class="form-card">
           <div class="form-header">
             <h2 class="title">欢迎回来</h2>
-            <div class="desc">登录您的账户继续创作之旅</div>
+            <div class="desc">登录后继续生成课程主页、实验指导页与活动专题页</div>
           </div>
           <a-form :model="formState" name="basic" autocomplete="off" @finish="handleSubmit">
             <a-form-item name="userAccount" :rules="[{ required: true, message: '请输入账号' }]">

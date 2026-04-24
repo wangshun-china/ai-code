@@ -91,7 +91,7 @@ const uploadPendingAttachments = async (appId: string) => {
 
 const createApp = async () => {
   if (!userPrompt.value.trim() && pendingAttachments.value.length === 0) {
-    message.warning('请输入应用描述')
+    message.warning('请输入应用描述或上传课程材料')
     return
   }
 
@@ -103,7 +103,7 @@ const createApp = async () => {
 
   creating.value = true
   try {
-    const initPrompt = userPrompt.value.trim() || '请根据我上传的设计稿、简历或文档生成一个完整网页。'
+    const initPrompt = userPrompt.value.trim() || '请根据我上传的课程大纲、教案、实验指导、设计稿或简历生成一个完整网页。'
     const res = await addApp({
       initPrompt,
       modelKey: selectedModelKey.value,
@@ -208,9 +208,9 @@ onMounted(() => {
               <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <span class="logo-text">CraftAI</span>
+          <span class="logo-text">EduCraft AI</span>
         </div>
-        <p class="logo-desc">AI 应用生成平台</p>
+        <p class="logo-desc">教育场景应用生成平台</p>
       </div>
 
       <nav class="sidebar-nav">
@@ -266,8 +266,8 @@ onMounted(() => {
           <span>联系方式</span>
         </div>
         <p class="contact-text">
-          本项目运行在云服务器<br>
-          使用阿里百炼平台 API<br>
+          本项目为教育场景演示分支<br>
+          原型运行在云服务器环境<br>
           如遇到问题请联系：
         </p>
         <div class="contact-label">联系邮箱</div>
@@ -300,14 +300,15 @@ onMounted(() => {
         <div class="create-left">
           <div class="section-badge">
             <ThunderboltOutlined />
-            <span>AI 驱动</span>
+            <span>教育场景版</span>
           </div>
           <h1 class="create-title">
-            描述你的想法<br>
-            <span class="highlight">我们帮你实现</span>
+            上传课程材料或描述教学需求<br>
+            <span class="highlight">AI 帮你生成应用</span>
           </h1>
           <p class="create-desc">
-            输入你想要的网站或应用描述，AI 将自动生成完整的代码项目
+            面向课程主页、资源导航、实验指导、教师展示和校园活动专题页，
+            通过自然语言与附件快速生成可运行网页
           </p>
         </div>
 
@@ -315,7 +316,7 @@ onMounted(() => {
           <div class="input-box">
             <a-textarea
               v-model:value="userPrompt"
-              placeholder="例如：帮我创建一个极简风格的个人博客网站，要有文章列表、分类标签和关于页面..."
+              placeholder="例如：请根据我上传的课程大纲生成一个课程主页，包含课程简介、教学安排、实验内容、资源下载和答疑入口..."
               :rows="5"
               :maxlength="1000"
               class="prompt-textarea"
@@ -335,10 +336,10 @@ onMounted(() => {
               >
                 <a-button class="home-attachment-btn" :disabled="creating">
                   <template #icon><PaperClipOutlined /></template>
-                  上传设计稿 / 简历 / 文档
+                  上传课程大纲 / 教案 / 设计稿
                 </a-button>
               </a-upload>
-              <span class="home-attachment-tip">创建后会先解析附件，再进入对话生成</span>
+              <span class="home-attachment-tip">创建后会先解析课程材料，再进入对话生成</span>
             </div>
             <div v-if="pendingAttachments.length > 0" class="home-attachment-list">
               <div
@@ -376,31 +377,31 @@ onMounted(() => {
 
           <!-- 快捷模板 -->
           <div class="templates">
-            <span class="templates-label">快速选择：</span>
+            <span class="templates-label">教育场景模板：</span>
             <div class="template-tags">
               <button
                 class="tag-btn"
-                @click="setPrompt('创建一个现代化的个人博客网站，包含文章列表、详情页、分类标签、搜索功能和个人简介页面。采用简洁的设计风格，支持响应式布局。')"
+                @click="setPrompt('请根据课程大纲生成一个现代化课程主页，包含课程简介、教学目标、章节安排、资源下载、实验说明和答疑入口，整体风格清晰、专业、适合学生浏览。')"
               >
-                个人博客
+                课程主页
               </button>
               <button
                 class="tag-btn"
-                @click="setPrompt('设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图和产品展示。')"
+                @click="setPrompt('生成一个实验指导专题页，包含实验目标、环境要求、操作步骤、注意事项、结果提交方式和常见问题，页面结构要便于学生按步骤完成实验。')"
               >
-                企业官网
+                实验指导页
               </button>
               <button
                 class="tag-btn"
-                @click="setPrompt('构建一个功能完整的在线商城，包含商品展示、购物车、用户注册登录、订单管理等功能。设计现代化的商品卡片布局。')"
+                @click="setPrompt('为教师生成一个个人展示主页，包含个人简介、研究方向、授课课程、成果展示和联系方式，风格专业、可信、适合高校教师形象展示。')"
               >
-                在线商城
+                教师主页
               </button>
               <button
                 class="tag-btn"
-                @click="setPrompt('制作一个精美的作品展示网站，适合设计师、摄影师等创作者。包含作品画廊、项目详情页、个人简历等模块。')"
+                @click="setPrompt('生成一个校园活动专题页，包含活动介绍、日程安排、嘉宾信息、报名方式、精彩回顾和联系方式，风格年轻、活跃、适合校园传播。')"
               >
-                作品集
+                活动专题页
               </button>
             </div>
           </div>

@@ -8,9 +8,9 @@
             <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span>CraftAI</span>
+          <span>EduCraft AI</span>
         </div>
-        <p class="brand-tagline">让创意触手可及</p>
+        <p class="brand-tagline">让课程与内容更快成为可访问应用</p>
       </div>
 
       <div class="footer-links">
@@ -21,7 +21,7 @@
       </div>
 
       <div class="footer-bottom">
-        <p class="copyright">© 2024 CraftAI. All rights reserved.</p>
+        <p class="copyright">© 2024 EduCraft AI. All rights reserved.</p>
       </div>
     </div>
   </footer>

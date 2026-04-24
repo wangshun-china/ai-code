@@ -318,7 +318,7 @@
               </a-tag>
             </div>
             <div v-else-if="isOwner" class="attachment-hint">
-              可上传设计稿、PDF 简历、DOCX 或文本，让 AI 按附件生成页面
+              可上传课程大纲、教案、实验指导、设计稿或文本，让 AI 按附件生成页面
             </div>
           </div>
         </div>
