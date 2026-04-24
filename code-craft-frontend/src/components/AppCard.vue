@@ -64,36 +64,37 @@ const handleViewWork = () => {
 
 <style scoped>
 .app-card {
-  background-color: var(--ivory);
+  background: rgba(255, 255, 255, 0.86);
   border-radius: 18px;
-  border: 1px solid var(--border-cream);
+  border: 1px solid rgba(90, 74, 58, 0.08);
   overflow: hidden;
   cursor: pointer;
   transition: all var(--transition-base);
   position: relative;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 14px 30px rgba(76, 60, 42, 0.07);
+  backdrop-filter: blur(10px);
 }
 
 .app-card:hover {
-  border-color: var(--border-warm);
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-3px);
+  border-color: rgba(180, 106, 61, 0.18);
+  box-shadow: 0 18px 34px rgba(76, 60, 42, 0.1);
+  transform: translateY(-2px);
 }
 
 .app-card--featured {
-  border-color: rgba(201, 100, 66, 0.34);
+  border-color: rgba(180, 106, 61, 0.22);
 }
 
 .app-card--featured:hover {
-  border-color: var(--primary);
+  border-color: #b46a3d;
 }
 
 /* Preview */
 .card-preview {
   aspect-ratio: 16 / 10;
   background:
-    radial-gradient(circle at 20% 20%, rgba(201, 100, 66, 0.14), transparent 32%),
-    var(--warm-sand);
+    radial-gradient(circle at 20% 20%, rgba(180, 106, 61, 0.12), transparent 32%),
+    linear-gradient(135deg, #f7f1e8 0%, #f3ece2 100%);
   position: relative;
   overflow: hidden;
 }
@@ -115,7 +116,7 @@ const handleViewWork = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--stone-gray);
+  color: #978a7d;
 }
 
 .preview-placeholder svg {
@@ -132,8 +133,8 @@ const handleViewWork = () => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background-color: var(--primary);
-  color: var(--ivory);
+  background-color: #b46a3d;
+  color: #fffaf5;
   font-size: 12px;
   font-weight: 600;
   border-radius: var(--radius-full);
@@ -153,7 +154,7 @@ const handleViewWork = () => {
   font-family: var(--font-serif);
   font-size: 18px;
   font-weight: 500;
-  color: var(--near-black);
+  color: #2f2a24;
   margin: 0 0 10px;
   line-height: 1.4;
   white-space: nowrap;
@@ -169,14 +170,14 @@ const handleViewWork = () => {
 
 .author-avatar {
   flex-shrink: 0;
-  background-color: var(--primary);
-  color: var(--ivory);
+  background-color: #b46a3d;
+  color: #fffaf5;
   font-size: 11px;
 }
 
 .author-name {
   font-size: 13px;
-  color: var(--stone-gray);
+  color: #7f7468;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -205,8 +206,8 @@ const handleViewWork = () => {
 }
 
 .card-actions :deep(.ant-btn-primary) {
-  background-color: var(--primary);
-  border-color: var(--primary);
+  background-color: #b46a3d;
+  border-color: #b46a3d;
 }
 
 /* Mobile: always show actions */

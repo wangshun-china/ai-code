@@ -40,6 +40,35 @@ const featuredAppsPage = reactive({
   total: 0,
 })
 
+const templateOptions = [
+  {
+    title: '个人博客',
+    description: '文章列表、分类标签、关于页面',
+    prompt: '创建一个现代化的个人博客网站，包含文章列表、详情页、分类标签、搜索功能和个人简介页面。采用简洁的设计风格，支持响应式布局。',
+  },
+  {
+    title: '企业官网',
+    description: '品牌介绍、服务展示、联系入口',
+    prompt: '设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图和产品展示。',
+  },
+  {
+    title: '在线商城',
+    description: '商品卡片、购物流程、订单管理',
+    prompt: '构建一个功能完整的在线商城，包含商品展示、购物车、用户注册登录、订单管理等功能。设计现代化的商品卡片布局。',
+  },
+  {
+    title: '作品集',
+    description: '项目展示、履历简介、视觉表达',
+    prompt: '制作一个精美的作品展示网站，适合设计师、摄影师等创作者。包含作品画廊、项目详情页、个人简历等模块。',
+  },
+]
+
+const heroHighlights = [
+  { value: '自然语言', label: '描述需求即可开始' },
+  { value: '附件驱动', label: '设计稿、PDF、DOCX' },
+  { value: '一键部署', label: '生成后直接上线访问' },
+]
+
 const setPrompt = (prompt: string) => {
   userPrompt.value = prompt
 }
@@ -259,37 +288,26 @@ onMounted(() => {
         </a-button>
       </div>
 
-      <!-- 联系信息 - 放在侧边栏显眼位置 -->
+      <!-- 联系信息 -->
       <div class="contact-box">
         <div class="contact-header">
           <MailOutlined />
           <span>联系方式</span>
         </div>
         <p class="contact-text">
-          本项目运行在云服务器<br>
-          使用阿里百炼平台 API<br>
-          如遇到问题请联系：
+          CraftAI 支持自然语言生成、附件生成与一键部署，
+          适合快速搭建博客、官网、作品集和活动页面。
         </p>
-        <div class="contact-label">联系邮箱</div>
+        <div class="contact-label">反馈与交流</div>
         <a href="mailto:2606209307@qq.com" class="contact-email">
           2606209307@qq.com
         </a>
-        <div class="sponsor-card">
-          <div class="sponsor-title">感谢天翼云为本项目提供了一定的支持</div>
-          <a href="https://www.ctyun.cn/" target="_blank" rel="noopener noreferrer" class="sponsor-link">
-            友情链接：天翼云 https://www.ctyun.cn/
+        <div class="contact-actions">
+          <a href="https://github.com/xixi-box" target="_blank" rel="noopener" class="github-link">
+            <GithubOutlined />
+            <span>查看 GitHub</span>
           </a>
-          <p class="sponsor-note">
-            天翼云秉承央企使命，致力于成为数字经济主力军，投身科技强国伟大事业，为用户提供安全、普惠云服务
-          </p>
         </div>
-      </div>
-
-      <div class="sidebar-footer">
-        <a href="https://github.com/xixi-box" target="_blank" class="github-link">
-          <GithubOutlined />
-          <span>GitHub</span>
-        </a>
       </div>
     </aside>
 
@@ -303,19 +321,30 @@ onMounted(() => {
             <span>AI 驱动</span>
           </div>
           <h1 class="create-title">
-            描述你的想法<br>
-            <span class="highlight">我们帮你实现</span>
+            一句需求<br>
+            <span class="highlight">生成完整应用</span>
           </h1>
           <p class="create-desc">
-            输入你想要的网站或应用描述，AI 将自动生成完整的代码项目
+            通过自然语言和附件材料快速生成网页，支持方案确认、
+            在线修改与一键部署，让想法更快变成可访问成果。
           </p>
+          <div class="hero-highlights">
+            <div
+              v-for="item in heroHighlights"
+              :key="item.value"
+              class="hero-highlight-card"
+            >
+              <strong>{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+            </div>
+          </div>
         </div>
 
         <div class="create-right">
           <div class="input-box">
             <a-textarea
               v-model:value="userPrompt"
-              placeholder="例如：帮我创建一个极简风格的个人博客网站，要有文章列表、分类标签和关于页面..."
+              placeholder="例如：请帮我生成一个极简风格的个人博客网站，包含文章列表、分类标签、关于页面和订阅入口..."
               :rows="5"
               :maxlength="1000"
               class="prompt-textarea"
@@ -376,31 +405,16 @@ onMounted(() => {
 
           <!-- 快捷模板 -->
           <div class="templates">
-            <span class="templates-label">快速选择：</span>
-            <div class="template-tags">
+            <span class="templates-label">精选场景：</span>
+            <div class="template-grid">
               <button
-                class="tag-btn"
-                @click="setPrompt('创建一个现代化的个人博客网站，包含文章列表、详情页、分类标签、搜索功能和个人简介页面。采用简洁的设计风格，支持响应式布局。')"
+                v-for="item in templateOptions"
+                :key="item.title"
+                class="template-card"
+                @click="setPrompt(item.prompt)"
               >
-                个人博客
-              </button>
-              <button
-                class="tag-btn"
-                @click="setPrompt('设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图和产品展示。')"
-              >
-                企业官网
-              </button>
-              <button
-                class="tag-btn"
-                @click="setPrompt('构建一个功能完整的在线商城，包含商品展示、购物车、用户注册登录、订单管理等功能。设计现代化的商品卡片布局。')"
-              >
-                在线商城
-              </button>
-              <button
-                class="tag-btn"
-                @click="setPrompt('制作一个精美的作品展示网站，适合设计师、摄影师等创作者。包含作品画廊、项目详情页、个人简历等模块。')"
-              >
-                作品集
+                <strong>{{ item.title }}</strong>
+                <span>{{ item.description }}</span>
               </button>
             </div>
           </div>
@@ -487,14 +501,16 @@ onMounted(() => {
   display: flex;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 26% 10%, rgba(201, 100, 66, 0.13), transparent 28%),
-    linear-gradient(135deg, #efe8d8 0%, #f8f1e4 46%, #e6eef0 100%);
+    radial-gradient(circle at 18% 12%, rgba(180, 106, 61, 0.12), transparent 26%),
+    radial-gradient(circle at 82% 8%, rgba(213, 195, 167, 0.18), transparent 22%),
+    linear-gradient(135deg, #f7f4ee 0%, #f5f1ea 48%, #eef2f0 100%);
 }
 
 .sidebar {
   width: 288px;
-  background: var(--near-black);
-  border-right: 1px solid var(--dark-surface);
+  background: rgba(248, 244, 236, 0.88);
+  border-right: 1px solid rgba(90, 74, 58, 0.1);
+  backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -506,7 +522,7 @@ onMounted(() => {
 
 .sidebar-header {
   padding: 34px 24px 26px;
-  border-bottom: 1px solid var(--dark-surface);
+  border-bottom: 1px solid rgba(90, 74, 58, 0.08);
 }
 
 .logo {
@@ -519,7 +535,7 @@ onMounted(() => {
 .logo-icon {
   width: 38px;
   height: 38px;
-  color: var(--primary-light);
+  color: #b46a3d;
 }
 
 .logo-icon svg {
@@ -531,12 +547,12 @@ onMounted(() => {
   font-family: var(--font-serif);
   font-size: 25px;
   font-weight: 500;
-  color: var(--ivory);
+  color: #2f2a24;
 }
 
 .logo-desc {
   font-size: 13px;
-  color: var(--warm-silver);
+  color: #7d7266;
   margin: 0;
   padding-left: 50px;
 }
@@ -552,7 +568,7 @@ onMounted(() => {
   gap: 12px;
   padding: 12px 16px;
   border-radius: var(--radius-lg);
-  color: var(--warm-silver);
+  color: #6d6458;
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
@@ -562,13 +578,13 @@ onMounted(() => {
 
 .nav-item:hover,
 .nav-item.active {
-  background-color: var(--dark-surface);
-  color: var(--ivory);
-  box-shadow: 0 0 0 1px rgba(250, 249, 245, 0.08);
+  background-color: rgba(180, 106, 61, 0.12);
+  color: #2f2a24;
+  box-shadow: 0 0 0 1px rgba(180, 106, 61, 0.08);
 }
 
 .nav-item.active :deep(.anticon) {
-  color: var(--primary-light);
+  color: #b46a3d;
 }
 
 .nav-item :deep(.anticon) {
@@ -578,9 +594,9 @@ onMounted(() => {
 .user-box {
   margin: 0 16px 16px;
   padding: 16px;
-  background-color: var(--dark-surface);
+  background-color: rgba(255, 255, 255, 0.72);
   border-radius: 18px;
-  border: 1px solid rgba(250, 249, 245, 0.08);
+  border: 1px solid rgba(90, 74, 58, 0.08);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -609,7 +625,7 @@ onMounted(() => {
 .user-name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--ivory);
+  color: #2f2a24;
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -618,17 +634,17 @@ onMounted(() => {
 
 .user-role {
   font-size: 12px;
-  color: var(--primary-light);
+  color: #b46a3d;
   font-weight: 500;
 }
 
 .logout-btn {
-  color: var(--warm-silver);
+  color: #7d7266;
   font-size: 13px;
 }
 
 .logout-btn:hover {
-  color: var(--primary-light);
+  color: #b46a3d;
 }
 
 .login-btn-sidebar {
@@ -640,10 +656,10 @@ onMounted(() => {
 .contact-box {
   margin: 0 16px 16px;
   padding: 20px;
-  background: linear-gradient(180deg, #fffaf0 0%, #f4ead7 100%);
+  background: rgba(255, 255, 255, 0.76);
   border-radius: 20px;
-  border: 1px solid rgba(201, 100, 66, 0.28);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(90, 74, 58, 0.1);
+  box-shadow: 0 18px 38px rgba(78, 61, 44, 0.08);
 }
 
 .contact-header {
@@ -658,14 +674,14 @@ onMounted(() => {
 
 .contact-text {
   font-size: 12px;
-  color: #3e3a32;
-  line-height: 1.8;
+  color: #5d5449;
+  line-height: 1.75;
   margin: 0 0 12px;
 }
 
 .contact-label {
   margin-bottom: 6px;
-  color: #7a442f;
+  color: #8f6549;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -674,88 +690,52 @@ onMounted(() => {
 .contact-email {
   display: inline-block;
   padding: 8px 12px;
-  background-color: #201f1c;
-  color: var(--charcoal-warm);
+  background-color: #f4ece3;
+  color: #2f2a24;
   font-size: 13px;
   font-weight: 600;
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px rgba(32, 31, 28, 0.12);
+  box-shadow: 0 0 0 1px rgba(90, 74, 58, 0.12);
 }
 
 .contact-email,
 .contact-email:hover {
-  color: #fff7e7;
+  color: #2f2a24;
 }
 
 .contact-email:hover {
-  background-color: #7a442f;
+  background-color: #ead9c7;
 }
 
-.sponsor-card {
+.contact-actions {
   margin-top: 14px;
-  padding: 14px;
-  background: #f8fbff;
-  border: 1px solid rgba(55, 110, 180, 0.28);
-  border-radius: 16px;
-  box-shadow: inset 3px 0 0 #2f6fbb;
-}
-
-.sponsor-title {
-  margin-bottom: 8px;
-  color: #17385f;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.5;
-}
-
-.sponsor-link {
-  display: block;
-  margin-bottom: 8px;
-  color: #0f62b5;
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.sponsor-link:hover {
-  color: #08427a;
-}
-
-.sponsor-note {
-  margin: 0;
-  color: #34465f;
-  font-size: 11px;
-  line-height: 1.65;
-}
-
-.sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid var(--dark-surface);
+  display: flex;
+  gap: 10px;
 }
 
 .github-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 12px;
-  color: var(--warm-silver);
-  font-size: 14px;
-  font-weight: 500;
+  padding: 10px 14px;
+  color: #6d6458;
+  font-size: 13px;
+  font-weight: 600;
   border-radius: var(--radius-lg);
   transition: all var(--transition-fast);
+  background: rgba(244, 236, 227, 0.84);
+  box-shadow: 0 0 0 1px rgba(90, 74, 58, 0.08);
 }
 
 .github-link:hover {
-  background-color: var(--dark-surface);
-  color: var(--ivory);
+  background-color: rgba(234, 217, 199, 0.95);
+  color: #2f2a24;
 }
 
 .main-content {
   flex: 1;
   margin-left: 288px;
-  padding: 44px;
+  padding: 38px;
   max-width: calc(100% - 288px);
   min-height: 100vh;
 }
@@ -767,10 +747,11 @@ onMounted(() => {
   align-items: start;
   margin-bottom: 34px;
   padding: 48px;
-  background: linear-gradient(135deg, #fffdf7 0%, #f6ead8 100%);
+  background: rgba(255, 255, 255, 0.68);
   border-radius: 32px;
-  border: 1px solid rgba(122, 68, 47, 0.2);
-  box-shadow: 0 24px 70px rgba(67, 49, 31, 0.16);
+  border: 1px solid rgba(90, 74, 58, 0.1);
+  box-shadow: 0 28px 64px rgba(76, 60, 42, 0.1);
+  backdrop-filter: blur(18px);
   position: relative;
   overflow: hidden;
 }
@@ -782,7 +763,7 @@ onMounted(() => {
   top: -110px;
   width: 280px;
   height: 280px;
-  border: 1px solid rgba(201, 100, 66, 0.2);
+  border: 1px solid rgba(180, 106, 61, 0.14);
   border-radius: 44% 56% 52% 48%;
   transform: rotate(-18deg);
 }
@@ -798,35 +779,65 @@ onMounted(() => {
   align-items: center;
   gap: 7px;
   padding: 7px 14px;
-  background-color: var(--warm-sand);
-  color: var(--primary-dark);
+  background-color: rgba(180, 106, 61, 0.12);
+  color: #8f5a35;
   border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12px;
   margin-bottom: 26px;
-  box-shadow: 0 0 0 1px var(--ring-warm);
+  box-shadow: 0 0 0 1px rgba(180, 106, 61, 0.12);
 }
 
 .create-title {
   font-size: clamp(36px, 4.4vw, 64px);
   font-weight: 500;
   line-height: 1.08;
-  color: var(--near-black);
+  color: #2f2a24;
   margin: 0 0 22px;
   letter-spacing: -0.03em;
 }
 
 .create-title .highlight {
-  color: var(--primary);
+  color: #b46a3d;
 }
 
 .create-desc {
   font-size: 18px;
-  color: var(--olive-gray);
+  color: #6d6458;
   line-height: 1.75;
-  margin: 0;
+  margin: 0 0 26px;
   max-width: 520px;
+}
+
+.hero-highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 560px;
+}
+
+.hero-highlight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(90, 74, 58, 0.08);
+  box-shadow: 0 10px 22px rgba(76, 60, 42, 0.05);
+}
+
+.hero-highlight-card strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2f2a24;
+}
+
+.hero-highlight-card span {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #8a7d70;
 }
 
 .create-right {
@@ -841,22 +852,26 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(250, 247, 241, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(90, 74, 58, 0.06);
 }
 
 .prompt-textarea {
   padding: 20px;
   font-size: 15px;
   line-height: 1.7;
-  border: 1px solid rgba(122, 68, 47, 0.28);
+  border: 1px solid rgba(90, 74, 58, 0.16);
   border-radius: 18px;
-  background-color: #fffaf0;
+  background-color: rgba(255, 255, 255, 0.92);
   resize: none;
   transition: all var(--transition-fast);
   box-shadow: inset 0 0 0 1px rgba(20, 20, 19, 0.02);
 }
 
 .prompt-textarea:hover {
-  border-color: var(--ring-warm);
+  border-color: rgba(180, 106, 61, 0.22);
 }
 
 .prompt-textarea:focus {
@@ -880,19 +895,19 @@ onMounted(() => {
 .home-attachment-btn {
   height: 40px;
   border-radius: var(--radius-full);
-  background: var(--warm-sand);
-  border-color: var(--ring-warm);
-  color: var(--charcoal-warm);
+  background: rgba(244, 236, 227, 0.95);
+  border-color: rgba(180, 106, 61, 0.12);
+  color: #4f463d;
   font-weight: 600;
 }
 
 .home-attachment-btn:hover {
-  color: var(--primary-dark);
-  border-color: var(--primary-light);
+  color: #8f5a35;
+  border-color: rgba(180, 106, 61, 0.26);
 }
 
 .home-attachment-tip {
-  color: var(--stone-gray);
+  color: #86796c;
   font-size: 12px;
 }
 
@@ -907,9 +922,9 @@ onMounted(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--border-cream);
+  border: 1px solid rgba(90, 74, 58, 0.1);
   border-radius: 14px;
-  background: rgba(250, 249, 245, 0.6);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .home-attachment-meta {
@@ -917,7 +932,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  color: var(--charcoal-warm);
+  color: #3d352d;
   font-size: 13px;
 }
 
@@ -929,7 +944,7 @@ onMounted(() => {
 
 .home-attachment-meta small {
   flex: 0 0 auto;
-  color: var(--muted-warm);
+  color: #8f8578;
 }
 
 .submit-btn {
@@ -951,32 +966,47 @@ onMounted(() => {
 
 .templates-label {
   font-size: 13px;
-  color: var(--stone-gray);
+  color: #86796c;
   font-weight: 600;
 }
 
-.template-tags {
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.template-card {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag-btn {
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--charcoal-warm);
-  background-color: var(--warm-sand);
-  border: 0;
-  border-radius: var(--radius-full);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(90, 74, 58, 0.08);
+  border-radius: 18px;
   cursor: pointer;
   transition: all var(--transition-fast);
-  box-shadow: 0 0 0 1px var(--ring-warm);
+  text-align: left;
+  box-shadow: 0 12px 24px rgba(76, 60, 42, 0.05);
 }
 
-.tag-btn:hover {
-  color: var(--primary-dark);
-  background-color: var(--ivory);
+.template-card strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2f2a24;
+}
+
+.template-card span {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #857b70;
+}
+
+.template-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(180, 106, 61, 0.18);
+  box-shadow: 0 16px 28px rgba(76, 60, 42, 0.08);
 }
 
 .content-grid {
@@ -987,25 +1017,13 @@ onMounted(() => {
 }
 
 .content-section {
-  background: #fffdf7;
+  background: rgba(255, 255, 255, 0.72);
   border-radius: 28px;
-  border: 1px solid rgba(122, 68, 47, 0.16);
+  border: 1px solid rgba(90, 74, 58, 0.08);
   padding: 28px;
-  box-shadow: 0 16px 42px rgba(67, 49, 31, 0.1);
+  box-shadow: 0 18px 40px rgba(76, 60, 42, 0.08);
   min-height: 420px;
-}
-
-.content-section:nth-child(even) {
-  background-color: var(--near-black);
-  border-color: var(--dark-surface);
-}
-
-.content-section:nth-child(even) .section-title h2 {
-  color: var(--ivory);
-}
-
-.content-section:nth-child(even) .empty-box {
-  color: var(--warm-silver);
+  backdrop-filter: blur(14px);
 }
 
 .section-header {
@@ -1023,13 +1041,13 @@ onMounted(() => {
 
 .section-title :deep(.anticon) {
   font-size: 22px;
-  color: var(--primary);
+  color: #b46a3d;
 }
 
 .section-title h2 {
   font-size: 28px;
   font-weight: 500;
-  color: var(--near-black);
+  color: #2f2a24;
   margin: 0;
 }
 
@@ -1045,13 +1063,13 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: 62px 20px;
-  color: var(--stone-gray);
+  color: #8a7d70;
   gap: 12px;
 }
 
 .empty-icon {
   font-size: 40px;
-  color: var(--ring-warm);
+  color: rgba(180, 106, 61, 0.3);
 }
 
 @media (max-width: 1024px) {
@@ -1068,6 +1086,15 @@ onMounted(() => {
   .create-section {
     grid-template-columns: 1fr;
     gap: 32px;
+  }
+
+  .template-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-highlights {
+    grid-template-columns: 1fr;
+    max-width: none;
   }
 
   .content-grid {

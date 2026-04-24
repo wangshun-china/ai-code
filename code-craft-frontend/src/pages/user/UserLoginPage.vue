@@ -115,7 +115,9 @@ const handleSubmit = async (values: any) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background:
+    radial-gradient(circle at 18% 20%, rgba(180, 106, 61, 0.1), transparent 24%),
+    linear-gradient(135deg, #f7f4ee 0%, #f2ece3 45%, #edf1ef 100%);
   padding: 20px;
 }
 
@@ -124,18 +126,19 @@ const handleSubmit = async (values: any) => {
   width: 100%;
   max-width: 1000px;
   min-height: 600px;
-  background: var(--glass-bg);
+  background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 24px;
   overflow: hidden;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(90, 74, 58, 0.08);
+  box-shadow: 0 28px 80px rgba(76, 60, 42, 0.12);
 }
 
 /* 左侧装饰区域 */
 .decoration-panel {
   flex: 1;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+  background: linear-gradient(135deg, rgba(180, 106, 61, 0.12) 0%, rgba(215, 195, 167, 0.18) 100%);
   position: relative;
   overflow: hidden;
   display: none;
@@ -154,7 +157,7 @@ const handleSubmit = async (values: any) => {
   z-index: 2;
   text-align: center;
   padding: 40px;
-  color: white;
+  color: #2f2a24;
 }
 
 .floating-shapes {
@@ -175,7 +178,7 @@ const handleSubmit = async (values: any) => {
 .shape-1 {
   width: 100px;
   height: 100px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(180, 106, 61, 0.08);
   top: 10%;
   left: 10%;
   animation-delay: 0s;
@@ -184,7 +187,7 @@ const handleSubmit = async (values: any) => {
 .shape-2 {
   width: 150px;
   height: 150px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(215, 195, 167, 0.18);
   top: 60%;
   right: 10%;
   animation-delay: 2s;
@@ -193,7 +196,7 @@ const handleSubmit = async (values: any) => {
 .shape-3 {
   width: 80px;
   height: 80px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(180, 106, 61, 0.12);
   bottom: 20%;
   left: 20%;
   animation-delay: 4s;
@@ -202,7 +205,7 @@ const handleSubmit = async (values: any) => {
 .shape-4 {
   width: 60px;
   height: 60px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.4);
   top: 30%;
   right: 30%;
   animation-delay: 1s;
@@ -226,12 +229,12 @@ const handleSubmit = async (values: any) => {
   font-size: 32px;
   font-weight: 700;
   margin-bottom: 12px;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  color: #2f2a24;
 }
 
 .brand-desc {
   font-size: 16px;
-  opacity: 0.9;
+  color: #6d6458;
   margin-bottom: 40px;
 }
 
@@ -247,14 +250,16 @@ const handleSubmit = async (values: any) => {
   align-items: center;
   gap: 10px;
   padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.62);
   border-radius: 30px;
   backdrop-filter: blur(10px);
   transition: var(--transition);
+  color: #3f382f;
+  box-shadow: 0 0 0 1px rgba(90, 74, 58, 0.06);
 }
 
 .feature-item:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.82);
   transform: translateX(5px);
 }
 

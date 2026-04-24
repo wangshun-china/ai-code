@@ -546,11 +546,17 @@ jobs:
 
           volumes:
             mysql_data:
+              name: code-craft-prod_mysql_data
             redis_data:
+              name: code-craft-prod_redis_data
             nacos_logs:
+              name: code-craft-prod_nacos_logs
             nacos_data:
+              name: code-craft-prod_nacos_data
             code_deploy:
+              name: code-craft-prod_code_deploy
             code_output:
+              name: code-craft-prod_code_output
 
           networks:
             code-craft-network:

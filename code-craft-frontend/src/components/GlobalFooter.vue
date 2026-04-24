@@ -33,9 +33,9 @@ import { GithubOutlined } from '@ant-design/icons-vue'
 
 <style scoped>
 .footer {
-  background-color: var(--near-black);
-  border-top: 1px solid var(--dark-surface);
-  padding: 48px 24px 24px;
+  background: linear-gradient(180deg, rgba(247, 244, 238, 0.96) 0%, rgba(241, 235, 226, 0.92) 100%);
+  border-top: 1px solid rgba(90, 74, 58, 0.08);
+  padding: 44px 24px 24px;
   margin-top: 0;
 }
 
@@ -59,19 +59,19 @@ import { GithubOutlined } from '@ant-design/icons-vue'
 .brand-logo svg {
   width: 28px;
   height: 28px;
-  color: var(--primary-light);
+  color: #b46a3d;
 }
 
 .brand-logo span {
   font-family: var(--font-serif);
   font-size: 22px;
   font-weight: 500;
-  color: var(--ivory);
+  color: #2f2a24;
 }
 
 .brand-tagline {
   font-size: 14px;
-  color: var(--warm-silver);
+  color: #7d7266;
   margin: 0;
 }
 
@@ -87,7 +87,7 @@ import { GithubOutlined } from '@ant-design/icons-vue'
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  color: var(--warm-silver);
+  color: #6d6458;
   font-size: 14px;
   font-weight: 500;
   border-radius: var(--radius-md);
@@ -95,8 +95,8 @@ import { GithubOutlined } from '@ant-design/icons-vue'
 }
 
 .footer-link:hover {
-  color: var(--primary-light);
-  background-color: var(--dark-surface);
+  color: #2f2a24;
+  background-color: rgba(180, 106, 61, 0.1);
 }
 
 .footer-link :deep(.anticon) {
@@ -105,12 +105,12 @@ import { GithubOutlined } from '@ant-design/icons-vue'
 
 .footer-bottom {
   padding-top: 24px;
-  border-top: 1px solid var(--dark-surface);
+  border-top: 1px solid rgba(90, 74, 58, 0.08);
 }
 
 .copyright {
   font-size: 13px;
-  color: var(--warm-silver);
+  color: #8b8073;
   margin: 0;
 }
 </style>

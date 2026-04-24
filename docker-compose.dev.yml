@@ -147,9 +147,13 @@ services:
 
 volumes:
   mysql_data:
+    name: code-craft_mysql_data
   redis_data:
+    name: code-craft_redis_data
   nacos_logs:
+    name: code-craft_nacos_logs
   nacos_data:
+    name: code-craft_nacos_data
 
 networks:
   code-craft-network:
