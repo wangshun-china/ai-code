@@ -2,7 +2,7 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
     inputs:
       target_env:
@@ -13,6 +13,14 @@ on:
         options:
           - aliyun
           - wsl
+      deploy_ref:
+        description: '请选择要部署的分支'
+        required: true
+        default: 'main'
+        type: choice
+        options:
+          - main
+          - edu
 
 env:
   # 镜像仓库配置 (Single Source of Truth)
@@ -59,12 +67,45 @@ env:
   COS_HOST: https://xixibox-blog-pic-1313495082.cos.ap-nanjing.myqcloud.com
 
 jobs:
+  resolve-context:
+    name: Resolve Deploy Context
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_ref: ${{ steps.resolve.outputs.deploy_ref }}
+      branch_slug: ${{ steps.resolve.outputs.branch_slug }}
+      target_env: ${{ steps.resolve.outputs.target_env }}
+    steps:
+      - name: Resolve branch and target environment
+        id: resolve
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            DEPLOY_REF="${{ github.event.inputs.deploy_ref }}"
+            TARGET_ENV="${{ github.event.inputs.target_env }}"
+          else
+            DEPLOY_REF="${{ github.ref_name }}"
+            TARGET_ENV="wsl"
+          fi
+
+          BRANCH_SLUG=$(echo "${DEPLOY_REF}" | tr '[:upper:]' '[:lower:]' | sed 's#[^a-z0-9._-]#-#g')
+
+          echo "deploy_ref=${DEPLOY_REF}" >> "$GITHUB_OUTPUT"
+          echo "branch_slug=${BRANCH_SLUG}" >> "$GITHUB_OUTPUT"
+          echo "target_env=${TARGET_ENV}" >> "$GITHUB_OUTPUT"
+
+          echo "Deploy ref: ${DEPLOY_REF}"
+          echo "Branch slug: ${BRANCH_SLUG}"
+          echo "Target env: ${TARGET_ENV}"
+
   build:
     name: Build Images
+    needs: resolve-context
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-context.outputs.deploy_ref }}
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -110,7 +151,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-user
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:user-service-latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:user-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -120,7 +161,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-app
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:app-service-latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:app-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -130,7 +171,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-screenshot
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:screenshot-service-latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -140,7 +181,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-frontend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:frontend-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -150,23 +191,26 @@ jobs:
           context: .
           file: ./Dockerfile.prod-node-builder
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:node-builder-latest
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}:node-builder-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy to ${{ github.event.inputs.target_env || 'wsl' }}
-    needs: build
-    # 神级代码：如果是网页端手动选的就用选的标签，如果是 push 代码自动触发的，默认用 aliyun
-    runs-on: [self-hosted, "${{ github.event.inputs.target_env || 'wsl' }}"]
+    name: Deploy to ${{ needs.resolve-context.outputs.target_env }}
+    needs: [resolve-context, build]
+    # 自动部署仅在 push main 时触发，默认落到 wsl；手动触发时可自由选择环境和分支。
+    runs-on: [self-hosted, "${{ needs.resolve-context.outputs.target_env }}"]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-context.outputs.deploy_ref }}
 
       - name: Deploy Infrastructure
         env:
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAMESPACE: ${{ env.IMAGE_NAMESPACE }}
+          IMAGE_TAG_SUFFIX: ${{ needs.resolve-context.outputs.branch_slug }}-latest
           DB_ROOT_PASSWORD: ${{ env.DB_ROOT_PASSWORD }}
           DB_NAME: ${{ env.DB_NAME }}
           DB_USER: ${{ env.DB_USER }}
@@ -200,6 +244,7 @@ jobs:
           cat > .env << EOF
           REGISTRY=${REGISTRY}
           IMAGE_NAMESPACE=${IMAGE_NAMESPACE}
+          IMAGE_TAG_SUFFIX=${IMAGE_TAG_SUFFIX}
           DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
           DB_NAME=${DB_NAME}
           DB_USER=${DB_USER}
@@ -322,7 +367,7 @@ jobs:
                 retries: 10
 
             user-service:
-              image: ${REGISTRY}/${IMAGE_NAMESPACE}:user-service-latest
+              image: ${REGISTRY}/${IMAGE_NAMESPACE}:user-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-user-service
               environment:
                 JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC"
@@ -352,7 +397,7 @@ jobs:
                   condition: service_started
 
             app-service:
-              image: ${REGISTRY}/${IMAGE_NAMESPACE}:app-service-latest
+              image: ${REGISTRY}/${IMAGE_NAMESPACE}:app-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-app-service
               environment:
                 JAVA_TOOL_OPTIONS: "-Xmx1024m -Xms512m -XX:+UseG1GC"
@@ -393,7 +438,7 @@ jobs:
                   condition: service_started
 
             screenshot-service:
-              image: ${REGISTRY}/${IMAGE_NAMESPACE}:screenshot-service-latest
+              image: ${REGISTRY}/${IMAGE_NAMESPACE}:screenshot-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-screenshot-service
               shm_size: '512mb'
               environment:
@@ -433,7 +478,7 @@ jobs:
                   condition: service_started
 
             node-builder:
-              image: ${REGISTRY}/${IMAGE_NAMESPACE}:node-builder-latest
+              image: ${REGISTRY}/${IMAGE_NAMESPACE}:node-builder-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-node-builder
               working_dir: /app
               volumes:
@@ -452,7 +497,7 @@ jobs:
                 retries: 3
 
             frontend:
-              image: ${REGISTRY}/${IMAGE_NAMESPACE}:frontend-latest
+              image: ${REGISTRY}/${IMAGE_NAMESPACE}:frontend-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-frontend
               restart: unless-stopped
               networks:
