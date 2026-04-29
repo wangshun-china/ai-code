@@ -4,9 +4,6 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import com.ws.codecraft.config.CodeProjectProperties;
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolMemoryId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -38,9 +35,7 @@ public class FileDirReadTool extends BaseTool {
         this.codeProjectProperties = codeProjectProperties;
     }
 
-    @Tool("读取目录结构，获取指定目录下的所有文件和子目录信息")
-    public String readDir(@P("目录的相对路径，为空则读取整个项目结构") String relativeDirPath,
-                          @ToolMemoryId Long appId) {
+    public String readDir(String relativeDirPath, Long appId) {
         try {
             Path path = resolvePath(relativeDirPath, appId);
             File targetDir = path.toFile();

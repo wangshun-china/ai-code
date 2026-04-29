@@ -3,11 +3,6 @@ package com.ws.codecraft.service;
 import com.ws.codecraft.ai.AiCodeGeneratorServiceFactory;
 import com.ws.codecraft.model.enums.AiModelEnum;
 import cn.hutool.core.util.StrUtil;
-import dev.langchain4j.data.message.Content;
-import dev.langchain4j.data.message.ImageContent;
-import dev.langchain4j.data.message.TextContent;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
@@ -20,9 +15,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -55,10 +47,7 @@ public class AttachmentAnalysisService {
     }
 
     private String analyzeImage(Path filePath, String fileName, String mimeType) throws IOException {
-        ChatModel chatModel = aiCodeGeneratorServiceFactory.createPlainChatModel(AiModelEnum.DEFAULT_MODEL_KEY);
-        String base64 = Base64.getEncoder().encodeToString(Files.readAllBytes(filePath));
-        List<Content> contents = new ArrayList<>();
-        contents.add(TextContent.from("""
+        String prompt = """
                 请分析这张用户上传的设计稿/参考图，用于后续生成前端页面。
                 输出中文摘要，必须包含：
                 1. 页面/组件用途
@@ -67,9 +56,9 @@ public class AttachmentAnalysisService {
                 4. 关键文案、图标、按钮、卡片等元素
                 5. 生成 Vue 页面时需要注意的还原点
                 文件名：%s
-                """.formatted(fileName)));
-        contents.add(ImageContent.from(base64, StrUtil.blankToDefault(mimeType, "image/png")));
-        return limitSummary(chatModel.chat(UserMessage.from(contents)).aiMessage().text());
+                """.formatted(fileName);
+        return limitSummary(aiCodeGeneratorServiceFactory.chatWithImage(prompt, Files.readAllBytes(filePath),
+                StrUtil.blankToDefault(mimeType, "image/png"), fileName, AiModelEnum.DEFAULT_MODEL_KEY));
     }
 
     private String analyzePdf(Path filePath, String fileName, String mimeType) throws IOException {

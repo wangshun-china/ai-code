@@ -28,7 +28,7 @@
         <dubbo.version>3.3.0</dubbo.version>
         <!-- 统一管理的依赖版本 -->
         <lombok.version>1.18.38</lombok.version>
-        <langchain4j.version>1.1.0-beta7</langchain4j.version>
+        <spring-ai-alibaba.version>1.1.2.2</spring-ai-alibaba.version>
         <mybatis-flex.version>1.11.1</mybatis-flex.version>
         <redisson.version>3.51.0</redisson.version>
         <hutool.version>5.8.38</hutool.version>
@@ -106,22 +106,14 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>com.alibaba.cloud.ai</groupId>
+                <artifactId>spring-ai-alibaba-bom</artifactId>
+                <version>${spring-ai-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <!-- 统一管理的依赖 -->
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-reactor</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-community-redis-spring-boot-starter</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
             <dependency>
                 <groupId>com.mybatis-flex</groupId>
                 <artifactId>mybatis-flex-spring-boot3-starter</artifactId>

@@ -6,7 +6,6 @@ import com.mybatisflex.core.service.IService;
 import com.ws.codecraft.model.dto.chathistory.ChatHistoryQueryRequest;
 import com.ws.codecraft.model.entity.ChatHistory;
 import com.ws.codecraft.model.entity.User;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,16 +48,6 @@ public interface ChatHistoryService extends IService<ChatHistory> {
     Page<ChatHistory> listAppChatHistoryByPage(Long appId, int pageSize,
                                                LocalDateTime lastCreateTime,
                                                User loginUser);
-
-    /**
-     * 加载对话历史到内存
-     *
-     * @param appId
-     * @param chatMemory
-     * @param maxCount 最多加载多少条
-     * @return 加载成功的条数
-     */
-    int loadChatHistoryToMemory(Long appId, MessageWindowChatMemory chatMemory, int maxCount);
 
     /**
      * 查询最近的对话历史，返回时间正序。

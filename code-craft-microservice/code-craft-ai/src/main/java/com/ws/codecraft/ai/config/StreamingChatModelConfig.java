@@ -1,24 +1,14 @@
 package com.ws.codecraft.ai.config;
 
-import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
-import dev.langchain4j.model.chat.StreamingChatModel;
-import dev.langchain4j.model.chat.listener.ChatModelListener;
-import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
-import jakarta.annotation.Resource;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Scope;
-
-import java.util.Collections;
-import java.util.List;
 
 /**
  * 流式对话模型配置
  */
 @Configuration
-@ConfigurationProperties(prefix = "langchain4j.open-ai.streaming-chat-model")
+@ConfigurationProperties(prefix = "spring-ai-alibaba.open-ai.streaming-chat-model")
 @Data
 public class StreamingChatModelConfig {
 
@@ -36,25 +26,4 @@ public class StreamingChatModelConfig {
 
     private boolean logResponses;
 
-    @Resource
-    private AiModelMonitorListener aiModelMonitorListener;
-
-    /**
-     * 流式模型
-     */
-    @Bean
-    @Scope("prototype")
-    public StreamingChatModel streamingChatModelPrototype() {
-        List<ChatModelListener> listeners = Collections.singletonList(aiModelMonitorListener);
-        return OpenAiStreamingChatModel.builder()
-                .apiKey(apiKey)
-                .baseUrl(baseUrl)
-                .modelName(modelName)
-                .maxTokens(maxTokens)
-                .temperature(temperature)
-                .logRequests(logRequests)
-                .logResponses(logResponses)
-                .listeners(listeners)
-                .build();
-    }
 }

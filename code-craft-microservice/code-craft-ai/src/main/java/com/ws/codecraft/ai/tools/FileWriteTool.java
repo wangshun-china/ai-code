@@ -3,9 +3,6 @@ package com.ws.codecraft.ai.tools;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.json.JSONObject;
 import com.ws.codecraft.config.CodeProjectProperties;
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolMemoryId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -28,10 +25,7 @@ public class FileWriteTool extends BaseTool {
         this.codeProjectProperties = codeProjectProperties;
     }
 
-    @Tool("写入文件到指定路径")
-    public String writeFile(@P("文件的相对路径") String relativeFilePath,
-                            @P("要写入文件的内容") String content,
-                            @ToolMemoryId Long appId) {
+    public String writeFile(String relativeFilePath, String content, Long appId) {
         try {
             Path path = resolvePath(relativeFilePath, appId);
             Path parentDir = path.getParent();

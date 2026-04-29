@@ -8,6 +8,8 @@ import com.ws.codecraft.ai.model.MultiFileCodeResult;
 import com.ws.codecraft.ai.model.message.AiResponseMessage;
 import com.ws.codecraft.ai.model.message.ToolExecutedMessage;
 import com.ws.codecraft.ai.model.message.ToolRequestMessage;
+import com.ws.codecraft.ai.stream.AiTokenStream;
+import com.ws.codecraft.ai.stream.AiToolExecution;
 import com.ws.codecraft.core.builder.VueProjectBuildResult;
 import com.ws.codecraft.core.builder.VueProjectBuilder;
 import com.ws.codecraft.core.parser.CodeParserExecutor;
@@ -15,9 +17,6 @@ import com.ws.codecraft.core.saver.CodeFileSaverExecutor;
 import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
-import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.service.TokenStream;
-import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -108,7 +107,7 @@ public class AiCodeGeneratorFacade {
                 yield processCodeStream(codeStream, CodeGenTypeEnum.MULTI_FILE, appId);
             }
             case VUE_PROJECT -> {
-                TokenStream tokenStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
+                AiTokenStream tokenStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
                 yield processTokenStream(tokenStream, aiCodeGeneratorService, appId);
             }
             default -> {
@@ -119,27 +118,27 @@ public class AiCodeGeneratorFacade {
     }
 
     /**
-     * 将 TokenStream 转换为 Flux<String>，并传递工具调用信息
+     * 将 AiTokenStream 转换为 Flux<String>，并传递工具调用信息
      *
-     * @param tokenStream TokenStream 对象
+     * @param tokenStream AiTokenStream 对象
      * @param appId       应用 ID
      * @return Flux<String> 流式响应
      */
-    private Flux<String> processTokenStream(TokenStream tokenStream, AiCodeGeneratorService aiCodeGeneratorService, Long appId) {
+    private Flux<String> processTokenStream(AiTokenStream tokenStream, AiCodeGeneratorService aiCodeGeneratorService, Long appId) {
         return Flux.create(sink -> {
             tokenStream.onPartialResponse((String partialResponse) -> {
                         AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
                         sink.next(JSONUtil.toJsonStr(aiResponseMessage));
                     })
-                    .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
+                    .onToolRequest((index, toolExecutionRequest) -> {
                         ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
                         sink.next(JSONUtil.toJsonStr(toolRequestMessage));
                     })
-                    .onToolExecuted((ToolExecution toolExecution) -> {
+                    .onToolExecuted((AiToolExecution toolExecution) -> {
                         ToolExecutedMessage toolExecutedMessage = new ToolExecutedMessage(toolExecution);
                         sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
                     })
-                    .onCompleteResponse((ChatResponse response) -> {
+                    .onComplete(response -> {
                         // 执行 Vue 项目构建（同步执行，确保预览时项目已就绪）
                         VueProjectBuildResult buildResult = buildVueProjectWithAutoRepair(aiCodeGeneratorService, appId, sink);
                         if (!buildResult.isSuccess()) {
@@ -197,18 +196,18 @@ public class AiCodeGeneratorFacade {
                                          FluxSink<String> sink) {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Throwable> errorRef = new AtomicReference<>();
-        TokenStream repairStream = aiCodeGeneratorService.repairVueProjectBuildStream(appId,
+        AiTokenStream repairStream = aiCodeGeneratorService.repairVueProjectBuildStream(appId,
                 buildRepairPrompt(repairAttempt, buildError));
         repairStream.onPartialResponse((String partialResponse) -> emitAiMessage(sink, partialResponse))
-                .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
+                .onToolRequest((index, toolExecutionRequest) -> {
                     ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
                     sink.next(JSONUtil.toJsonStr(toolRequestMessage));
                 })
-                .onToolExecuted((ToolExecution toolExecution) -> {
+                .onToolExecuted((AiToolExecution toolExecution) -> {
                     ToolExecutedMessage toolExecutedMessage = new ToolExecutedMessage(toolExecution);
                     sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
                 })
-                .onCompleteResponse((ChatResponse response) -> latch.countDown())
+                .onComplete(response -> latch.countDown())
                 .onError((Throwable error) -> {
                     errorRef.set(error);
                     latch.countDown();

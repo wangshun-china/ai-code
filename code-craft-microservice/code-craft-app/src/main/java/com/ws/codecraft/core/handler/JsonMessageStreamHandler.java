@@ -29,7 +29,7 @@ public class JsonMessageStreamHandler {
     private ToolManager toolManager;
 
     /**
-     * 处理 TokenStream（VUE_PROJECT）
+     * 处理 AiTokenStream（VUE_PROJECT）
      * 解析 JSON 消息并重组为完整的响应格式
      *
      * @param originFlux         原始流
@@ -64,7 +64,7 @@ public class JsonMessageStreamHandler {
     }
 
     /**
-     * 解析并收集 TokenStream 数据
+     * 解析并收集 AiTokenStream 数据
      */
     private String handleJsonMessageChunk(String chunk, StringBuilder chatHistoryStringBuilder, Set<String> seenToolIds) {
         // 解析 JSON

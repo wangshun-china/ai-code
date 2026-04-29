@@ -1,6 +1,6 @@
 package com.ws.codecraft.ai.model.message;
 
-import dev.langchain4j.service.tool.ToolExecution;
+import com.ws.codecraft.ai.stream.AiToolExecution;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -21,7 +21,7 @@ public class ToolExecutedMessage extends StreamMessage {
 
     private String result;
 
-    public ToolExecutedMessage(ToolExecution toolExecution) {
+    public ToolExecutedMessage(AiToolExecution toolExecution) {
         super(StreamMessageTypeEnum.TOOL_EXECUTED.getValue());
         this.id = toolExecution.request().id();
         this.name = toolExecution.request().name();

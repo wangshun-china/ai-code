@@ -51,8 +51,6 @@ import com.ws.codecraft.service.AppGenerationTaskService;
 import com.ws.codecraft.service.AppService;
 import com.ws.codecraft.service.AppVersionService;
 import com.ws.codecraft.service.ChatHistoryService;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -211,7 +209,6 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 AppGenerationTaskModeEnum.CHAT.getValue(), message);
         appGenerationTaskService.markRunning(chatTask.getId());
         String chatPrompt = buildPlainChatPrompt(app, message, loginUser.getId());
-        ChatModel plainChatModel = aiCodeGeneratorServiceFactory.createPlainChatModel(app.getModelKey());
         chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         String aiResponse;
         try {
@@ -219,7 +216,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                     .userId(String.valueOf(loginUser.getId()))
                     .appId(String.valueOf(appId))
                     .build());
-            aiResponse = plainChatModel.chat(UserMessage.from(chatPrompt)).aiMessage().text();
+            aiResponse = aiCodeGeneratorServiceFactory.chatPlain(chatPrompt, app.getModelKey());
         } catch (RuntimeException e) {
             String errorMessage = getAiFriendlyErrorMessage(e);
             appGenerationTaskService.markFailed(chatTask.getId(), errorMessage);

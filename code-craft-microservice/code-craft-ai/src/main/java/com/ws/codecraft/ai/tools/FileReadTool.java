@@ -2,9 +2,6 @@ package com.ws.codecraft.ai.tools;
 
 import cn.hutool.json.JSONObject;
 import com.ws.codecraft.config.CodeProjectProperties;
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolMemoryId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -26,9 +23,7 @@ public class FileReadTool extends BaseTool {
         this.codeProjectProperties = codeProjectProperties;
     }
 
-    @Tool("读取指定路径的文件内容")
-    public String readFile(@P("文件的相对路径") String relativeFilePath,
-                           @ToolMemoryId Long appId) {
+    public String readFile(String relativeFilePath, Long appId) {
         try {
             Path path = resolvePath(relativeFilePath, appId);
             if (!Files.exists(path) || !Files.isRegularFile(path)) {

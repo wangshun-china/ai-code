@@ -1,21 +1,11 @@
 package com.ws.codecraft.ai.config;
 
-import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
-import dev.langchain4j.model.chat.StreamingChatModel;
-import dev.langchain4j.model.chat.listener.ChatModelListener;
-import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
-import jakarta.annotation.Resource;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Scope;
-
-import java.util.Collections;
-import java.util.List;
 
 @Configuration
-@ConfigurationProperties(prefix = "langchain4j.open-ai.reasoning-streaming-chat-model")
+@ConfigurationProperties(prefix = "spring-ai-alibaba.open-ai.reasoning-streaming-chat-model")
 @Data
 public class ReasoningStreamingChatModelConfig {
 
@@ -33,25 +23,4 @@ public class ReasoningStreamingChatModelConfig {
 
     private Boolean logResponses = false;
 
-    @Resource
-    private AiModelMonitorListener aiModelMonitorListener;
-
-    /**
-     * 推理流式模型（用于 Vue 项目生成，带工具调用）
-     */
-    @Bean
-    @Scope("prototype")
-    public StreamingChatModel reasoningStreamingChatModelPrototype() {
-        List<ChatModelListener> listeners = Collections.singletonList(aiModelMonitorListener);
-        return OpenAiStreamingChatModel.builder()
-                .apiKey(apiKey)
-                .baseUrl(baseUrl)
-                .modelName(modelName)
-                .maxTokens(maxTokens)
-                .temperature(temperature)
-                .logRequests(logRequests)
-                .logResponses(logResponses)
-                .listeners(listeners)
-                .build();
-    }
 }

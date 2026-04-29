@@ -12,7 +12,7 @@ import reactor.core.publisher.Flux;
  * 流处理器执行器
  * 根据代码生成类型创建合适的流处理器：
  * 1. 传统的 Flux<String> 流（HTML、MULTI_FILE） -> SimpleTextStreamHandler
- * 2. TokenStream 格式的复杂流（VUE_PROJECT） -> JsonMessageStreamHandler
+ * 2. AiTokenStream 格式的复杂流（VUE_PROJECT） -> JsonMessageStreamHandler
  */
 @Slf4j
 @Component

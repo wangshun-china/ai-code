@@ -2,9 +2,6 @@ package com.ws.codecraft.ai.tools;
 
 import cn.hutool.json.JSONObject;
 import com.ws.codecraft.config.CodeProjectProperties;
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolMemoryId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -27,11 +24,7 @@ public class FileModifyTool extends BaseTool {
         this.codeProjectProperties = codeProjectProperties;
     }
 
-    @Tool("修改文件内容，用新内容替换指定的旧内容")
-    public String modifyFile(@P("文件的相对路径") String relativeFilePath,
-                             @P("要替换的旧内容") String oldContent,
-                             @P("替换后的新内容") String newContent,
-                             @ToolMemoryId Long appId) {
+    public String modifyFile(String relativeFilePath, String oldContent, String newContent, Long appId) {
         try {
             Path path = resolvePath(relativeFilePath, appId);
             if (!Files.exists(path) || !Files.isRegularFile(path)) {

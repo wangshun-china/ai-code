@@ -1,43 +1,41 @@
 package com.ws.codecraft.ai;
 
+import cn.hutool.core.util.StrUtil;
+import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
+import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
+import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.ws.codecraft.ai.config.ReasoningStreamingChatModelConfig;
 import com.ws.codecraft.ai.config.StreamingChatModelConfig;
-import com.ws.codecraft.ai.guardrail.PromptSafetyInputGuardrail;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
-import com.ws.codecraft.ai.tools.*;
+import com.ws.codecraft.ai.monitor.AiModelMonitorListener.SpringAiUsageTrace;
+import com.ws.codecraft.ai.tools.ToolManager;
 import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.model.enums.AiModelEnum;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
-import com.ws.codecraft.service.ChatHistoryService;
-import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
-import dev.langchain4j.data.message.ToolExecutionResultMessage;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.StreamingChatModel;
-import dev.langchain4j.model.chat.listener.ChatModelListener;
-import dev.langchain4j.model.openai.OpenAiChatModel;
-import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
-import dev.langchain4j.service.AiServices;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.content.Media;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.util.MimeTypeUtils;
 
 import java.time.Duration;
-import java.util.List;
 
 /**
- * AI 服务创建工厂
+ * AI 服务创建工厂。springaialibaba 分支的模型请求统一走 Spring AI Alibaba
+ * DashScopeChatModel，保留原业务接口以降低迁移风险。
  */
 @Configuration
 @Slf4j
 public class AiCodeGeneratorServiceFactory {
-
-    @Resource(name = "openAiChatModel")
-    private ChatModel chatModel;
 
     @Resource
     private StreamingChatModelConfig streamingChatModelConfig;
@@ -46,50 +44,23 @@ public class AiCodeGeneratorServiceFactory {
     private ReasoningStreamingChatModelConfig reasoningStreamingChatModelConfig;
 
     @Resource
-    private RedisChatMemoryStore redisChatMemoryStore;
-
-    @Resource
-    private ChatHistoryService chatHistoryService;
-
-    @Resource
     private ToolManager toolManager;
 
     @Resource
     private AiModelMonitorListener aiModelMonitorListener;
 
-    /**
-     * AI 服务实例缓存
-     * 缓存策略：
-     * - 最大缓存 1000 个实例
-     * - 写入后 30 分钟过期
-     * - 访问后 10 分钟过期
-     */
     private final Cache<String, AiCodeGeneratorService> serviceCache = Caffeine.newBuilder()
             .maximumSize(1000)
             .expireAfterWrite(Duration.ofMinutes(30))
             .expireAfterAccess(Duration.ofMinutes(10))
-            .removalListener((key, value, cause) -> {
-                log.debug("AI 服务实例被移除，缓存键: {}, 原因: {}", key, cause);
-            })
+            .removalListener((key, value, cause) ->
+                    log.debug("AI 服务实例被移除，缓存键: {}, 原因: {}", key, cause))
             .build();
 
-    /**
-     * 根据 appId 获取服务（为了兼容老逻辑）
-     *
-     * @param appId
-     * @return
-     */
     public AiCodeGeneratorService getAiCodeGeneratorService(long appId) {
         return getAiCodeGeneratorService(appId, CodeGenTypeEnum.HTML);
     }
 
-    /**
-     * 根据 appId 获取服务
-     *
-     * @param appId       应用 id
-     * @param codeGenType 生成类型
-     * @return
-     */
     public AiCodeGeneratorService getAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenType) {
         return getAiCodeGeneratorService(appId, codeGenType, null);
     }
@@ -97,134 +68,136 @@ public class AiCodeGeneratorServiceFactory {
     public AiCodeGeneratorService getAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenType, String modelKey) {
         String normalizedModelKey = AiModelEnum.normalize(modelKey);
         String cacheKey = buildCacheKey(appId, codeGenType, normalizedModelKey);
-        return serviceCache.get(cacheKey, key -> createAiCodeGeneratorService(appId, codeGenType, normalizedModelKey));
+        return serviceCache.get(cacheKey, key -> createAiCodeGeneratorService(codeGenType, normalizedModelKey));
     }
 
     /**
-     * 创建普通聊天模型实例。该模型不挂载任何写文件工具。
+     * 普通聊天模型不挂载任何写文件工具，避免聊天误触发代码覆盖。
      */
-    public ChatModel createPlainChatModel(String modelKey) {
-        return createChatModel(modelKey);
+    public String chatPlain(String message, String modelKey) {
+        String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        DashScopeChatModel model = createChatModel(normalizedModelKey, streamingChatModelConfig.getApiKey(),
+                streamingChatModelConfig.getBaseUrl(), streamingChatModelConfig.getMaxTokens(),
+                streamingChatModelConfig.getTemperature(), false);
+        DashScopeChatOptions options = createOptions(normalizedModelKey, streamingChatModelConfig.getMaxTokens(),
+                streamingChatModelConfig.getTemperature(), false);
+        SpringAiUsageTrace trace = aiModelMonitorListener.startSpringAiRequest(normalizedModelKey, message);
+        try {
+            ChatResponse response = model.call(new Prompt(new UserMessage(message), options));
+            String responseText = extractText(response);
+            Usage usage = response == null || response.getMetadata() == null ? null : response.getMetadata().getUsage();
+            aiModelMonitorListener.recordSpringAiSuccess(trace, responseText,
+                    usage == null ? null : usage.getPromptTokens(),
+                    usage == null ? null : usage.getCompletionTokens(),
+                    usage == null ? null : usage.getTotalTokens());
+            return responseText;
+        } catch (RuntimeException e) {
+            aiModelMonitorListener.recordSpringAiError(trace, e);
+            throw e;
+        }
     }
 
-    /**
-     * 创建新的 AI 服务实例
-     *
-     * @param appId       应用 id
-     * @param codeGenType 生成类型
-     * @return
-     */
-    private AiCodeGeneratorService createAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenType, String modelKey) {
-        log.info("为 appId: {} 创建新的 AI 服务实例, model={}", appId, modelKey);
-        ChatModel selectedChatModel = createChatModel(modelKey);
-        // 根据 appId 构建独立的对话记忆
-        MessageWindowChatMemory chatMemory = MessageWindowChatMemory
-                .builder()
-                .id(appId)
-                .chatMemoryStore(redisChatMemoryStore)
-                .maxMessages(20)
+    public String chatWithImage(String message, byte[] imageBytes, String mimeType, String fileName, String modelKey) {
+        String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        DashScopeChatModel model = createChatModel(normalizedModelKey, streamingChatModelConfig.getApiKey(),
+                streamingChatModelConfig.getBaseUrl(), streamingChatModelConfig.getMaxTokens(),
+                streamingChatModelConfig.getTemperature(), false);
+        DashScopeChatOptions options = createOptions(normalizedModelKey, streamingChatModelConfig.getMaxTokens(),
+                streamingChatModelConfig.getTemperature(), false);
+        UserMessage userMessage = UserMessage.builder()
+                .text(message)
+                .media(Media.builder()
+                        .mimeType(MimeTypeUtils.parseMimeType(StrUtil.blankToDefault(mimeType, "image/png")))
+                        .data(new ByteArrayResource(imageBytes) {
+                            @Override
+                            public String getFilename() {
+                                return StrUtil.blankToDefault(fileName, "upload.png");
+                            }
+                        })
+                        .build())
                 .build();
-        // 从数据库中加载对话历史到记忆中
-        chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 20);
+        SpringAiUsageTrace trace = aiModelMonitorListener.startSpringAiRequest(normalizedModelKey, message);
+        try {
+            ChatResponse response = model.call(new Prompt(userMessage, options));
+            String responseText = extractText(response);
+            Usage usage = response == null || response.getMetadata() == null ? null : response.getMetadata().getUsage();
+            aiModelMonitorListener.recordSpringAiSuccess(trace, responseText,
+                    usage == null ? null : usage.getPromptTokens(),
+                    usage == null ? null : usage.getCompletionTokens(),
+                    usage == null ? null : usage.getTotalTokens());
+            return responseText;
+        } catch (RuntimeException e) {
+            aiModelMonitorListener.recordSpringAiError(trace, e);
+            throw e;
+        }
+    }
+
+    private AiCodeGeneratorService createAiCodeGeneratorService(CodeGenTypeEnum codeGenType, String modelKey) {
+        log.info("创建 Spring AI Alibaba AI 服务实例, type={}, model={}", codeGenType, modelKey);
+        if (codeGenType == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成类型不能为空");
+        }
+        DashScopeChatModel chatModel = createChatModel(modelKey, streamingChatModelConfig.getApiKey(),
+                streamingChatModelConfig.getBaseUrl(), streamingChatModelConfig.getMaxTokens(),
+                streamingChatModelConfig.getTemperature(), false);
+        DashScopeChatOptions chatOptions = createOptions(modelKey, streamingChatModelConfig.getMaxTokens(),
+                streamingChatModelConfig.getTemperature(), false);
+        DashScopeChatModel reasoningChatModel = createChatModel(modelKey, reasoningStreamingChatModelConfig.getApiKey(),
+                reasoningStreamingChatModelConfig.getBaseUrl(), reasoningStreamingChatModelConfig.getMaxTokens(),
+                reasoningStreamingChatModelConfig.getTemperature(), true);
+        DashScopeChatOptions reasoningOptions = createOptions(modelKey, reasoningStreamingChatModelConfig.getMaxTokens(),
+                reasoningStreamingChatModelConfig.getTemperature(), true);
         return switch (codeGenType) {
-            // Vue 项目生成，使用工具调用和推理模型
-            case VUE_PROJECT -> {
-                StreamingChatModel reasoningStreamingChatModel = createReasoningStreamingChatModel(modelKey);
-                yield AiServices.builder(AiCodeGeneratorService.class)
-                        .chatModel(selectedChatModel)
-                        .streamingChatModel(reasoningStreamingChatModel)
-                        .chatMemoryProvider(memoryId -> chatMemory)
-                        .tools(toolManager.getAllTools())
-                        // 处理工具调用幻觉问题
-                        .hallucinatedToolNameStrategy(toolExecutionRequest ->
-                                ToolExecutionResultMessage.from(toolExecutionRequest,
-                                        "Error: there is no tool called " + toolExecutionRequest.name())
-                        )
-                        .maxSequentialToolsInvocations(20)  // 最多连续调用 20 次工具
-                        .inputGuardrails(new PromptSafetyInputGuardrail()) // 添加输入护轨
-//                        .outputGuardrails(new RetryOutputGuardrail()) // 添加输出护轨，为了流式输出，这里不使用
-                        .build();
-            }
-            // HTML 和 多文件生成，使用流式对话模型
-            case HTML, MULTI_FILE -> {
-                StreamingChatModel openAiStreamingChatModel = createStreamingChatModel(modelKey);
-                yield AiServices.builder(AiCodeGeneratorService.class)
-                        .chatModel(selectedChatModel)
-                        .streamingChatModel(openAiStreamingChatModel)
-                        .chatMemory(chatMemory)
-                        .inputGuardrails(new PromptSafetyInputGuardrail()) // 添加输入护轨
-//                        .outputGuardrails(new RetryOutputGuardrail()) // 添加输出护轨，为了流式输出，这里不使用
-                        .build();
-            }
-            default ->
-                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "不支持的代码生成类型: " + codeGenType.getValue());
+            case HTML, MULTI_FILE, VUE_PROJECT -> new SpringAiAlibabaCodeGeneratorService(
+                    chatModel, reasoningChatModel, chatOptions, reasoningOptions, modelKey,
+                    aiModelMonitorListener, toolManager);
+            default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR,
+                    "不支持的代码生成类型: " + codeGenType.getValue());
         };
     }
 
-    /**
-     * 创建 AI 代码生成器服务
-     *
-     * @return
-     */
     @Bean
     public AiCodeGeneratorService aiCodeGeneratorService() {
         return getAiCodeGeneratorService(0);
-    }
-
-    /**
-     * 构造缓存键
-     *
-     * @param appId
-     * @param codeGenType
-     * @return
-     */
-    private String buildCacheKey(long appId, CodeGenTypeEnum codeGenType) {
-        return buildCacheKey(appId, codeGenType, AiModelEnum.DEFAULT_MODEL_KEY);
     }
 
     private String buildCacheKey(long appId, CodeGenTypeEnum codeGenType, String modelKey) {
         return appId + "_" + codeGenType.getValue() + "_" + AiModelEnum.normalize(modelKey);
     }
 
-    private ChatModel createChatModel(String modelKey) {
-        List<ChatModelListener> listeners = List.of(aiModelMonitorListener);
-        return OpenAiChatModel.builder()
-                .apiKey(streamingChatModelConfig.getApiKey())
-                .baseUrl(streamingChatModelConfig.getBaseUrl())
-                .modelName(AiModelEnum.normalize(modelKey))
-                .maxTokens(streamingChatModelConfig.getMaxTokens())
-                .temperature(streamingChatModelConfig.getTemperature())
-                .logRequests(streamingChatModelConfig.isLogRequests())
-                .logResponses(streamingChatModelConfig.isLogResponses())
-                .listeners(listeners)
+    public DashScopeChatModel createChatModel(String modelKey) {
+        return createChatModel(AiModelEnum.normalize(modelKey), streamingChatModelConfig.getApiKey(),
+                streamingChatModelConfig.getBaseUrl(), streamingChatModelConfig.getMaxTokens(),
+                streamingChatModelConfig.getTemperature(), false);
+    }
+
+    public DashScopeChatOptions createOptions(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
+        DashScopeChatOptions options = DashScopeChatOptions.builder()
+                .model(AiModelEnum.normalize(modelKey))
+                .maxToken(maxTokens)
+                .temperature(temperature)
+                .incrementalOutput(streaming)
+                .build();
+        options.setInternalToolExecutionEnabled(false);
+        return options;
+    }
+
+    private DashScopeChatModel createChatModel(String modelKey, String apiKey, String baseUrl,
+                                               Integer maxTokens, Double temperature, boolean streaming) {
+        DashScopeApi.Builder apiBuilder = DashScopeApi.builder().apiKey(apiKey);
+        if (StrUtil.isNotBlank(baseUrl) && !baseUrl.contains("compatible-mode")) {
+            apiBuilder.baseUrl(baseUrl);
+        }
+        return DashScopeChatModel.builder()
+                .dashScopeApi(apiBuilder.build())
+                .defaultOptions(createOptions(modelKey, maxTokens, temperature, streaming))
                 .build();
     }
 
-    private StreamingChatModel createStreamingChatModel(String modelKey) {
-        List<ChatModelListener> listeners = List.of(aiModelMonitorListener);
-        return OpenAiStreamingChatModel.builder()
-                .apiKey(streamingChatModelConfig.getApiKey())
-                .baseUrl(streamingChatModelConfig.getBaseUrl())
-                .modelName(AiModelEnum.normalize(modelKey))
-                .maxTokens(streamingChatModelConfig.getMaxTokens())
-                .temperature(streamingChatModelConfig.getTemperature())
-                .logRequests(streamingChatModelConfig.isLogRequests())
-                .logResponses(streamingChatModelConfig.isLogResponses())
-                .listeners(listeners)
-                .build();
-    }
-
-    private StreamingChatModel createReasoningStreamingChatModel(String modelKey) {
-        List<ChatModelListener> listeners = List.of(aiModelMonitorListener);
-        return OpenAiStreamingChatModel.builder()
-                .apiKey(reasoningStreamingChatModelConfig.getApiKey())
-                .baseUrl(reasoningStreamingChatModelConfig.getBaseUrl())
-                .modelName(AiModelEnum.normalize(modelKey))
-                .maxTokens(reasoningStreamingChatModelConfig.getMaxTokens())
-                .temperature(reasoningStreamingChatModelConfig.getTemperature())
-                .logRequests(reasoningStreamingChatModelConfig.getLogRequests())
-                .logResponses(reasoningStreamingChatModelConfig.getLogResponses())
-                .listeners(listeners)
-                .build();
+    private String extractText(ChatResponse response) {
+        if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
+            return "";
+        }
+        return StrUtil.blankToDefault(response.getResult().getOutput().getText(), "");
     }
 }

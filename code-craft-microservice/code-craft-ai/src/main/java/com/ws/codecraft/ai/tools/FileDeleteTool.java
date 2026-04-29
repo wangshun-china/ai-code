@@ -2,9 +2,6 @@ package com.ws.codecraft.ai.tools;
 
 import cn.hutool.json.JSONObject;
 import com.ws.codecraft.config.CodeProjectProperties;
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolMemoryId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -26,9 +23,7 @@ public class FileDeleteTool extends BaseTool {
         this.codeProjectProperties = codeProjectProperties;
     }
 
-    @Tool("删除指定路径的文件")
-    public String deleteFile(@P("文件的相对路径") String relativeFilePath,
-                             @ToolMemoryId Long appId) {
+    public String deleteFile(String relativeFilePath, Long appId) {
         try {
             Path path = resolvePath(relativeFilePath, appId);
             if (!Files.exists(path)) {
