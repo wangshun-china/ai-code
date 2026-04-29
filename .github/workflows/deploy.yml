@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       target_env:
-        description: '请选择要部署的目标服务器 (默认推送到阿里云)'
+        description: '请选择要部署的目标服务器（push main 自动部署默认使用 wsl）'
         required: true
-        default: 'aliyun'
+        default: 'wsl'
         type: choice
         options:
           - aliyun
@@ -21,6 +21,7 @@ on:
         options:
           - main
           - edu
+          - springaialibaba
 
 env:
   # 镜像仓库配置 (Single Source of Truth)
@@ -546,11 +547,17 @@ jobs:
 
           volumes:
             mysql_data:
+              name: code-craft-prod_mysql_data
             redis_data:
+              name: code-craft-prod_redis_data
             nacos_logs:
+              name: code-craft-prod_nacos_logs
             nacos_data:
+              name: code-craft-prod_nacos_data
             code_deploy:
+              name: code-craft-prod_code_deploy
             code_output:
+              name: code-craft-prod_code_output
 
           networks:
             code-craft-network:
