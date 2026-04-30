@@ -9,6 +9,13 @@ export function getAiMetrics(params?: { startDate?: string; endDate?: string }) 
 }
 
 /**
+ * 获取最近代码生成质量摘要
+ */
+export function getGenerationQuality(params?: { limit?: number }) {
+  return request.get('/statistics/generation-quality', { params })
+}
+
+/**
  * 获取用户 Token 消耗排行
  * @param params 查询参数
  */

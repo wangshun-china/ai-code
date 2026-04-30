@@ -1,0 +1,58 @@
+[
+  {
+    "id": "vue-todo",
+    "title": "Vue 极简清单应用",
+    "codeGenTypes": ["vue_project"],
+    "keywords": ["清单", "todo", "待办", "任务", "列表"],
+    "scenario": "适合快速验证 Vue 交互能力的小型应用。",
+    "implementationNotes": [
+      "使用 App.vue 承载核心交互，避免过度拆分。",
+      "必须包含添加、完成切换、删除、统计等闭环交互。",
+      "样式保持清爽，优先保证移动端可用。"
+    ],
+    "fileHints": ["package.json", "vite.config.js", "index.html", "src/main.js", "src/App.vue"],
+    "qualityChecklist": ["存在完整 Vue/Vite 工程骨架", "npm run build 能成功", "无 Markdown 代码围栏残留"]
+  },
+  {
+    "id": "resume-site",
+    "title": "电子简历展示页",
+    "codeGenTypes": ["html", "multi_file", "vue_project"],
+    "keywords": ["简历", "求职", "实习", "经历", "项目", "技能", "作品集"],
+    "scenario": "适合把 PDF/DOCX 简历转成更有展示力的个人电子简历。",
+    "implementationNotes": [
+      "优先突出姓名、岗位方向、教育经历、项目经历、技能栈和联系方式。",
+      "项目经历要用结果导向表达，避免堆砌大段文本。",
+      "视觉风格应专业、清爽、可信，避免过度花哨。"
+    ],
+    "fileHints": ["index.html", "src/App.vue", "src/main.js"],
+    "qualityChecklist": ["首屏能清楚表达求职定位", "联系方式醒目", "移动端阅读体验良好"]
+  },
+  {
+    "id": "company-landing",
+    "title": "中小企业官网落地页",
+    "codeGenTypes": ["html", "multi_file", "vue_project"],
+    "keywords": ["官网", "企业", "公司", "品牌", "产品", "服务", "落地页"],
+    "scenario": "适合为中小企业快速生成品牌官网或产品介绍页。",
+    "implementationNotes": [
+      "首页结构建议包含 hero、核心优势、产品服务、案例/数据、联系转化。",
+      "文案要强调可信度和转化目标，不要空泛。",
+      "按钮和联系入口要明确，页面层次要清楚。"
+    ],
+    "fileHints": ["index.html", "src/App.vue", "src/main.js"],
+    "qualityChecklist": ["首屏价值主张明确", "有清晰 CTA", "布局响应式"]
+  },
+  {
+    "id": "personal-blog",
+    "title": "个人博客/作品集",
+    "codeGenTypes": ["html", "multi_file", "vue_project"],
+    "keywords": ["博客", "作品集", "个人主页", "文章", "项目展示", "portfolio"],
+    "scenario": "适合个人展示文章、项目、技能和联系方式。",
+    "implementationNotes": [
+      "信息架构建议包含个人简介、精选项目、文章列表、技能标签、联系方式。",
+      "视觉要有个人风格，但保持内容可读性。",
+      "项目卡片需要包含标题、简介、技术栈和成果。"
+    ],
+    "fileHints": ["index.html", "src/App.vue", "src/main.js"],
+    "qualityChecklist": ["内容分区清晰", "项目展示有重点", "视觉风格统一"]
+  }
+]

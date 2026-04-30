@@ -1,9 +1,17 @@
 package com.ws.codecraft.service.impl;
 
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import com.mybatisflex.core.query.QueryWrapper;
 import com.ws.codecraft.innerservice.InnerUserService;
+import com.ws.codecraft.mapper.AppGenerationTaskMapper;
 import com.ws.codecraft.mapper.StatisticsMapper;
+import com.ws.codecraft.model.entity.AppGenerationTask;
 import com.ws.codecraft.model.entity.User;
+import com.ws.codecraft.model.enums.AppGenerationTaskModeEnum;
+import com.ws.codecraft.model.enums.AppGenerationTaskStatusEnum;
 import com.ws.codecraft.model.vo.AiMetricsVO;
+import com.ws.codecraft.model.vo.AppGenerationQualityVO;
 import com.ws.codecraft.service.StatisticsService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -33,6 +41,9 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     @Resource
     private StatisticsMapper statisticsMapper;
+
+    @Resource
+    private AppGenerationTaskMapper appGenerationTaskMapper;
 
     @DubboReference
     private InnerUserService userService;
@@ -97,6 +108,19 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .build()).toList();
     }
 
+    @Override
+    public List<AppGenerationQualityVO> getRecentGenerationQuality(Integer limit) {
+        int safeLimit = normalizeLimit(limit);
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .eq(AppGenerationTask::getMode, AppGenerationTaskModeEnum.GENERATE.getValue())
+                .eq(AppGenerationTask::getStatus, AppGenerationTaskStatusEnum.SUCCESS.getValue())
+                .orderBy(AppGenerationTask::getCreateTime, false)
+                .limit(1, safeLimit);
+        return appGenerationTaskMapper.selectListByQuery(queryWrapper).stream()
+                .map(this::buildGenerationQualityVO)
+                .toList();
+    }
+
     private List<AiMetricsVO.UserStat> getUserTokenRanking(Integer limit, DateRange dateRange) {
         int safeLimit = normalizeLimit(limit);
         LocalDateTime start = dateRange == null ? null : dateRange.start();
@@ -109,6 +133,55 @@ public class StatisticsServiceImpl implements StatisticsService {
         Map<Long, User> userMap = loadUsers(records);
         Map<Long, Integer> appCountMap = loadAppCounts(userMap.keySet());
         return buildUserStats(records, userMap, appCountMap);
+    }
+
+    private AppGenerationQualityVO buildGenerationQualityVO(AppGenerationTask task) {
+        JSONObject summary = parseJsonObject(task.getAiMessage());
+        JSONObject metricsJson = summary == null ? null : summary.getJSONObject("qualityMetrics");
+        return AppGenerationQualityVO.builder()
+                .taskId(task.getId())
+                .appId(task.getAppId())
+                .userId(task.getUserId())
+                .modelKey(task.getModelKey())
+                .codeGenType(task.getCodeGenType())
+                .status(task.getStatus())
+                .userMessage(task.getUserMessage())
+                .aiOutputPreview(summary == null ? null : summary.getStr("aiOutputPreview"))
+                .qualityMetrics(buildQualityMetrics(metricsJson))
+                .createTime(task.getCreateTime())
+                .startTime(task.getStartTime())
+                .endTime(task.getEndTime())
+                .build();
+    }
+
+    private AppGenerationQualityVO.QualityMetrics buildQualityMetrics(JSONObject metricsJson) {
+        if (metricsJson == null || metricsJson.isEmpty()) {
+            return null;
+        }
+        return AppGenerationQualityVO.QualityMetrics.builder()
+                .appId(getLongValue(metricsJson, "appId"))
+                .codeGenType(metricsJson.getStr("codeGenType"))
+                .modelKey(metricsJson.getStr("modelKey"))
+                .usedPlan(metricsJson.getBool("usedPlan"))
+                .streamChunkCount(getIntValue(metricsJson, "streamChunkCount"))
+                .generatedCharCount(getIntValue(metricsJson, "generatedCharCount"))
+                .durationMs(getLongValue(metricsJson, "durationMs"))
+                .sourceDirExists(metricsJson.getBool("sourceDirExists"))
+                .generatedFileCount(getIntValue(metricsJson, "generatedFileCount"))
+                .buildSuccess(metricsJson.getBool("buildSuccess"))
+                .build();
+    }
+
+    private JSONObject parseJsonObject(String json) {
+        if (json == null || json.isBlank() || !JSONUtil.isTypeJSONObject(json)) {
+            return null;
+        }
+        try {
+            return JSONUtil.parseObj(json);
+        } catch (Exception e) {
+            log.warn("解析生成质量摘要失败, json={}", json, e);
+            return null;
+        }
     }
 
     private Map<Long, User> loadUsers(List<Map<String, Object>> records) {
@@ -214,6 +287,22 @@ public class StatisticsServiceImpl implements StatisticsService {
             return 0L;
         }
         return ((Number) value).longValue();
+    }
+
+    private long getLongValue(JSONObject object, String key) {
+        Object value = object.get(key);
+        if (value == null) {
+            return 0L;
+        }
+        return ((Number) value).longValue();
+    }
+
+    private int getIntValue(JSONObject object, String key) {
+        Object value = object.get(key);
+        if (value == null) {
+            return 0;
+        }
+        return ((Number) value).intValue();
     }
 
     private double getDoubleValue(Map<String, Object> map, String key) {

@@ -5,6 +5,9 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -13,6 +16,7 @@ import com.ws.codecraft.ai.AiCodeGenTypeRoutingService;
 import com.ws.codecraft.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.ws.codecraft.ai.AiCodeGeneratorService;
 import com.ws.codecraft.ai.AiCodeGeneratorServiceFactory;
+import com.ws.codecraft.ai.AiModelFallbackRouter;
 import com.ws.codecraft.config.CodeProjectProperties;
 import com.ws.codecraft.constant.AppConstant;
 import com.ws.codecraft.core.AiCodeGeneratorFacade;
@@ -51,6 +55,7 @@ import com.ws.codecraft.service.AppGenerationTaskService;
 import com.ws.codecraft.service.AppService;
 import com.ws.codecraft.service.AppVersionService;
 import com.ws.codecraft.service.ChatHistoryService;
+import com.ws.codecraft.service.CodegenTemplateRagService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
@@ -70,6 +75,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -95,6 +102,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
 
     @Resource
+    private AiModelFallbackRouter aiModelFallbackRouter;
+
+    @Resource
     private ChatHistoryService chatHistoryService;
 
     @Resource
@@ -102,6 +112,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     @Resource
     private AppAttachmentService appAttachmentService;
+
+    @Resource
+    private CodegenTemplateRagService codegenTemplateRagService;
 
     @Resource
     private AppVersionService appVersionService;
@@ -164,16 +177,35 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
         if (StrUtil.isBlank(planId)) {
             chatHistoryService.addChatMessage(appId, message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+        } else {
+            chatHistoryService.addChatMessage(appId, "已确认实现方案，开始生成代码。",
+                    ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
         }
         updateAppStatus(appId, AppStatusEnum.GENERATING);
         appGenerationTaskService.markRunning(generationTask.getId());
-        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(generationMessage, codeGenTypeEnum, appId, app.getModelKey());
+        AtomicReference<String> selectedModelKey = new AtomicReference<>(AiModelEnum.normalize(app.getModelKey()));
+        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStreamWithFallback(
+                generationMessage,
+                codeGenTypeEnum,
+                appId,
+                app.getModelKey(),
+                modelKey -> {
+                    selectedModelKey.set(modelKey);
+                    appGenerationTaskService.updateModelKey(generationTask.getId(), modelKey);
+                });
         StringBuilder aiResponseBuilder = new StringBuilder();
+        AtomicInteger streamChunkCount = new AtomicInteger();
+        long generationStartTime = System.currentTimeMillis();
         return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, codeGenTypeEnum)
-                .doOnNext(aiResponseBuilder::append)
+                .doOnNext(chunk -> {
+                    aiResponseBuilder.append(chunk);
+                    streamChunkCount.incrementAndGet();
+                })
                 .doOnComplete(() -> {
                     updateAppStatus(appId, AppStatusEnum.GENERATE_SUCCESS);
-                    appGenerationTaskService.markSuccess(generationTask.getId(), aiResponseBuilder.toString());
+                    appGenerationTaskService.markSuccess(generationTask.getId(),
+                            buildGenerationQualitySummary(app, aiResponseBuilder, streamChunkCount.get(),
+                                    generationStartTime, StrUtil.isNotBlank(planId), selectedModelKey.get()));
                     appVersionService.createVersion(app, AppVersionSourceTypeEnum.GENERATE.getValue(),
                             getSourceDirPath(app), app.getDeployKey(), message, loginUser.getId());
                 })
@@ -216,7 +248,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                     .userId(String.valueOf(loginUser.getId()))
                     .appId(String.valueOf(appId))
                     .build());
-            aiResponse = aiCodeGeneratorServiceFactory.chatPlain(chatPrompt, app.getModelKey());
+            aiResponse = aiCodeGeneratorServiceFactory.chatPlainWithFallback(chatPrompt, app.getModelKey(),
+                    modelKey -> appGenerationTaskService.updateModelKey(chatTask.getId(), modelKey));
         } catch (RuntimeException e) {
             String errorMessage = getAiFriendlyErrorMessage(e);
             appGenerationTaskService.markFailed(chatTask.getId(), errorMessage);
@@ -247,19 +280,23 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用代码生成类型错误");
         }
 
-        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory
-                .getAiCodeGeneratorService(appId, codeGenTypeEnum, app.getModelKey());
         String attachmentContext = buildAttachmentContextIfNeeded(app, message, loginUser.getId());
         String attachmentPromptBlock = StrUtil.isBlank(attachmentContext) ? "" : "\n\n" + attachmentContext;
+        CodegenTemplateRagService.TemplateRetrievalResult templateRetrieval =
+                codegenTemplateRagService.retrieve(message, app.getCodeGenType(), 3);
+        String templatePromptBlock = StrUtil.isBlank(templateRetrieval.context()) ? "" : "\n\n" + templateRetrieval.context();
         String planPrompt = String.format("""
                 用户原始需求：
                 %s
 
                 %s
 
+                %s
+
                 当前应用生成类型：%s
-                请基于该生成类型输出正式编码前的实现方案。
-                """, message, attachmentPromptBlock, codeGenTypeEnum.getValue());
+                请基于该生成类型和可用上下文输出正式编码前的结构化实现方案。
+                只输出 JSON 对象，不要输出 Markdown，不要使用代码围栏。
+                """, message, attachmentPromptBlock, templatePromptBlock, codeGenTypeEnum.getValue());
         AppGenerationTask planTask = appGenerationTaskService.createTask(app, loginUser.getId(),
                 AppGenerationTaskModeEnum.PLAN.getValue(), message);
         appGenerationTaskService.markRunning(planTask.getId());
@@ -270,7 +307,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                     .userId(String.valueOf(loginUser.getId()))
                     .appId(String.valueOf(appId))
                     .build());
-            plan = aiCodeGeneratorService.generateAppPlan(planPrompt);
+            plan = generateAppPlanWithModelFallback(appId, codeGenTypeEnum, app.getModelKey(), planPrompt,
+                    modelKey -> appGenerationTaskService.updateModelKey(planTask.getId(), modelKey));
         } catch (RuntimeException e) {
             String errorMessage = getAiFriendlyErrorMessage(e);
             appGenerationTaskService.markFailed(planTask.getId(), errorMessage);
@@ -281,23 +319,146 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             MonitorContextHolder.clearContext();
         }
 
+        AppGenerationPlanVO planVO = buildStructuredPlanVO(appId, message, plan, templateRetrieval.templateTitles());
+        generationPlanCache.put(planVO.getPlanId(), planVO);
+        chatHistoryService.addChatMessage(appId, "实现方案：\n" + planVO.getPlan(),
+                ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+        appGenerationTaskService.markSuccess(planTask.getId(), JSONUtil.toJsonStr(planVO));
+        return planVO;
+    }
+
+    private String generateAppPlanWithModelFallback(Long appId,
+                                                    CodeGenTypeEnum codeGenTypeEnum,
+                                                    String primaryModelKey,
+                                                    String planPrompt,
+                                                    java.util.function.Consumer<String> modelSelectionHandler) {
+        List<String> candidates = aiModelFallbackRouter.resolveCandidates(primaryModelKey);
+        RuntimeException lastException = null;
+        for (int i = 0; i < candidates.size(); i++) {
+            String candidate = candidates.get(i);
+            if (modelSelectionHandler != null) {
+                modelSelectionHandler.accept(candidate);
+            }
+            try {
+                AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory
+                        .getAiCodeGeneratorService(appId, codeGenTypeEnum, candidate);
+                return aiCodeGeneratorService.generateAppPlan(planPrompt);
+            } catch (RuntimeException e) {
+                lastException = e;
+                if (!aiModelFallbackRouter.isQuotaExceeded(e) || i == candidates.size() - 1) {
+                    throw e;
+                }
+                log.warn("方案生成模型额度不足，自动切换备用模型: appId={}, from={}, to={}",
+                        appId, candidate, candidates.get(i + 1));
+            }
+        }
+        throw lastException == null ? new BusinessException(ErrorCode.SYSTEM_ERROR, "方案生成失败") : lastException;
+    }
+
+    private AppGenerationPlanVO buildStructuredPlanVO(Long appId, String message, String rawPlan,
+                                                      List<String> matchedTemplates) {
         AppGenerationPlanVO planVO = new AppGenerationPlanVO();
         planVO.setAppId(appId);
         planVO.setPlanId(UUID.randomUUID().toString());
         planVO.setMessage(message);
-        planVO.setPlan(plan);
-        generationPlanCache.put(planVO.getPlanId(), planVO);
-        chatHistoryService.addChatMessage(appId, "实现方案：\n" + plan,
-                ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
-        appGenerationTaskService.markSuccess(planTask.getId(), plan);
+        planVO.setMatchedTemplates(matchedTemplates);
+
+        JSONObject planObject = parsePlanObject(rawPlan);
+        if (planObject == null) {
+            planVO.setPlan(rawPlan);
+            return planVO;
+        }
+        planVO.setRequirementSummary(planObject.getStr("requirementSummary"));
+        planVO.setPages(readStringList(planObject, "pages"));
+        planVO.setVisualStyle(planObject.getStr("visualStyle"));
+        planVO.setComponents(readStringList(planObject, "components"));
+        planVO.setFilesToChange(readStringList(planObject, "filesToChange"));
+        planVO.setInteractions(readStringList(planObject, "interactions"));
+        planVO.setAcceptanceCriteria(readStringList(planObject, "acceptanceCriteria"));
+        planVO.setRisks(readStringList(planObject, "risks"));
+        planVO.setQuestions(readStringList(planObject, "questions"));
+        planVO.setPlan(buildPlanMarkdown(planVO, rawPlan));
         return planVO;
+    }
+
+    private JSONObject parsePlanObject(String rawPlan) {
+        if (StrUtil.isBlank(rawPlan)) {
+            return null;
+        }
+        try {
+            return JSONUtil.parseObj(extractJsonObject(rawPlan));
+        } catch (Exception e) {
+            log.warn("结构化方案解析失败，降级为原始方案文本: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String extractJsonObject(String rawText) {
+        String text = StrUtil.trim(rawText);
+        int startIndex = text.indexOf('{');
+        int endIndex = text.lastIndexOf('}');
+        if (startIndex < 0 || endIndex <= startIndex) {
+            throw new IllegalArgumentException("未找到 JSON 对象");
+        }
+        return text.substring(startIndex, endIndex + 1);
+    }
+
+    private List<String> readStringList(JSONObject object, String key) {
+        JSONArray array = object.getJSONArray(key);
+        if (array == null) {
+            return List.of();
+        }
+        return array.stream()
+                .map(String::valueOf)
+                .filter(StrUtil::isNotBlank)
+                .toList();
+    }
+
+    private String buildPlanMarkdown(AppGenerationPlanVO planVO, String fallbackPlan) {
+        if (StrUtil.isBlank(planVO.getRequirementSummary())
+                && CollUtil.isEmpty(planVO.getPages())
+                && CollUtil.isEmpty(planVO.getComponents())
+                && CollUtil.isEmpty(planVO.getAcceptanceCriteria())) {
+            return fallbackPlan;
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append("## 需求理解\n")
+                .append("- ").append(StrUtil.blankToDefault(planVO.getRequirementSummary(), "已根据用户需求完成初步理解。"))
+                .append("\n\n");
+        appendMarkdownSection(builder, "页面与内容规划", planVO.getPages());
+        if (StrUtil.isNotBlank(planVO.getVisualStyle())) {
+            builder.append("## 视觉风格\n- ").append(planVO.getVisualStyle()).append("\n\n");
+        }
+        appendMarkdownSection(builder, "组件与文件计划", planVO.getComponents());
+        appendMarkdownSection(builder, "关键文件", planVO.getFilesToChange());
+        appendMarkdownSection(builder, "关键交互", planVO.getInteractions());
+        appendMarkdownSection(builder, "验收标准", planVO.getAcceptanceCriteria());
+        appendMarkdownSection(builder, "风险与确认点", planVO.getRisks());
+        appendMarkdownSection(builder, "待确认问题", planVO.getQuestions());
+        appendMarkdownSection(builder, "参考模板", planVO.getMatchedTemplates());
+        builder.append("如果这个方案没问题，请点击“确认生成”，我将按此方案生成代码。");
+        return builder.toString();
+    }
+
+    private void appendMarkdownSection(StringBuilder builder, String title, List<String> values) {
+        if (CollUtil.isEmpty(values)) {
+            return;
+        }
+        builder.append("## ").append(title).append('\n');
+        for (String value : values) {
+            builder.append("- ").append(value).append('\n');
+        }
+        builder.append('\n');
     }
 
     private String buildGenerationMessage(App app, String message, String planId, Long appId, Long userId) {
         String attachmentContext = buildAttachmentContextIfNeeded(app, message, userId);
         String recentConversationContext = buildRecentConversationContext(appId, userId, 12);
         if (StrUtil.isBlank(planId)) {
-            String contextBlock = buildOptionalContextBlock(recentConversationContext, attachmentContext);
+            CodegenTemplateRagService.TemplateRetrievalResult templateRetrieval =
+                    codegenTemplateRagService.retrieve(message, app.getCodeGenType(), 3);
+            String contextBlock = buildOptionalContextBlock(recentConversationContext, attachmentContext,
+                    templateRetrieval.context());
             if (StrUtil.isNotBlank(contextBlock)) {
                 return String.format("""
                         用户当前生成/修改需求：
@@ -313,7 +474,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成方案已过期，请重新生成方案");
         }
         generationPlanCache.invalidate(planId);
-        String contextBlock = buildOptionalContextBlock(recentConversationContext, attachmentContext);
+        CodegenTemplateRagService.TemplateRetrievalResult templateRetrieval =
+                codegenTemplateRagService.retrieve(message + "\n" + planVO.getPlan(), app.getCodeGenType(), 3);
+        String contextBlock = buildOptionalContextBlock(recentConversationContext, attachmentContext,
+                templateRetrieval.context());
         return String.format("""
                 用户原始需求：
                 %s
@@ -348,13 +512,12 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 StrUtil.blankToDefault(contextBlock, "暂无额外上下文。"), message);
     }
 
-    private String buildOptionalContextBlock(String recentConversationContext, String attachmentContext) {
+    private String buildOptionalContextBlock(String... contextBlocks) {
         List<String> blocks = new ArrayList<>();
-        if (StrUtil.isNotBlank(recentConversationContext)) {
-            blocks.add(recentConversationContext);
-        }
-        if (StrUtil.isNotBlank(attachmentContext)) {
-            blocks.add(attachmentContext);
+        for (String contextBlock : contextBlocks) {
+            if (StrUtil.isNotBlank(contextBlock)) {
+                blocks.add(contextBlock);
+            }
         }
         return String.join("\n\n", blocks);
     }
@@ -422,6 +585,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                     .build());
             selectedCodeGenType = routingService.routeCodeGenType(initPrompt);
         } catch (RuntimeException e) {
+            log.error("应用代码类型路由失败, model={}, prompt={}", app.getModelKey(), initPrompt, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, getAiFriendlyErrorMessage(e));
         } finally {
             MonitorContextHolder.clearContext();
@@ -578,6 +742,35 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         return codeProjectProperties.getOutputRootDir() + File.separator + sourceDirName;
     }
 
+    private String buildGenerationQualitySummary(App app, StringBuilder aiResponseBuilder, int streamChunkCount,
+                                                 long generationStartTime, boolean usedPlan, String modelKey) {
+        String sourceDirPath = getSourceDirPath(app);
+        File sourceDir = new File(sourceDirPath);
+        Map<String, Object> qualityMetrics = Map.of(
+                "appId", app.getId(),
+                "codeGenType", StrUtil.blankToDefault(app.getCodeGenType(), "unknown"),
+                "modelKey", StrUtil.blankToDefault(modelKey, "unknown"),
+                "usedPlan", usedPlan,
+                "streamChunkCount", streamChunkCount,
+                "generatedCharCount", aiResponseBuilder.length(),
+                "durationMs", Math.max(0, System.currentTimeMillis() - generationStartTime),
+                "sourceDirExists", sourceDir.exists() && sourceDir.isDirectory(),
+                "generatedFileCount", countGeneratedFiles(sourceDir),
+                "buildSuccess", true
+        );
+        return JSONUtil.toJsonStr(Map.of(
+                "qualityMetrics", qualityMetrics,
+                "aiOutputPreview", truncateText(aiResponseBuilder.toString(), 4000)
+        ));
+    }
+
+    private int countGeneratedFiles(File sourceDir) {
+        if (sourceDir == null || !sourceDir.exists() || !sourceDir.isDirectory()) {
+            return 0;
+        }
+        return FileUtil.loopFiles(sourceDir).size();
+    }
+
     private void updateAppStatus(Long appId, AppStatusEnum statusEnum) {
         if (statusEnum == null) {
             return;
@@ -629,7 +822,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     private String getAiFriendlyErrorMessage(Throwable e) {
         String message = e == null ? "" : StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
         if (message.contains("AllocationQuota.FreeTierOnly") || message.contains("403")) {
-            return "当前模型免费额度已用完，请切换其他模型后重试";
+            return "当前可用模型额度不足，系统已尝试自动切换备用模型但仍失败，请稍后重试或手动切换模型";
         }
         return message;
     }

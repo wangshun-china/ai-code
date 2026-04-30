@@ -126,7 +126,7 @@ public class AppController {
     private String getAiFriendlyErrorMessage(Throwable error) {
         String errorMessage = error == null ? "" : StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName());
         if (errorMessage.contains("AllocationQuota.FreeTierOnly") || errorMessage.contains("403")) {
-            return "当前模型免费额度已用完，请切换其他模型后重试";
+            return "当前可用模型额度不足，系统已尝试自动切换备用模型但仍失败，请稍后重试或手动切换模型";
         }
         if (error instanceof BusinessException businessException) {
             return businessException.getMessage();

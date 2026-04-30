@@ -8,7 +8,6 @@ import com.ws.codecraft.ai.model.MultiFileCodeResult;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener.SpringAiUsageTrace;
 import com.ws.codecraft.ai.stream.AiTokenStream;
-import com.ws.codecraft.ai.tools.ToolManager;
 import com.ws.codecraft.core.parser.CodeParserExecutor;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +45,7 @@ public class SpringAiAlibabaCodeGeneratorService implements AiCodeGeneratorServi
     private final DashScopeChatOptions reasoningOptions;
     private final String modelName;
     private final AiModelMonitorListener aiModelMonitorListener;
-    private final ToolManager toolManager;
+    private final SpringAiToolCallbackRegistry toolCallbackRegistry;
 
     public SpringAiAlibabaCodeGeneratorService(DashScopeChatModel chatModel,
                                                DashScopeChatModel reasoningChatModel,
@@ -54,14 +53,14 @@ public class SpringAiAlibabaCodeGeneratorService implements AiCodeGeneratorServi
                                                DashScopeChatOptions reasoningOptions,
                                                String modelName,
                                                AiModelMonitorListener aiModelMonitorListener,
-                                               ToolManager toolManager) {
+                                               SpringAiToolCallbackRegistry toolCallbackRegistry) {
         this.chatModel = chatModel;
         this.reasoningChatModel = reasoningChatModel;
         this.chatOptions = chatOptions;
         this.reasoningOptions = reasoningOptions;
         this.modelName = modelName;
         this.aiModelMonitorListener = aiModelMonitorListener;
-        this.toolManager = toolManager;
+        this.toolCallbackRegistry = toolCallbackRegistry;
     }
 
     @Override
@@ -105,7 +104,7 @@ public class SpringAiAlibabaCodeGeneratorService implements AiCodeGeneratorServi
         List<Message> messages = buildMessages(VUE_PROJECT_PROMPT, userMessage);
         String promptText = buildPromptText(messages);
         return new SpringAiAlibabaTokenStream(reasoningChatModel, messages, reasoningOptions, appId, modelName,
-                promptText, aiModelMonitorListener, toolManager);
+                promptText, aiModelMonitorListener, toolCallbackRegistry);
     }
 
     private String callText(String systemPromptPath, String userMessage,

@@ -47,6 +47,17 @@ public class AppGenerationTaskServiceImpl extends ServiceImpl<AppGenerationTaskM
     }
 
     @Override
+    public void updateModelKey(Long taskId, String modelKey) {
+        if (taskId == null || StrUtil.isBlank(modelKey)) {
+            return;
+        }
+        AppGenerationTask task = new AppGenerationTask();
+        task.setId(taskId);
+        task.setModelKey(modelKey);
+        this.updateById(task);
+    }
+
+    @Override
     public void markSuccess(Long taskId, String aiMessage) {
         AppGenerationTask task = new AppGenerationTask();
         task.setId(taskId);

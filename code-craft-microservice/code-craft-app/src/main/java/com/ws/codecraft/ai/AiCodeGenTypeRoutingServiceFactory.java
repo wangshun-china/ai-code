@@ -43,21 +43,42 @@ public class AiCodeGenTypeRoutingServiceFactory {
     @Resource
     private AiModelMonitorListener aiModelMonitorListener;
 
+    @Resource
+    private AiModelFallbackRouter aiModelFallbackRouter;
+
     public AiCodeGenTypeRoutingService createAiCodeGenTypeRoutingService() {
         return createAiCodeGenTypeRoutingService(routingAiModelConfig.getModelName());
     }
 
     public AiCodeGenTypeRoutingService createAiCodeGenTypeRoutingService(String modelKey) {
         String normalizedModelKey = AiModelEnum.normalize(modelKey);
-        DashScopeChatModel chatModel = aiCodeGeneratorServiceFactory.createChatModel(normalizedModelKey);
-        DashScopeChatOptions options = aiCodeGeneratorServiceFactory.createOptions(normalizedModelKey,
-                routingAiModelConfig.getMaxTokens(), routingAiModelConfig.getTemperature(), false);
-        return userMessage -> route(chatModel, options, normalizedModelKey, userMessage);
+        return userMessage -> routeWithFallback(normalizedModelKey, userMessage);
     }
 
     @Bean
     public AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService() {
         return createAiCodeGenTypeRoutingService();
+    }
+
+    private CodeGenTypeEnum routeWithFallback(String primaryModelKey, String userMessage) {
+        List<String> candidates = aiModelFallbackRouter.resolveCandidates(primaryModelKey);
+        RuntimeException lastException = null;
+        for (int i = 0; i < candidates.size(); i++) {
+            String candidate = candidates.get(i);
+            DashScopeChatModel chatModel = aiCodeGeneratorServiceFactory.createChatModel(candidate);
+            DashScopeChatOptions options = aiCodeGeneratorServiceFactory.createOptions(candidate,
+                    routingAiModelConfig.getMaxTokens(), routingAiModelConfig.getTemperature(), false);
+            try {
+                return route(chatModel, options, candidate, userMessage);
+            } catch (RuntimeException e) {
+                lastException = e;
+                if (!aiModelFallbackRouter.isQuotaExceeded(e) || i == candidates.size() - 1) {
+                    throw e;
+                }
+                log.warn("路由模型额度不足，自动切换备用模型: from={}, to={}", candidate, candidates.get(i + 1));
+            }
+        }
+        throw lastException;
     }
 
     private CodeGenTypeEnum route(DashScopeChatModel chatModel, DashScopeChatOptions options,

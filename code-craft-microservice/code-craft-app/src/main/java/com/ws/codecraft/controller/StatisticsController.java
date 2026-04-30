@@ -2,6 +2,7 @@ package com.ws.codecraft.controller;
 
 import com.ws.codecraft.common.BaseResponse;
 import com.ws.codecraft.common.ResultUtils;
+import com.ws.codecraft.model.vo.AppGenerationQualityVO;
 import com.ws.codecraft.model.vo.AiMetricsVO;
 import com.ws.codecraft.service.StatisticsService;
 import com.ws.codecraft.annotation.AuthCheck;
@@ -70,5 +71,16 @@ public class StatisticsController {
             @RequestParam String endDate) {
         List<AiMetricsVO.DailyStat> stats = statisticsService.getDailyStats(startDate, endDate);
         return ResultUtils.success(stats);
+    }
+
+    /**
+     * 获取最近代码生成质量摘要
+     */
+    @GetMapping("/generation-quality")
+    @AuthCheck(mustRole = "admin")
+    public BaseResponse<List<AppGenerationQualityVO>> getGenerationQuality(
+            @RequestParam(defaultValue = "10") Integer limit) {
+        List<AppGenerationQualityVO> records = statisticsService.getRecentGenerationQuality(limit);
+        return ResultUtils.success(records);
     }
 }

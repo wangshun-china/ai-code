@@ -5,7 +5,7 @@ import { Card, Row, Col, Table, Tag, DatePicker, Button, message } from 'ant-des
 import { Chart } from '@antv/g2'
 import dayjs, { type Dayjs } from 'dayjs'
 import { ReloadOutlined, LineChartOutlined, ApiOutlined, ClockCircleOutlined, DollarOutlined } from '@ant-design/icons-vue'
-import { getAiMetrics } from '@/api/statisticsController'
+import { getAiMetrics, getGenerationQuality } from '@/api/statisticsController'
 
 const { RangePicker } = DatePicker
 
@@ -21,6 +21,7 @@ const metricsData = ref({
   modelStats: [],
   userStats: []
 })
+const generationQualityData = ref<API.AppGenerationQualityVO[]>([])
 
 const dateRange = ref<[Dayjs, Dayjs] | null>(null)
 
@@ -37,6 +38,12 @@ const todayTokens = computed(() => {
   return todayStat?.tokens || 0
 })
 
+const formatDuration = (durationMs?: number) => {
+  if (!durationMs) return '-'
+  if (durationMs < 1000) return `${durationMs}ms`
+  return `${(durationMs / 1000).toFixed(1)}s`
+}
+
 // 获取统计数据
 const fetchMetrics = async () => {
   loading.value = true
@@ -52,6 +59,10 @@ const fetchMetrics = async () => {
       metricsData.value = res.data.data
       await nextTick()
       renderCharts()
+    }
+    const qualityRes = await getGenerationQuality({ limit: 10 })
+    if (qualityRes.data.code === 0 && qualityRes.data.data) {
+      generationQualityData.value = qualityRes.data.data
     }
   } catch (error) {
     console.error('获取统计数据失败:', error)
@@ -202,6 +213,56 @@ const userColumns = [
   { title: '应用数量', dataIndex: 'appCount', key: 'appCount' }
 ]
 
+const generationQualityColumns = [
+  { title: '任务ID', dataIndex: 'taskId', key: 'taskId', width: 100 },
+  { title: '应用ID', dataIndex: 'appId', key: 'appId', width: 130 },
+  { title: '模型', dataIndex: 'modelKey', key: 'modelKey', width: 160 },
+  {
+    title: '类型',
+    dataIndex: 'codeGenType',
+    key: 'codeGenType',
+    width: 110,
+    customRender: ({ text }: any) => h(Tag, { color: text === 'vue_project' ? 'blue' : 'cyan' }, () => text || '-')
+  },
+  {
+    title: '方案',
+    key: 'usedPlan',
+    width: 80,
+    customRender: ({ record }: any) => h(Tag, { color: record.qualityMetrics?.usedPlan ? 'green' : 'default' }, () => record.qualityMetrics?.usedPlan ? '是' : '否')
+  },
+  {
+    title: '文件数',
+    key: 'generatedFileCount',
+    width: 90,
+    customRender: ({ record }: any) => record.qualityMetrics?.generatedFileCount ?? '-'
+  },
+  {
+    title: '输出字符',
+    key: 'generatedCharCount',
+    width: 110,
+    customRender: ({ record }: any) => record.qualityMetrics?.generatedCharCount ?? '-'
+  },
+  {
+    title: '耗时',
+    key: 'durationMs',
+    width: 90,
+    customRender: ({ record }: any) => formatDuration(record.qualityMetrics?.durationMs)
+  },
+  {
+    title: '构建',
+    key: 'buildSuccess',
+    width: 90,
+    customRender: ({ record }: any) => h(Tag, { color: record.qualityMetrics?.buildSuccess ? 'green' : 'red' }, () => record.qualityMetrics?.buildSuccess ? '成功' : '未知')
+  },
+  {
+    title: '创建时间',
+    dataIndex: 'createTime',
+    key: 'createTime',
+    width: 170,
+    customRender: ({ text }: any) => text ? dayjs(text).format('MM-DD HH:mm:ss') : '-'
+  }
+]
+
 onMounted(() => {
   fetchMetrics()
 })
@@ -337,6 +398,18 @@ onBeforeUnmount(() => {
         </Card>
       </Col>
     </Row>
+
+    <Card title="最近代码生成质量" class="table-card quality-card">
+      <Table
+        :columns="generationQualityColumns"
+        :data-source="generationQualityData"
+        :loading="loading"
+        :pagination="{ pageSize: 5 }"
+        row-key="taskId"
+        size="small"
+        :scroll="{ x: 1100 }"
+      />
+    </Card>
   </div>
 </template>
 
@@ -448,6 +521,10 @@ onBeforeUnmount(() => {
 .table-card {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-light);
+}
+
+.quality-card {
+  margin-bottom: 24px;
 }
 
 :deep(.ant-card-head) {

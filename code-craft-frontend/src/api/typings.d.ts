@@ -68,6 +68,44 @@ declare namespace API {
     planId?: string
     message?: string
     plan?: string
+    requirementSummary?: string
+    pages?: string[]
+    visualStyle?: string
+    components?: string[]
+    filesToChange?: string[]
+    interactions?: string[]
+    acceptanceCriteria?: string[]
+    risks?: string[]
+    questions?: string[]
+    matchedTemplates?: string[]
+  }
+
+  type AppGenerationQualityVO = {
+    taskId?: number
+    appId?: number
+    userId?: number
+    modelKey?: string
+    codeGenType?: string
+    status?: string
+    userMessage?: string
+    aiOutputPreview?: string
+    qualityMetrics?: AppGenerationQualityMetrics
+    createTime?: string
+    startTime?: string
+    endTime?: string
+  }
+
+  type AppGenerationQualityMetrics = {
+    appId?: number
+    codeGenType?: string
+    modelKey?: string
+    usedPlan?: boolean
+    streamChunkCount?: number
+    generatedCharCount?: number
+    durationMs?: number
+    sourceDirExists?: boolean
+    generatedFileCount?: number
+    buildSuccess?: boolean
   }
 
   type AppSourceFileNodeVO = {

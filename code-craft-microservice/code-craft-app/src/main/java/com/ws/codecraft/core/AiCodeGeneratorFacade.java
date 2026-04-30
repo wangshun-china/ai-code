@@ -3,6 +3,7 @@ package com.ws.codecraft.core;
 import cn.hutool.json.JSONUtil;
 import com.ws.codecraft.ai.AiCodeGeneratorService;
 import com.ws.codecraft.ai.AiCodeGeneratorServiceFactory;
+import com.ws.codecraft.ai.AiModelFallbackRouter;
 import com.ws.codecraft.ai.model.HtmlCodeResult;
 import com.ws.codecraft.ai.model.MultiFileCodeResult;
 import com.ws.codecraft.ai.model.message.AiResponseMessage;
@@ -24,9 +25,12 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
 import java.io.File;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * AI 代码生成门面类，组合代码生成和保存功能
@@ -41,6 +45,9 @@ public class AiCodeGeneratorFacade {
 
     @Resource
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
+
+    @Resource
+    private AiModelFallbackRouter aiModelFallbackRouter;
 
     @Resource
     private VueProjectBuilder vueProjectBuilder;
@@ -115,6 +122,47 @@ public class AiCodeGeneratorFacade {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, errorMessage);
             }
         };
+    }
+
+    public Flux<String> generateAndSaveCodeStreamWithFallback(String userMessage,
+                                                              CodeGenTypeEnum codeGenTypeEnum,
+                                                              Long appId,
+                                                              String modelKey,
+                                                              Consumer<String> modelSelectionHandler) {
+        if (codeGenTypeEnum == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成类型不能为空");
+        }
+        List<String> candidates = aiModelFallbackRouter.resolveCandidates(modelKey);
+        return Flux.defer(() -> generateWithCandidate(userMessage, codeGenTypeEnum, appId, candidates, 0,
+                modelSelectionHandler));
+    }
+
+    private Flux<String> generateWithCandidate(String userMessage,
+                                               CodeGenTypeEnum codeGenTypeEnum,
+                                               Long appId,
+                                               List<String> candidates,
+                                               int index,
+                                               Consumer<String> modelSelectionHandler) {
+        String selectedModel = candidates.get(index);
+        if (modelSelectionHandler != null) {
+            modelSelectionHandler.accept(selectedModel);
+        }
+        AtomicBoolean emitted = new AtomicBoolean(false);
+        return generateAndSaveCodeStream(userMessage, codeGenTypeEnum, appId, selectedModel)
+                .doOnNext(chunk -> emitted.set(true))
+                .onErrorResume(error -> {
+                    boolean canFallback = aiModelFallbackRouter.isQuotaExceeded(error)
+                            && !emitted.get()
+                            && index + 1 < candidates.size();
+                    if (!canFallback) {
+                        return Flux.error(error);
+                    }
+                    String fallbackModel = candidates.get(index + 1);
+                    log.warn("生成模型额度不足，自动切换备用模型: appId={}, from={}, to={}",
+                            appId, selectedModel, fallbackModel);
+                    return generateWithCandidate(userMessage, codeGenTypeEnum, appId, candidates, index + 1,
+                            modelSelectionHandler);
+                });
     }
 
     /**

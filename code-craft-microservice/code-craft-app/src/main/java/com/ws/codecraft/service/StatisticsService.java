@@ -1,6 +1,7 @@
 package com.ws.codecraft.service;
 
 import com.ws.codecraft.model.vo.AiMetricsVO;
+import com.ws.codecraft.model.vo.AppGenerationQualityVO;
 
 import java.util.List;
 
@@ -28,4 +29,9 @@ public interface StatisticsService {
      * 获取每日统计
      */
     List<AiMetricsVO.DailyStat> getDailyStats(String startDate, String endDate);
+
+    /**
+     * 获取最近代码生成质量摘要
+     */
+    List<AppGenerationQualityVO> getRecentGenerationQuality(Integer limit);
 }

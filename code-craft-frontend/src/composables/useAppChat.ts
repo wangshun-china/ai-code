@@ -22,20 +22,23 @@ import request from '@/request'
 import { API_BASE_URL, getStaticPreviewUrl } from '@/config/env'
 
 const AI_SLOW_REQUEST_TIMEOUT = 180000
-const PLAN_TRIGGER_KEYWORDS = [
-  '方案',
-  '分析',
-  '规划',
-  '重新设计',
-  '重构',
-  '整体',
-  '架构',
-  '根据附件',
-  '附件',
-  '简历',
-  '设计稿',
-  'pdf',
-  '文档',
+const DIRECT_GENERATION_KEYWORDS = [
+  '直接生成',
+  '直接修改',
+  '直接改',
+  '直接实现',
+  '不用方案',
+  '无需方案',
+  '跳过方案',
+  '马上生成',
+  '立即生成',
+  '立刻生成',
+  '马上修改',
+  '立即修改',
+  '立刻修改',
+  '马上改',
+  '立即改',
+  '立刻改',
 ]
 export type AppChatMode = 'chat' | 'generate'
 
@@ -366,15 +369,11 @@ export function useAppChat() {
     if (selectedElementInfo) {
       return false
     }
-    const status = appInfo.value?.status
-    if (!status || status === 'draft' || status === 'generate_failed') {
-      return true
-    }
-    if (hasNewAttachmentContext.value) {
-      return true
-    }
     const normalizedMessage = messageContent.toLowerCase()
-    return PLAN_TRIGGER_KEYWORDS.some((keyword) => normalizedMessage.includes(keyword.toLowerCase()))
+    if (DIRECT_GENERATION_KEYWORDS.some((keyword) => normalizedMessage.includes(keyword.toLowerCase()))) {
+      return false
+    }
+    return true
   }
 
   const requestPlainChat = async (messageContent: string, aiMessageIndex: number) => {

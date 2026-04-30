@@ -10,7 +10,6 @@ import com.ws.codecraft.ai.config.ReasoningStreamingChatModelConfig;
 import com.ws.codecraft.ai.config.StreamingChatModelConfig;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener.SpringAiUsageTrace;
-import com.ws.codecraft.ai.tools.ToolManager;
 import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.model.enums.AiModelEnum;
@@ -28,6 +27,8 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.util.MimeTypeUtils;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * AI 服务创建工厂。springaialibaba 分支的模型请求统一走 Spring AI Alibaba
@@ -44,10 +45,13 @@ public class AiCodeGeneratorServiceFactory {
     private ReasoningStreamingChatModelConfig reasoningStreamingChatModelConfig;
 
     @Resource
-    private ToolManager toolManager;
+    private SpringAiToolCallbackRegistry toolCallbackRegistry;
 
     @Resource
     private AiModelMonitorListener aiModelMonitorListener;
+
+    @Resource
+    private AiModelFallbackRouter aiModelFallbackRouter;
 
     private final Cache<String, AiCodeGeneratorService> serviceCache = Caffeine.newBuilder()
             .maximumSize(1000)
@@ -75,7 +79,18 @@ public class AiCodeGeneratorServiceFactory {
      * 普通聊天模型不挂载任何写文件工具，避免聊天误触发代码覆盖。
      */
     public String chatPlain(String message, String modelKey) {
+        return chatPlainWithFallback(message, modelKey, null);
+    }
+
+    public String chatPlainWithFallback(String message, String modelKey, Consumer<String> modelSelectionHandler) {
         String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        return callWithModelFallback(
+                aiModelFallbackRouter.resolveCandidates(normalizedModelKey),
+                modelSelectionHandler,
+                candidate -> chatPlainOnce(message, candidate));
+    }
+
+    private String chatPlainOnce(String message, String normalizedModelKey) {
         DashScopeChatModel model = createChatModel(normalizedModelKey, streamingChatModelConfig.getApiKey(),
                 streamingChatModelConfig.getBaseUrl(), streamingChatModelConfig.getMaxTokens(),
                 streamingChatModelConfig.getTemperature(), false);
@@ -98,7 +113,20 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     public String chatWithImage(String message, byte[] imageBytes, String mimeType, String fileName, String modelKey) {
+        return chatWithImageWithFallback(message, imageBytes, mimeType, fileName, modelKey, null);
+    }
+
+    public String chatWithImageWithFallback(String message, byte[] imageBytes, String mimeType, String fileName,
+                                            String modelKey, Consumer<String> modelSelectionHandler) {
         String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        return callWithModelFallback(
+                aiModelFallbackRouter.resolveCandidates(normalizedModelKey),
+                modelSelectionHandler,
+                candidate -> chatWithImageOnce(message, imageBytes, mimeType, fileName, candidate));
+    }
+
+    private String chatWithImageOnce(String message, byte[] imageBytes, String mimeType, String fileName,
+                                     String normalizedModelKey) {
         DashScopeChatModel model = createChatModel(normalizedModelKey, streamingChatModelConfig.getApiKey(),
                 streamingChatModelConfig.getBaseUrl(), streamingChatModelConfig.getMaxTokens(),
                 streamingChatModelConfig.getTemperature(), false);
@@ -150,7 +178,7 @@ public class AiCodeGeneratorServiceFactory {
         return switch (codeGenType) {
             case HTML, MULTI_FILE, VUE_PROJECT -> new SpringAiAlibabaCodeGeneratorService(
                     chatModel, reasoningChatModel, chatOptions, reasoningOptions, modelKey,
-                    aiModelMonitorListener, toolManager);
+                    aiModelMonitorListener, toolCallbackRegistry);
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR,
                     "不支持的代码生成类型: " + codeGenType.getValue());
         };
@@ -172,14 +200,24 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     public DashScopeChatOptions createOptions(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
-        DashScopeChatOptions options = DashScopeChatOptions.builder()
-                .model(AiModelEnum.normalize(modelKey))
-                .maxToken(maxTokens)
-                .temperature(temperature)
+        String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        var builder = DashScopeChatOptions.builder()
+                .model(normalizedModelKey)
                 .incrementalOutput(streaming)
-                .build();
+                .multiModel(isMultimodalDashScopeModel(normalizedModelKey));
+        if (maxTokens != null) {
+            builder.maxToken(maxTokens);
+        }
+        if (temperature != null) {
+            builder.temperature(temperature);
+        }
+        DashScopeChatOptions options = builder.build();
         options.setInternalToolExecutionEnabled(false);
         return options;
+    }
+
+    private boolean isMultimodalDashScopeModel(String modelKey) {
+        return StrUtil.startWithAny(modelKey, "qwen3.6", "qwen3.5");
     }
 
     private DashScopeChatModel createChatModel(String modelKey, String apiKey, String baseUrl,
@@ -192,6 +230,33 @@ public class AiCodeGeneratorServiceFactory {
                 .dashScopeApi(apiBuilder.build())
                 .defaultOptions(createOptions(modelKey, maxTokens, temperature, streaming))
                 .build();
+    }
+
+    private String callWithModelFallback(List<String> candidates,
+                                         Consumer<String> modelSelectionHandler,
+                                         ModelCall modelCall) {
+        RuntimeException lastException = null;
+        for (int i = 0; i < candidates.size(); i++) {
+            String candidate = candidates.get(i);
+            if (modelSelectionHandler != null) {
+                modelSelectionHandler.accept(candidate);
+            }
+            try {
+                return modelCall.call(candidate);
+            } catch (RuntimeException e) {
+                lastException = e;
+                if (!aiModelFallbackRouter.isQuotaExceeded(e) || i == candidates.size() - 1) {
+                    throw e;
+                }
+                log.warn("AI 模型额度不足，自动切换备用模型: from={}, to={}", candidate, candidates.get(i + 1));
+            }
+        }
+        throw lastException == null ? new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 模型调用失败") : lastException;
+    }
+
+    @FunctionalInterface
+    private interface ModelCall {
+        String call(String modelKey);
     }
 
     private String extractText(ChatResponse response) {

@@ -13,6 +13,8 @@ public interface AppGenerationTaskService extends IService<AppGenerationTask> {
 
     void markRunning(Long taskId);
 
+    void updateModelKey(Long taskId, String modelKey);
+
     void markSuccess(Long taskId, String aiMessage);
 
     void markFailed(Long taskId, String errorMessage);
