@@ -7,20 +7,20 @@
 
 .admin-page-shell .page-header {
   padding: 20px 24px;
-  border: 1px solid rgba(48, 48, 46, 0.16);
+  border: 1px solid rgba(38, 56, 47, 0.14);
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--dark-surface), #242422);
-  box-shadow: rgba(20, 20, 19, 0.14) 0 14px 36px;
+  background: linear-gradient(135deg, #fffdf7, #edf6f0);
+  box-shadow: rgba(67, 49, 31, 0.08) 0 14px 36px;
 }
 
 .admin-page-shell .page-title {
-  color: var(--ivory) !important;
+  color: var(--near-black) !important;
   background: none !important;
   -webkit-text-fill-color: currentColor !important;
 }
 
 .admin-page-shell .page-desc {
-  color: var(--warm-sand) !important;
+  color: var(--olive-gray) !important;
 }
 
 .admin-page-shell .search-card,
@@ -54,9 +54,9 @@
 }
 
 .admin-page-shell .ant-table-thead > tr > th {
-  background: var(--dark-surface) !important;
-  color: var(--ivory) !important;
-  border-bottom: 1px solid var(--near-black) !important;
+  background: #edf6f0 !important;
+  color: var(--near-black) !important;
+  border-bottom: 1px solid rgba(38, 56, 47, 0.14) !important;
 }
 
 .admin-page-shell .ant-table-tbody > tr.even-row > td {

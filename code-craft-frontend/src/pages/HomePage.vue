@@ -494,8 +494,10 @@ onMounted(() => {
 
 .sidebar {
   width: 288px;
-  background: var(--near-black);
-  border-right: 1px solid var(--dark-surface);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 247, 0.96), rgba(232, 241, 235, 0.94)),
+    var(--ivory);
+  border-right: 1px solid rgba(38, 56, 47, 0.12);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -507,7 +509,7 @@ onMounted(() => {
 
 .sidebar-header {
   padding: 34px 24px 26px;
-  border-bottom: 1px solid var(--dark-surface);
+  border-bottom: 1px solid rgba(38, 56, 47, 0.1);
 }
 
 .logo {
@@ -532,12 +534,12 @@ onMounted(() => {
   font-family: var(--font-serif);
   font-size: 25px;
   font-weight: 500;
-  color: var(--ivory);
+  color: var(--near-black);
 }
 
 .logo-desc {
   font-size: 13px;
-  color: var(--warm-silver);
+  color: var(--olive-gray);
   margin: 0;
   padding-left: 50px;
 }
@@ -553,7 +555,7 @@ onMounted(() => {
   gap: 12px;
   padding: 12px 16px;
   border-radius: var(--radius-lg);
-  color: var(--warm-silver);
+  color: var(--charcoal-warm);
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
@@ -563,9 +565,9 @@ onMounted(() => {
 
 .nav-item:hover,
 .nav-item.active {
-  background-color: var(--dark-surface);
-  color: var(--ivory);
-  box-shadow: 0 0 0 1px rgba(250, 249, 245, 0.08);
+  background-color: #fffdf7;
+  color: var(--primary-dark);
+  box-shadow: 0 10px 24px rgba(67, 49, 31, 0.08), 0 0 0 1px rgba(201, 100, 66, 0.16);
 }
 
 .nav-item.active :deep(.anticon) {
@@ -579,9 +581,9 @@ onMounted(() => {
 .user-box {
   margin: 0 16px 16px;
   padding: 16px;
-  background-color: var(--dark-surface);
+  background-color: rgba(255, 253, 247, 0.78);
   border-radius: 18px;
-  border: 1px solid rgba(250, 249, 245, 0.08);
+  border: 1px solid rgba(38, 56, 47, 0.1);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -610,7 +612,7 @@ onMounted(() => {
 .user-name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--ivory);
+  color: var(--near-black);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -624,7 +626,7 @@ onMounted(() => {
 }
 
 .logout-btn {
-  color: var(--warm-silver);
+  color: var(--olive-gray);
   font-size: 13px;
 }
 
@@ -644,7 +646,7 @@ onMounted(() => {
   background: linear-gradient(180deg, #fffaf0 0%, #f4ead7 100%);
   border-radius: 20px;
   border: 1px solid rgba(201, 100, 66, 0.28);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 14px 34px rgba(67, 49, 31, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
 .contact-header {
@@ -675,21 +677,21 @@ onMounted(() => {
 .contact-email {
   display: inline-block;
   padding: 8px 12px;
-  background-color: #201f1c;
-  color: var(--charcoal-warm);
+  background-color: #fffdf7;
+  color: var(--primary-dark);
   font-size: 13px;
   font-weight: 600;
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 1px rgba(32, 31, 28, 0.12);
+  box-shadow: 0 0 0 1px rgba(122, 68, 47, 0.2);
 }
 
 .contact-email,
 .contact-email:hover {
-  color: #fff7e7;
+  color: var(--primary-dark);
 }
 
 .contact-email:hover {
-  background-color: #7a442f;
+  background-color: #f4ead7;
 }
 
 .sponsor-card {
@@ -732,7 +734,7 @@ onMounted(() => {
 
 .sidebar-footer {
   padding: 16px;
-  border-top: 1px solid var(--dark-surface);
+  border-top: 1px solid rgba(38, 56, 47, 0.1);
 }
 
 .github-link {
@@ -741,7 +743,7 @@ onMounted(() => {
   justify-content: center;
   gap: 8px;
   padding: 12px;
-  color: var(--warm-silver);
+  color: var(--charcoal-warm);
   font-size: 14px;
   font-weight: 500;
   border-radius: var(--radius-lg);
@@ -749,8 +751,8 @@ onMounted(() => {
 }
 
 .github-link:hover {
-  background-color: var(--dark-surface);
-  color: var(--ivory);
+  background-color: #fffdf7;
+  color: var(--primary-dark);
 }
 
 .main-content {
@@ -997,16 +999,16 @@ onMounted(() => {
 }
 
 .content-section:nth-child(even) {
-  background-color: var(--near-black);
-  border-color: var(--dark-surface);
+  background-color: #f7fbf8;
+  border-color: rgba(38, 56, 47, 0.14);
 }
 
 .content-section:nth-child(even) .section-title h2 {
-  color: var(--ivory);
+  color: var(--near-black);
 }
 
 .content-section:nth-child(even) .empty-box {
-  color: var(--warm-silver);
+  color: var(--stone-gray);
 }
 
 .section-header {

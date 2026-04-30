@@ -18,9 +18,9 @@ import BasicLayout from '@/layouts/BasicLayout.vue'
   --parchment: #f5f4ed;
   --ivory: #faf9f5;
   --warm-sand: #e8e6dc;
-  --near-black: #141413;
-  --dark-surface: #30302e;
-  --charcoal-warm: #4d4c48;
+  --near-black: #26382f;
+  --dark-surface: #e3eee7;
+  --charcoal-warm: #42584c;
   --olive-gray: #5e5d59;
   --stone-gray: #87867f;
   --warm-silver: #b0aea5;
@@ -38,8 +38,8 @@ import BasicLayout from '@/layouts/BasicLayout.vue'
   --neutral-500: #87867f;
   --neutral-600: #5e5d59;
   --neutral-700: #4d4c48;
-  --neutral-800: #30302e;
-  --neutral-900: #141413;
+  --neutral-800: #42584c;
+  --neutral-900: #26382f;
 
   --bg-primary: var(--ivory);
   --bg-secondary: var(--parchment);

@@ -714,7 +714,7 @@ onUnmounted(() => {
 
 .ai-message .message-content {
   background: #f1f5f9;
-  color: #000000;
+  color: var(--near-black);
   border-bottom-left-radius: 4px;
   font-weight: 400;
 }
@@ -1048,13 +1048,13 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #141413;
+  background: #fffdf7;
 }
 
 .code-path {
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: #b0aea5;
+  border-bottom: 1px solid rgba(38, 56, 47, 0.12);
+  color: var(--olive-gray);
   font-family: var(--font-mono);
   font-size: 12px;
 }
@@ -1064,7 +1064,7 @@ onUnmounted(() => {
   margin: 0;
   padding: 18px;
   overflow: auto;
-  color: #f5f4ed;
+  color: var(--near-black);
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.65;
@@ -1126,9 +1126,9 @@ onUnmounted(() => {
   max-height: 320px;
   overflow: hidden;
   border-radius: 16px;
-  background: #07111f;
-  box-shadow: 0 20px 60px rgba(7, 17, 31, 0.35);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #fffdf7;
+  box-shadow: 0 20px 60px rgba(67, 49, 31, 0.16);
+  border: 1px solid rgba(38, 56, 47, 0.14);
 }
 
 .deploy-terminal-header {
@@ -1136,10 +1136,10 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
-  color: #e2e8f0;
+  color: var(--near-black);
   font-weight: 700;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9));
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  background: linear-gradient(135deg, #edf6f0, #fff7e8);
+  border-bottom: 1px solid rgba(38, 56, 47, 0.12);
 }
 
 .deploy-terminal-body {
@@ -1149,7 +1149,7 @@ onUnmounted(() => {
   font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 13px;
   line-height: 1.7;
-  color: #cbd5e1;
+  color: var(--charcoal-warm);
 }
 
 .deploy-terminal-line {
@@ -1159,7 +1159,7 @@ onUnmounted(() => {
 }
 
 .terminal-prompt {
-  color: #38bdf8;
+  color: var(--primary);
   flex: 0 0 auto;
 }
 
@@ -1274,30 +1274,30 @@ onUnmounted(() => {
 
 .source-section {
   flex: 0.85;
-  background: var(--near-black);
-  border-color: var(--dark-surface);
+  background: #fffdf7;
+  border-color: rgba(38, 56, 47, 0.12);
   min-width: 230px;
 }
 
 .source-header {
-  background: var(--dark-surface);
-  border-bottom: 1px solid rgba(250, 249, 245, 0.08);
+  background: linear-gradient(135deg, #edf6f0, #fff7e8);
+  border-bottom: 1px solid rgba(38, 56, 47, 0.12);
 }
 
 .source-header h3 {
   font-family: var(--font-serif);
   font-size: 20px;
   font-weight: 500;
-  color: var(--ivory);
+  color: var(--near-black);
 }
 
 .source-tree {
-  color: var(--warm-silver);
+  color: var(--charcoal-warm);
 }
 
 .source-tree :deep(.ant-tree) {
   background: transparent;
-  color: var(--warm-silver);
+  color: var(--charcoal-warm);
 }
 
 .source-tree :deep(.ant-tree-node-content-wrapper) {
@@ -1306,8 +1306,8 @@ onUnmounted(() => {
 
 .source-tree :deep(.ant-tree-node-content-wrapper:hover),
 .source-tree :deep(.ant-tree-node-selected) {
-  background: var(--dark-surface) !important;
-  color: var(--ivory) !important;
+  background: #edf6f0 !important;
+  color: var(--primary-dark) !important;
 }
 
 .preview-section {
@@ -1418,14 +1418,14 @@ onUnmounted(() => {
 }
 
 .deploy-terminal {
-  background: var(--near-black);
-  border-color: var(--dark-surface);
-  box-shadow: rgba(20, 20, 19, 0.22) 0 18px 60px;
+  background: #fffdf7;
+  border-color: rgba(38, 56, 47, 0.14);
+  box-shadow: rgba(67, 49, 31, 0.16) 0 18px 60px;
 }
 
 .deploy-terminal-header {
-  background: var(--dark-surface);
-  color: var(--ivory);
+  background: linear-gradient(135deg, #edf6f0, #fff7e8);
+  color: var(--near-black);
 }
 
 .terminal-prompt {
@@ -1512,7 +1512,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #141413;
+  background: #fffdf7;
 }
 
 .source-tabs {
@@ -1532,16 +1532,16 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  color: var(--warm-silver);
+  color: var(--olive-gray);
   text-align: center;
   background:
-    radial-gradient(circle at 50% 35%, rgba(250, 249, 245, 0.06), transparent 30%),
-    #141413;
+    radial-gradient(circle at 50% 35%, rgba(201, 100, 66, 0.08), transparent 30%),
+    #fffdf7;
 }
 
 .code-empty-title {
   margin-bottom: 8px;
-  color: var(--ivory);
+  color: var(--near-black);
   font-family: var(--font-serif);
   font-size: 22px;
 }

@@ -375,7 +375,10 @@ const handleSubmit = async (values: any) => {
 }
 
 .decoration-panel {
-  background: var(--near-black);
+  background:
+    linear-gradient(160deg, rgba(255, 253, 247, 0.96), rgba(232, 241, 235, 0.94)),
+    var(--ivory);
+  border-right: 1px solid rgba(38, 56, 47, 0.12);
 }
 
 .decoration-panel::after {
@@ -401,22 +404,22 @@ const handleSubmit = async (values: any) => {
 }
 
 .brand-title {
-  color: var(--ivory);
+  color: var(--near-black);
   text-shadow: none;
 }
 
 .brand-desc {
-  color: var(--warm-silver);
+  color: var(--olive-gray);
 }
 
 .feature-item {
-  background: var(--dark-surface);
-  color: var(--warm-silver);
-  border: 1px solid rgba(250, 249, 245, 0.08);
+  background: #fffdf7;
+  color: var(--charcoal-warm);
+  border: 1px solid rgba(38, 56, 47, 0.12);
 }
 
 .feature-item:hover {
-  background: #3d3d3a;
+  background: #edf6f0;
   transform: translateX(4px);
 }
 

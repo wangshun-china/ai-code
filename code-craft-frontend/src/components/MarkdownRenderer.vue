@@ -49,16 +49,16 @@ const renderedMarkdown = computed(() => {
 .markdown-body {
   line-height: 1.6;
   font-size: 15px;
-  color: #000000;
+  color: var(--near-black);
 }
 
 .markdown-body :deep(p) {
-  color: #000000;
+  color: var(--near-black);
   margin-bottom: 12px;
 }
 
 .markdown-body :deep(li) {
-  color: #000000;
+  color: var(--near-black);
 }
 
 .markdown-body :deep(h1),
@@ -67,7 +67,7 @@ const renderedMarkdown = computed(() => {
 .markdown-body :deep(h4),
 .markdown-body :deep(h5),
 .markdown-body :deep(h6) {
-  color: #000000;
+  color: var(--near-black);
   font-weight: 600;
 }
 
