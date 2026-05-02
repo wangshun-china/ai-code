@@ -136,6 +136,9 @@ public class OpenAiStreamingChatModel implements StreamingChatModel {
                         }
                     }
                     ChatResponse chatResponse = openAiResponseBuilder.build();
+                    if (chatResponse == null) {
+                        return;
+                    }
                     try {
                         handler.onCompleteResponse(chatResponse);
                     } catch (Exception e) {
