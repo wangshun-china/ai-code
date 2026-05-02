@@ -6,6 +6,7 @@ import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.guardrail.ChatExecutor;
 import dev.langchain4j.guardrail.GuardrailRequestParams;
 import dev.langchain4j.guardrail.OutputGuardrailRequest;
@@ -135,7 +136,7 @@ class AiServiceStreamingResponseHandler implements StreamingChatResponseHandler 
             }
 
             ChatRequest chatRequest = ChatRequest.builder()
-                    .messages(messagesToSend(memoryId))
+                    .messages(messagesToSendWithUserFallback(memoryId))
                     .toolSpecifications(toolSpecifications)
                     .build();
 
@@ -213,6 +214,18 @@ class AiServiceStreamingResponseHandler implements StreamingChatResponseHandler 
 
     private List<ChatMessage> messagesToSend(Object memoryId) {
         return getMemory(memoryId).messages();
+    }
+
+    private List<ChatMessage> messagesToSendWithUserFallback(Object memoryId) {
+        List<ChatMessage> messages = messagesToSend(memoryId);
+        boolean hasUserMessage = messages.stream().anyMatch(UserMessage.class::isInstance);
+        if (hasUserMessage) {
+            return messages;
+        }
+        List<ChatMessage> fixedMessages = new ArrayList<>(messages.size() + 1);
+        fixedMessages.add(UserMessage.from("请继续完成当前代码生成任务，并根据前面的工具执行结果继续调用必要工具。"));
+        fixedMessages.addAll(messages);
+        return fixedMessages;
     }
 
     @Override
