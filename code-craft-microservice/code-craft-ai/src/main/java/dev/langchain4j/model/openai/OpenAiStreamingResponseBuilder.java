@@ -169,7 +169,7 @@ public class OpenAiStreamingResponseBuilder {
         OpenAiChatResponseMetadata chatResponseMetadata = OpenAiChatResponseMetadata.builder()
                 .id(id.get())
                 .modelName(model.get())
-                .tokenUsage(tokenUsage.get())
+                .tokenUsage(tokenUsage.get() == null ? new TokenUsage() : tokenUsage.get())
                 .finishReason(finishReason.get())
                 .created(created.get())
                 .serviceTier(serviceTier.get())
@@ -222,7 +222,10 @@ public class OpenAiStreamingResponseBuilder {
                     .build();
         }
 
-        return null;
+        return ChatResponse.builder()
+                .aiMessage(AiMessage.from(""))
+                .metadata(chatResponseMetadata)
+                .build();
     }
 
     private static class ToolExecutionRequestBuilder {
