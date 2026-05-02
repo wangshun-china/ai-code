@@ -163,10 +163,17 @@ public class AiCodeGeneratorFacade {
         String projectDirName = "vue_project_" + appId;
         VueProjectBuildResult lastBuildResult = null;
         for (int attempt = 0; attempt <= MAX_BUILD_REPAIR_ATTEMPTS; attempt++) {
+            if (attempt == 0) {
+                emitAiMessage(sink, "\n\n正在构建 Vue 项目...");
+            } else {
+                emitAiMessage(sink, String.format("\n\n第 %d 次自动修复完成，正在重新构建 Vue 项目...", attempt));
+            }
             lastBuildResult = vueProjectBuilder.buildProjectWithResult(projectDirName);
             if (lastBuildResult.isSuccess()) {
                 if (attempt > 0) {
                     emitAiMessage(sink, "\n\n自动修复完成，Vue 项目已成功构建。");
+                } else {
+                    emitAiMessage(sink, "\n\nVue 项目已成功构建。");
                 }
                 return lastBuildResult;
             }
@@ -180,10 +187,12 @@ public class AiCodeGeneratorFacade {
 
 
                     检测到 Vue 项目构建失败，正在进行第 %d 次自动修复...
-                    """, repairAttempt));
+                    构建错误摘要：%s
+                    """, repairAttempt, summarizeBuildError(lastBuildResult.getMessage())));
             boolean repaired = runBuildRepairStream(aiCodeGeneratorService, appId, repairAttempt,
                     lastBuildResult.getMessage(), sink);
             if (!repaired) {
+                emitAiMessage(sink, "\n\n自动修复未完成，本次生成未能通过 Vue 构建。");
                 return VueProjectBuildResult.failure("自动修复未完成: " + lastBuildResult.getMessage());
             }
         }
@@ -224,6 +233,7 @@ public class AiCodeGeneratorFacade {
             Throwable error = errorRef.get();
             if (error != null) {
                 log.error("Vue 项目自动修复失败, appId={}, attempt={}", appId, repairAttempt, error);
+                emitAiMessage(sink, "\n\n自动修复执行失败：" + error.getMessage());
                 return false;
             }
             return true;
@@ -261,6 +271,22 @@ public class AiCodeGeneratorFacade {
             return buildError;
         }
         return buildError.substring(0, MAX_BUILD_ERROR_CHARS) + "\n...（错误日志已截断）";
+    }
+
+    private String summarizeBuildError(String buildError) {
+        if (buildError == null || buildError.isBlank()) {
+            return "node-builder 未返回具体构建错误。";
+        }
+        return buildError.lines()
+                .map(String::trim)
+                .filter(line -> !line.isEmpty())
+                .filter(line -> line.contains("error") || line.contains("Could not") || line.contains("ENOENT")
+                        || line.contains("RollupError") || line.contains("failed"))
+                .findFirst()
+                .orElseGet(() -> {
+                    String compact = buildError.replaceAll("\\s+", " ").trim();
+                    return compact.length() > 180 ? compact.substring(0, 180) + "..." : compact;
+                });
     }
 
     private void emitAiMessage(FluxSink<String> sink, String content) {

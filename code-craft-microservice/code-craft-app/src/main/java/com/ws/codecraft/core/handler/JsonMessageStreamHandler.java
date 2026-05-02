@@ -57,9 +57,11 @@ public class JsonMessageStreamHandler {
                     chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
                 })
                 .doOnError(error -> {
-                    // 如果AI回复失败，也要记录错误消息
+                    // 保留已经流式输出的工作记录，再追加错误，避免失败时对话只剩一条错误消息。
+                    String history = chatHistoryStringBuilder.toString();
                     String errorMessage = "AI回复失败: " + error.getMessage();
-                    chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                    String aiResponse = StrUtil.isBlank(history) ? errorMessage : history + "\n\n" + errorMessage;
+                    chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
                 });
     }
 
@@ -88,6 +90,10 @@ public class JsonMessageStreamHandler {
                     seenToolIds.add(toolId);
                     // 根据工具名称获取工具实例
                     BaseTool tool = toolManager.getTool(toolName);
+                    if (tool == null) {
+                        log.warn("未找到工具定义: {}", toolName);
+                        return "";
+                    }
                     // 返回格式化的工具调用信息
                     return tool.generateToolRequestResponse();
                 } else {
@@ -101,6 +107,10 @@ public class JsonMessageStreamHandler {
                 // 根据工具名称获取工具实例
                 String toolName = toolExecutedMessage.getName();
                 BaseTool tool = toolManager.getTool(toolName);
+                if (tool == null) {
+                    log.warn("未找到工具定义: {}", toolName);
+                    return "";
+                }
                 String result = tool.generateToolExecutedResult(jsonObject);
                 String summary = tool.generateToolExecutedSummary(jsonObject);
                 // 前端展示完整工具结果，历史只保存摘要，避免源码代码块污染后续上下文。

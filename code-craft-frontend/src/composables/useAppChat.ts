@@ -254,7 +254,7 @@ export function useAppChat() {
           }
         } catch (error) {
           console.error('解析消息失败:', error)
-          handleError(error, aiMessageIndex)
+          handleError(error, aiMessageIndex, fullContent)
         }
       }
 
@@ -275,7 +275,8 @@ export function useAppChat() {
           const errorData = JSON.parse(event.data)
           console.error('SSE业务错误事件:', errorData)
           const errorMessage = errorData.message || '生成过程中出现错误'
-          messages.value[aiMessageIndex].content = `❌ ${errorMessage}`
+          const currentContent = messages.value[aiMessageIndex].content || fullContent
+          messages.value[aiMessageIndex].content = appendGenerationError(currentContent, errorMessage)
           messages.value[aiMessageIndex].loading = false
           message.error(errorMessage)
           streamCompleted = true
@@ -298,7 +299,7 @@ export function useAppChat() {
             updatePreview()
           }, 1000)
         } else {
-          handleError(new Error('SSE连接错误'), aiMessageIndex)
+          handleError(new Error('SSE连接错误'), aiMessageIndex, fullContent)
         }
       }
     } catch (error) {
@@ -308,12 +309,21 @@ export function useAppChat() {
   }
 
   // 错误处理函数
-  const handleError = (error: unknown, aiMessageIndex: number) => {
+  const handleError = (error: unknown, aiMessageIndex: number, existingContent = '') => {
     console.error('生成代码失败：', error)
-    messages.value[aiMessageIndex].content = '抱歉，生成过程中出现了错误，请重试。'
+    const currentContent = messages.value[aiMessageIndex].content || existingContent
+    messages.value[aiMessageIndex].content = appendGenerationError(
+      currentContent,
+      '生成过程中出现了错误，请重试。',
+    )
     messages.value[aiMessageIndex].loading = false
     message.error('生成失败，请重试')
     isGenerating.value = false
+  }
+
+  const appendGenerationError = (content: string, errorMessage: string) => {
+    const errorContent = `❌ ${errorMessage}`
+    return content ? `${content}\n\n${errorContent}` : errorContent
   }
 
   const requestGenerationPlan = async (messageContent: string) => {
