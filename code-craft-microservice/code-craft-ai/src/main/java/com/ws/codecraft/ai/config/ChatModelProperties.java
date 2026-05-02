@@ -24,9 +24,9 @@ public class ChatModelProperties {
 
     private Double temperature;
 
-    private Duration timeout = Duration.ofSeconds(180);
+    private Duration timeout = Duration.ofSeconds(45);
 
-    private Integer maxRetries = 1;
+    private Integer maxRetries = 0;
 
     private boolean logRequests;
 
