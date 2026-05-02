@@ -282,6 +282,9 @@ export function useAppChat() {
           streamCompleted = true
           isGenerating.value = false
           eventSource?.close()
+          setTimeout(() => {
+            void fetchAppInfo()
+          }, 500)
         } catch (parseError) {
           console.error('解析错误事件失败:', parseError)
           handleError(new Error('服务器返回错误'), aiMessageIndex)
@@ -319,6 +322,9 @@ export function useAppChat() {
     messages.value[aiMessageIndex].loading = false
     message.error('生成失败，请重试')
     isGenerating.value = false
+    setTimeout(() => {
+      void fetchAppInfo()
+    }, 500)
   }
 
   const appendGenerationError = (content: string, errorMessage: string) => {
