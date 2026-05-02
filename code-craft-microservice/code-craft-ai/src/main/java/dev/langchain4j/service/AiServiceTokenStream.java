@@ -4,6 +4,7 @@ import dev.langchain4j.Internal;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.guardrail.ChatExecutor;
 import dev.langchain4j.guardrail.GuardrailRequestParams;
 import dev.langchain4j.memory.ChatMemory;
@@ -132,6 +133,8 @@ public class AiServiceTokenStream implements TokenStream {
                 .toolSpecifications(toolSpecifications)
                 .build();
 
+        ensureMemoryContainsUserMessage();
+
         ChatExecutor chatExecutor = ChatExecutor.builder(context.streamingChatModel)
                 .errorHandler(errorHandler)
                 .chatRequest(chatRequest)
@@ -159,6 +162,17 @@ public class AiServiceTokenStream implements TokenStream {
         }
 
         context.streamingChatModel.chat(chatRequest, handler);
+    }
+
+    private void ensureMemoryContainsUserMessage() {
+        if (!context.hasChatMemory()) {
+            return;
+        }
+        ChatMemory chatMemory = context.chatMemoryService.getOrCreateChatMemory(memoryId);
+        boolean hasUserMessage = chatMemory.messages().stream().anyMatch(UserMessage.class::isInstance);
+        if (!hasUserMessage) {
+            chatMemory.add(messages);
+        }
     }
 
     private void validateConfiguration() {
