@@ -36,6 +36,7 @@ import static dev.langchain4j.internal.ValidationUtils.ensureNotNull;
 @Internal
 class AiServiceStreamingResponseHandler implements StreamingChatResponseHandler {
     private static final Logger LOG = LoggerFactory.getLogger(AiServiceStreamingResponseHandler.class);
+    private static final int MAX_STREAMING_TOOL_INVOCATIONS = 60;
 
     private final ChatExecutor chatExecutor;
     private final AiServiceContext context;
@@ -58,6 +59,7 @@ class AiServiceStreamingResponseHandler implements StreamingChatResponseHandler 
     private final Map<String, ToolExecutor> toolExecutors;
     private final List<String> responseBuffer = new ArrayList<>();
     private final boolean hasOutputGuardrails;
+    private final int toolInvocationCount;
 
     AiServiceStreamingResponseHandler(
             ChatExecutor chatExecutor,
@@ -75,6 +77,28 @@ class AiServiceStreamingResponseHandler implements StreamingChatResponseHandler 
             Map<String, ToolExecutor> toolExecutors,
             GuardrailRequestParams commonGuardrailParams,
             Object methodKey) {
+        this(chatExecutor, context, memoryId, partialResponseHandler, partialToolExecutionRequestHandler,
+                completeToolExecutionRequestHandler, toolExecutionHandler, completeResponseHandler, errorHandler,
+                temporaryMemory, tokenUsage, toolSpecifications, toolExecutors, commonGuardrailParams, methodKey, 0);
+    }
+
+    private AiServiceStreamingResponseHandler(
+            ChatExecutor chatExecutor,
+            AiServiceContext context,
+            Object memoryId,
+            Consumer<String> partialResponseHandler,
+            BiConsumer<Integer, ToolExecutionRequest> partialToolExecutionRequestHandler,
+            BiConsumer<Integer, ToolExecutionRequest> completeToolExecutionRequestHandler,
+            Consumer<ToolExecution> toolExecutionHandler,
+            Consumer<ChatResponse> completeResponseHandler,
+            Consumer<Throwable> errorHandler,
+            ChatMemory temporaryMemory,
+            TokenUsage tokenUsage,
+            List<ToolSpecification> toolSpecifications,
+            Map<String, ToolExecutor> toolExecutors,
+            GuardrailRequestParams commonGuardrailParams,
+            Object methodKey,
+            int toolInvocationCount) {
         this.chatExecutor = ensureNotNull(chatExecutor, "chatExecutor");
         this.context = ensureNotNull(context, "context");
         this.memoryId = ensureNotNull(memoryId, "memoryId");
@@ -94,6 +118,7 @@ class AiServiceStreamingResponseHandler implements StreamingChatResponseHandler 
         this.toolSpecifications = copy(toolSpecifications);
         this.toolExecutors = copy(toolExecutors);
         this.hasOutputGuardrails = context.guardrailService().hasOutputGuardrails(methodKey);
+        this.toolInvocationCount = toolInvocationCount;
     }
 
     @Override
@@ -118,6 +143,11 @@ class AiServiceStreamingResponseHandler implements StreamingChatResponseHandler 
         addToMemory(aiMessage);
 
         if (aiMessage.hasToolExecutionRequests()) {
+            int nextToolInvocationCount = toolInvocationCount + aiMessage.toolExecutionRequests().size();
+            if (nextToolInvocationCount > MAX_STREAMING_TOOL_INVOCATIONS) {
+                onError(new IllegalStateException("AI 工具调用次数超过限制，可能陷入重复写文件循环"));
+                return;
+            }
             for (ToolExecutionRequest toolExecutionRequest : aiMessage.toolExecutionRequests()) {
                 String toolName = toolExecutionRequest.name();
                 ToolExecutor toolExecutor = toolExecutors.get(toolName);
@@ -155,7 +185,8 @@ class AiServiceStreamingResponseHandler implements StreamingChatResponseHandler 
                     toolSpecifications,
                     toolExecutors,
                     commonGuardrailParams,
-                    methodKey);
+                    methodKey,
+                    nextToolInvocationCount);
 
             context.streamingChatModel.chat(chatRequest, handler);
         } else {
