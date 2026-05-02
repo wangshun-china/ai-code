@@ -450,6 +450,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         if (!app.getUserId().equals(loginUser.getId())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限部署该应用");
         }
+        ThrowUtils.throwIf(isBusyForDeploy(app.getStatus()), ErrorCode.OPERATION_ERROR,
+                "应用正在生成、构建或部署中，请等待当前任务完成后再部署");
 
         String deployKey = app.getDeployKey();
         if (StrUtil.isBlank(deployKey)) {
@@ -468,6 +470,12 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         resultVO.setDeployUrl(appDeployUrl);
         resultVO.setStatus(task.getStatus());
         return resultVO;
+    }
+
+    private boolean isBusyForDeploy(String status) {
+        return AppStatusEnum.GENERATING.getValue().equals(status)
+                || AppStatusEnum.BUILDING.getValue().equals(status)
+                || AppStatusEnum.DEPLOYING.getValue().equals(status);
     }
 
     private void executeDeployTask(Long taskId, Long appId, Long userId, String deployKey, String appDeployUrl) {
