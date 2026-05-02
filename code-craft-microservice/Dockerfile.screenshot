@@ -18,10 +18,11 @@ FROM mcr.microsoft.com/playwright/java:v1.49.0-noble
 
 WORKDIR /app
 
-# 安装中文字体
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    fonts-wqy-microhei fonts-wqy-zenhei xfonts-wqy \
+# 安装中文字体。Playwright noble 基于 Ubuntu 24.04，Noto CJK 比 wqy/xfonts 包更稳定。
+RUN apt-get update -o Acquire::Retries=3 && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    fontconfig fonts-noto-cjk fonts-noto-color-emoji \
+    && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
 # 创建非root用户
