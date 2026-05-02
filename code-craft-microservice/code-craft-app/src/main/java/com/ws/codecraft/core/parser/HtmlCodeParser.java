@@ -1,6 +1,7 @@
 package com.ws.codecraft.core.parser;
 
 import com.ws.codecraft.ai.model.HtmlCodeResult;
+import com.ws.codecraft.utils.CodeFenceUtils;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -12,7 +13,7 @@ import java.util.regex.Pattern;
  */
 public class HtmlCodeParser implements CodeParser<HtmlCodeResult> {
 
-    private static final Pattern HTML_CODE_PATTERN = Pattern.compile("```html\\s*\\n([\\s\\S]*?)```", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HTML_CODE_PATTERN = Pattern.compile("```html\\s*\\R([\\s\\S]*?)(?:\\R```|\\z)", Pattern.CASE_INSENSITIVE);
 
     @Override
     public HtmlCodeResult parseCode(String codeContent) {
@@ -23,7 +24,7 @@ public class HtmlCodeParser implements CodeParser<HtmlCodeResult> {
             result.setHtmlCode(htmlCode.trim());
         } else {
             // 如果没有找到代码块，将整个内容作为HTML
-            result.setHtmlCode(codeContent.trim());
+            result.setHtmlCode(CodeFenceUtils.stripMarkdownCodeFence(codeContent).trim());
         }
         return result;
     }
