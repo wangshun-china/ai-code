@@ -419,12 +419,14 @@ jobs:
                 DEPLOY_HOST: ${DEPLOY_PUBLIC_HOST}
                 CODE_OUTPUT_DIR: /tmp/code_output
                 CODE_DEPLOY_DIR: /tmp/code_deploy
+                CODE_UPLOAD_DIR: /tmp/uploads
                 NODE_BUILDER_URL: http://node-builder:${NODE_BUILDER_PORT:-8020}/build
               ports:
                 - "8126:8126"
               volumes:
                 - code_output:/tmp/code_output
                 - code_deploy:/tmp/code_deploy
+                - code_upload:/tmp/uploads
               networks:
                 - code-craft-network
               restart: unless-stopped
@@ -558,6 +560,8 @@ jobs:
               name: code-craft-prod_code_deploy
             code_output:
               name: code-craft-prod_code_output
+            code_upload:
+              name: code-craft-prod_code_upload
 
           networks:
             code-craft-network:
