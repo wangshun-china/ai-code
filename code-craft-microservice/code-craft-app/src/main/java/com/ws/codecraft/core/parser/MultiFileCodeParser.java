@@ -1,6 +1,7 @@
 package com.ws.codecraft.core.parser;
 
 import com.ws.codecraft.ai.model.MultiFileCodeResult;
+import com.ws.codecraft.utils.CodeFenceUtils;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -12,9 +13,9 @@ import java.util.regex.Pattern;
  */
 public class MultiFileCodeParser implements CodeParser<MultiFileCodeResult> {
 
-    private static final Pattern HTML_CODE_PATTERN = Pattern.compile("```html\\s*\\n([\\s\\S]*?)```", Pattern.CASE_INSENSITIVE);
-    private static final Pattern CSS_CODE_PATTERN = Pattern.compile("```css\\s*\\n([\\s\\S]*?)```", Pattern.CASE_INSENSITIVE);
-    private static final Pattern JS_CODE_PATTERN = Pattern.compile("```(?:js|javascript)\\s*\\n([\\s\\S]*?)```", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HTML_CODE_PATTERN = Pattern.compile("```html\\s*\\R([\\s\\S]*?)(?:\\R```|\\z)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CSS_CODE_PATTERN = Pattern.compile("```css\\s*\\R([\\s\\S]*?)(?:\\R```|\\z)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern JS_CODE_PATTERN = Pattern.compile("```(?:js|javascript)\\s*\\R([\\s\\S]*?)(?:\\R```|\\z)", Pattern.CASE_INSENSITIVE);
 
     @Override
     public MultiFileCodeResult parseCode(String codeContent) {
@@ -26,6 +27,11 @@ public class MultiFileCodeParser implements CodeParser<MultiFileCodeResult> {
         // 设置HTML代码
         if (htmlCode != null && !htmlCode.trim().isEmpty()) {
             result.setHtmlCode(htmlCode.trim());
+        } else {
+            String cleanedContent = CodeFenceUtils.stripMarkdownCodeFence(codeContent).trim();
+            if (cleanedContent.startsWith("<!DOCTYPE") || cleanedContent.startsWith("<html")) {
+                result.setHtmlCode(cleanedContent);
+            }
         }
         // 设置CSS代码
         if (cssCode != null && !cssCode.trim().isEmpty()) {
