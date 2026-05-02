@@ -2,6 +2,7 @@ package com.ws.codecraft.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.ws.codecraft.ai.config.ChatModelProperties;
 import com.ws.codecraft.ai.config.ReasoningStreamingChatModelConfig;
 import com.ws.codecraft.ai.config.StreamingChatModelConfig;
 import com.ws.codecraft.ai.guardrail.PromptSafetyInputGuardrail;
@@ -41,6 +42,9 @@ public class AiCodeGeneratorServiceFactory {
 
     @Resource
     private StreamingChatModelConfig streamingChatModelConfig;
+
+    @Resource
+    private ChatModelProperties chatModelProperties;
 
     @Resource
     private ReasoningStreamingChatModelConfig reasoningStreamingChatModelConfig;
@@ -189,13 +193,15 @@ public class AiCodeGeneratorServiceFactory {
     private ChatModel createChatModel(String modelKey) {
         List<ChatModelListener> listeners = List.of(aiModelMonitorListener);
         return OpenAiChatModel.builder()
-                .apiKey(streamingChatModelConfig.getApiKey())
-                .baseUrl(streamingChatModelConfig.getBaseUrl())
+                .apiKey(chatModelProperties.getApiKey())
+                .baseUrl(chatModelProperties.getBaseUrl())
                 .modelName(AiModelEnum.normalize(modelKey))
-                .maxTokens(streamingChatModelConfig.getMaxTokens())
-                .temperature(streamingChatModelConfig.getTemperature())
-                .logRequests(streamingChatModelConfig.isLogRequests())
-                .logResponses(streamingChatModelConfig.isLogResponses())
+                .maxTokens(chatModelProperties.getMaxTokens())
+                .temperature(chatModelProperties.getTemperature())
+                .timeout(chatModelProperties.getTimeout())
+                .maxRetries(chatModelProperties.getMaxRetries())
+                .logRequests(chatModelProperties.isLogRequests())
+                .logResponses(chatModelProperties.isLogResponses())
                 .listeners(listeners)
                 .build();
     }
@@ -208,6 +214,7 @@ public class AiCodeGeneratorServiceFactory {
                 .modelName(AiModelEnum.normalize(modelKey))
                 .maxTokens(streamingChatModelConfig.getMaxTokens())
                 .temperature(streamingChatModelConfig.getTemperature())
+                .timeout(streamingChatModelConfig.getTimeout())
                 .logRequests(streamingChatModelConfig.isLogRequests())
                 .logResponses(streamingChatModelConfig.isLogResponses())
                 .listeners(listeners)

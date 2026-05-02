@@ -276,6 +276,21 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             plan = aiCodeGeneratorService.generateAppPlan(planPrompt);
         } catch (RuntimeException e) {
             String errorMessage = getAiFriendlyErrorMessage(e);
+            if (isAiTimeoutException(e)) {
+                log.warn("方案生成调用大模型超时，使用本地兜底方案, appId={}, model={}, error={}",
+                        appId, app.getModelKey(), errorMessage);
+                plan = buildFallbackGenerationPlan(message, codeGenTypeEnum, errorMessage);
+                appGenerationTaskService.markSuccess(planTask.getId(), plan);
+                AppGenerationPlanVO planVO = new AppGenerationPlanVO();
+                planVO.setAppId(appId);
+                planVO.setPlanId(UUID.randomUUID().toString());
+                planVO.setMessage(message);
+                planVO.setPlan(plan);
+                generationPlanCache.put(planVO.getPlanId(), planVO);
+                chatHistoryService.addChatMessage(appId, "实现方案：\n" + plan,
+                        ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                return planVO;
+            }
             appGenerationTaskService.markFailed(planTask.getId(), errorMessage);
             chatHistoryService.addChatMessage(appId, "方案生成失败：" + errorMessage,
                     ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
@@ -642,7 +657,55 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         if (message.contains("AllocationQuota.FreeTierOnly") || message.contains("403")) {
             return "当前模型免费额度已用完，请切换其他模型后重试";
         }
+        if (isAiTimeoutException(e)) {
+            return "当前模型响应超时，系统已建议重试或切换更快模型";
+        }
         return message;
+    }
+
+    private boolean isAiTimeoutException(Throwable e) {
+        Throwable current = e;
+        while (current != null) {
+            String className = current.getClass().getName();
+            String message = StrUtil.blankToDefault(current.getMessage(), "");
+            if (className.contains("TimeoutException")
+                    || className.contains("SocketTimeoutException")
+                    || message.contains("Read timed out")
+                    || message.contains("SocketTimeoutException")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private String buildFallbackGenerationPlan(String message, CodeGenTypeEnum codeGenTypeEnum, String reason) {
+        return String.format("""
+                > 方案生成时大模型响应超时，下面是系统生成的兜底实现方案。你可以直接确认开始生成；正式代码生成仍会调用当前选择的模型。
+
+                ## 需求理解
+                - 原始需求：%s
+                - 生成类型：%s
+
+                ## 页面与结构
+                - 保留一个清晰的首页入口，突出主题、核心信息和主要操作。
+                - 如果是 Vue 项目，使用 `src/App.vue` 作为根组件，复杂内容拆分到 `src/components` 或 `src/pages`。
+                - 如果需要路由，确保 `src/router/index.js` 中的相对导入路径与真实文件一致。
+
+                ## 交互与视觉
+                - 优先实现可运行、可预览的完整版本，再做细节增强。
+                - 使用响应式布局，保证桌面和移动端都能正常浏览。
+                - 控制依赖数量，避免引入不必要的第三方库。
+
+                ## 验收标准
+                - 生成完整工程骨架，包含构建必需文件。
+                - 本地 node-builder 可以执行生产构建。
+                - 生成后可以在源码工作区查看文件，并能正常预览或部署。
+
+                ## 风险提示
+                - 超时原因：%s
+                - 如果后续正式生成仍超时，建议切换到 `qwen3.6-flash` 或其他响应更快的模型。
+                """, truncateText(message, 500), codeGenTypeEnum.getValue(), reason);
     }
 
     @Override
