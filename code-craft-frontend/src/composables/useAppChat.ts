@@ -361,12 +361,24 @@ export function useAppChat() {
       }
     } catch (error) {
       console.error('生成方案失败：', error)
-      messages.value[aiMessageIndex].content = '方案生成失败，请重试。'
+      const errorMessage = extractRequestErrorMessage(error, '方案生成失败，请重试。')
+      messages.value[aiMessageIndex].content = `❌ ${errorMessage}`
       messages.value[aiMessageIndex].loading = false
-      message.error('方案生成失败')
+      message.error(errorMessage)
     } finally {
       isPlanning.value = false
     }
+  }
+
+  const extractRequestErrorMessage = (error: unknown, fallback: string) => {
+    const responseMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+    if (responseMessage) {
+      return responseMessage
+    }
+    if (error instanceof Error && error.message) {
+      return error.message
+    }
+    return fallback
   }
 
   const confirmGenerationPlan = async (messageItem: Message) => {

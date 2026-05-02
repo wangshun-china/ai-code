@@ -53,6 +53,7 @@ langchain4j:
       api-key: ${AI_DASHSCOPE_API_KEY:}
       model-name: qwen3.6-plus
       max-tokens: 8192
+      timeout: ${AI_STREAMING_TIMEOUT:600s}
       log-requests: ${AI_LOG_REQUESTS:false}
       log-responses: ${AI_LOG_RESPONSES:false}
     reasoning-streaming-chat-model:
