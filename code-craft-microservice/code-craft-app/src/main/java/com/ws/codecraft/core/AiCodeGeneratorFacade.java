@@ -183,6 +183,8 @@ public class AiCodeGeneratorFacade {
             }
 
             int repairAttempt = attempt + 1;
+            log.warn("Vue 项目构建失败，开始自动修复, appId={}, attempt={}, error={}",
+                    appId, repairAttempt, summarizeBuildError(lastBuildResult.getMessage()));
             emitAiMessage(sink, String.format("""
 
 
@@ -236,6 +238,7 @@ public class AiCodeGeneratorFacade {
                 emitAiMessage(sink, "\n\n自动修复执行失败：" + error.getMessage());
                 return false;
             }
+            log.info("Vue 项目自动修复流完成, appId={}, attempt={}", appId, repairAttempt);
             return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

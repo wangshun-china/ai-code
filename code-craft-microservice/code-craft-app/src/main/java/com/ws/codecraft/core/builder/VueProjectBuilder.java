@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * 构建 Vue 项目，通过 node-builder 服务执行构建。
@@ -25,9 +26,11 @@ public class VueProjectBuilder {
     private static final int BUILD_TIMEOUT_SECONDS = 900;
 
     private final CodeProjectProperties codeProjectProperties;
+    private final VueProjectSourceGuard vueProjectSourceGuard;
 
-    public VueProjectBuilder(CodeProjectProperties codeProjectProperties) {
+    public VueProjectBuilder(CodeProjectProperties codeProjectProperties, VueProjectSourceGuard vueProjectSourceGuard) {
         this.codeProjectProperties = codeProjectProperties;
+        this.vueProjectSourceGuard = vueProjectSourceGuard;
     }
 
     public void buildProjectAsync(String projectPath) {
@@ -57,6 +60,7 @@ public class VueProjectBuilder {
             }
 
             ensureMinimalVueProjectSkeleton(projectDir);
+            repairSourceBeforeBuild(projectDir);
 
             File packageJsonFile = new File(projectDir, "package.json");
             if (!packageJsonFile.exists()) {
@@ -66,6 +70,13 @@ public class VueProjectBuilder {
             }
 
             VueProjectBuildResult buildResult = callRemoteBuildService(projectDirName);
+            if (!buildResult.isSuccess() && isResolvableImportError(buildResult.getMessage())) {
+                List<String> repairs = vueProjectSourceGuard.repairMissingRelativeImports(projectDir.toPath());
+                if (!repairs.isEmpty()) {
+                    log.info("检测到 Vue import 路径错误并已修复，准备重新构建: project={}, repairs={}", projectDirName, repairs);
+                    buildResult = callRemoteBuildService(projectDirName);
+                }
+            }
             if (!buildResult.isSuccess()) {
                 log.error("Vue 项目构建失败: {}, reason={}", projectDirName, buildResult.getMessage());
                 return buildResult;
@@ -83,6 +94,20 @@ public class VueProjectBuilder {
             log.error("构建 Vue 项目时发生异常: {}", e.getMessage(), e);
             return VueProjectBuildResult.failure("构建 Vue 项目时发生异常: " + e.getMessage());
         }
+    }
+
+    private void repairSourceBeforeBuild(File projectDir) {
+        List<String> repairs = vueProjectSourceGuard.repairMissingRelativeImports(projectDir.toPath());
+        if (!repairs.isEmpty()) {
+            log.info("构建前已修复 Vue import 路径: project={}, repairs={}", projectDir.getName(), repairs);
+        }
+    }
+
+    private boolean isResolvableImportError(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        return message.contains("Could not resolve") || message.contains("Could not load") || message.contains("ENOENT");
     }
 
     private VueProjectBuildResult callRemoteBuildService(String projectDirName) {
