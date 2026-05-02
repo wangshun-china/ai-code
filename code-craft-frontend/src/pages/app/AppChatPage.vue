@@ -34,7 +34,13 @@
           <template #icon><DownloadOutlined /></template>
           下载代码
         </a-button>
-        <a-button type="primary" class="header-btn primary" @click="deployApp" :loading="deploying">
+        <a-button
+          type="primary"
+          class="header-btn primary"
+          @click="deployApp"
+          :loading="deploying"
+          :disabled="deployDisabled"
+        >
           <template #icon><CloudUploadOutlined /></template>
           部署
         </a-button>
@@ -459,6 +465,7 @@ const {
   deployTerminalVisible,
   deployLogs,
   deployTask,
+  deployDisabled,
   downloading,
   appDetailVisible,
   isOwner,

@@ -102,6 +102,17 @@ export function useAppChat() {
   const deployTerminalVisible = ref(false)
   const deployLogs = ref<string[]>([])
   const deployTask = ref<API.AppDeployTaskVO>()
+  const deployDisabled = computed(() => {
+    const status = appInfo.value?.status
+    return (
+      deploying.value ||
+      isGenerating.value ||
+      isPlanning.value ||
+      status === 'generating' ||
+      status === 'building' ||
+      status === 'deploying'
+    )
+  })
   let deployPollTimer: number | undefined
 
   // 下载相关
@@ -728,6 +739,10 @@ export function useAppChat() {
       message.error('应用ID不存在')
       return
     }
+    if (deployDisabled.value) {
+      message.warning('应用正在生成、构建或部署中，请等待当前任务完成后再部署')
+      return
+    }
     deploying.value = true
     deployTerminalVisible.value = true
     deployLogs.value = ['正在提交部署任务...']
@@ -836,6 +851,7 @@ export function useAppChat() {
     deployTerminalVisible,
     deployLogs,
     deployTask,
+    deployDisabled,
     downloading,
     appDetailVisible,
     isOwner,
