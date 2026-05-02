@@ -95,6 +95,9 @@ public class AiModelMetricsCollector {
      * 记录响应时间
      */
     public void recordResponseTime(String userId, String appId, String modelName, Duration duration) {
+        if (duration == null) {
+            return;
+        }
         String safeUserId = normalizeTagValue(userId);
         String safeAppId = normalizeTagValue(appId);
         String safeModelName = normalizeTagValue(modelName);
