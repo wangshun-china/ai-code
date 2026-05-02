@@ -3,12 +3,8 @@ FROM mcr.microsoft.com/playwright/java:v1.49.0-noble
 
 WORKDIR /app
 
-# 安装中文字体。Playwright noble 基于 Ubuntu 24.04，Noto CJK 比 wqy/xfonts 包更稳定。
-RUN apt-get update -o Acquire::Retries=3 && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    fontconfig fonts-noto-cjk fonts-noto-color-emoji \
-    && fc-cache -f \
-    && rm -rf /var/lib/apt/lists/*
+# Playwright 官方镜像已包含浏览器运行依赖。这里不再执行 apt-get，
+# 避免 GitHub Actions 构建时因 Ubuntu apt 源波动导致截图服务镜像构建失败。
 
 # 创建非root用户
 RUN groupadd -r spring && useradd -r -g spring spring
