@@ -6,6 +6,7 @@ import com.ws.codecraft.config.CodeProjectProperties;
 import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
+import com.ws.codecraft.utils.CodeFenceUtils;
 import com.ws.codecraft.utils.SpringContextUtil;
 
 import java.io.File;
@@ -26,7 +27,7 @@ public abstract class CodeFileSaverTemplate<T> {
     public final void writeToFile(String dirPath, String filename, String content) {
         if (StrUtil.isNotBlank(content)) {
             String filePath = dirPath + File.separator + filename;
-            FileUtil.writeString(content, filePath, StandardCharsets.UTF_8);
+            FileUtil.writeString(CodeFenceUtils.stripMarkdownCodeFence(content), filePath, StandardCharsets.UTF_8);
         }
     }
 
