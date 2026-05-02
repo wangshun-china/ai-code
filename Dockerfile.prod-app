@@ -7,8 +7,8 @@ WORKDIR /app
 RUN addgroup -S spring && adduser -S spring -G spring
 
 # 创建必要的目录并设置权限
-RUN mkdir -p /tmp/code_output /tmp/code_deploy /logs && \
-    chown -R spring:spring /tmp/code_output /tmp/code_deploy /logs
+RUN mkdir -p /tmp/code_output /tmp/code_deploy /tmp/uploads /logs && \
+    chown -R spring:spring /tmp/code_output /tmp/code_deploy /tmp/uploads /logs
 
 USER spring:spring
 
