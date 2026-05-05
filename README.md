@@ -185,8 +185,6 @@ code-craft/
 
 ### 本地启动
 
-**方式一：单体模式（推荐开发）**
-
 ```bash
 # 1. 创建本地生成目录
 mkdir -p tmp/code_output tmp/code_deploy
@@ -197,14 +195,9 @@ docker compose -f docker-compose.dev.yml up -d
 # 3. 配置环境变量（复制并编辑 .env 文件）
 # 配置: DASHSCOPE_API_KEY、数据库连接信息、CODE_OUTPUT_DIR、CODE_DEPLOY_DIR
 
-# 4. 启动后端
-mvn spring-boot:run
-
-# 5. 启动前端
-cd code-craft-frontend
-npm install && npm run dev
-
-# 访问 http://localhost:5173
+# 4. 构建微服务后端
+cd code-craft-microservice
+mvn clean install -DskipTests
 ```
 
 **本地开发服务地址**
@@ -218,13 +211,14 @@ npm install && npm run dev
 | 前端 | http://localhost:5173 | 开发环境 |
 | API 文档 | http://localhost:8126/doc.html | Knife4j |
 
-**方式二：微服务模式**
+**启动微服务**
 
 ```bash
 # 1. 启动基础设施
 docker-compose -f docker-compose.dev.yml up -d
 
 # 2. 构建项目
+cd code-craft-microservice
 mvn clean install -DskipTests
 
 # 3. 启动各服务（进入对应模块目录）
@@ -245,6 +239,7 @@ cd code-craft-frontend && npm run dev
 
 ```bash
 # 后端完整构建
+cd code-craft-microservice
 mvn clean install -DskipTests
 
 # 前端构建
