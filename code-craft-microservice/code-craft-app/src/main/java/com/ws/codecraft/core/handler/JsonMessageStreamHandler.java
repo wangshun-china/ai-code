@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.ws.codecraft.ai.model.message.*;
+import com.ws.codecraft.ai.model.message.StageMessage;
 import com.ws.codecraft.ai.tools.BaseTool;
 import com.ws.codecraft.ai.tools.ToolManager;
 import com.ws.codecraft.model.entity.User;
@@ -107,6 +108,10 @@ public class JsonMessageStreamHandler {
                 String output = String.format("\n\n%s\n\n", result);
                 chatHistoryStringBuilder.append("\n\n").append(summary).append("\n\n");
                 return output;
+            }
+            case STAGE -> {
+                StageMessage stageMessage = JSONUtil.toBean(chunk, StageMessage.class);
+                return "__STAGE__:" + stageMessage.getStage() + ":" + stageMessage.getLabel();
             }
             default -> {
                 log.error("不支持的消息类型: {}", typeEnum);

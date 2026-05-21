@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import com.ws.codecraft.ai.model.message.StageMessage;
 
 /**
  * AI 代码生成门面类，组合代码生成和保存功能
@@ -39,7 +40,7 @@ import java.util.function.Consumer;
 @Slf4j
 public class AiCodeGeneratorFacade {
 
-    private static final int MAX_BUILD_REPAIR_ATTEMPTS = 2;
+    private static final int MAX_BUILD_REPAIR_ATTEMPTS = 1;
     private static final int REPAIR_TIMEOUT_MINUTES = 10;
     private static final int MAX_BUILD_ERROR_CHARS = 6000;
 
@@ -174,11 +175,27 @@ public class AiCodeGeneratorFacade {
      */
     private Flux<String> processTokenStream(AiTokenStream tokenStream, AiCodeGeneratorService aiCodeGeneratorService, Long appId) {
         return Flux.create(sink -> {
+            AtomicBoolean hasSeenToolCall = new AtomicBoolean(false);
+            AtomicBoolean hasSeenAiTextAfterTools = new AtomicBoolean(false);
+            AtomicBoolean reviewingEmitted = new AtomicBoolean(false);
+            AtomicBoolean buildingEmitted = new AtomicBoolean(false);
+
+            // 初始阶段：规划
+            sink.next(JSONUtil.toJsonStr(new StageMessage("planning", "需求规划")));
+
             tokenStream.onPartialResponse((String partialResponse) -> {
+                        if (hasSeenToolCall.get()) {
+                            hasSeenAiTextAfterTools.set(true);
+                        }
                         AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
                         sink.next(JSONUtil.toJsonStr(aiResponseMessage));
                     })
                     .onToolRequest((index, toolExecutionRequest) -> {
+                        if (!hasSeenToolCall.getAndSet(true)) {
+                            sink.next(JSONUtil.toJsonStr(new StageMessage("coding", "编码生成")));
+                        } else if (hasSeenAiTextAfterTools.get() && !reviewingEmitted.getAndSet(true)) {
+                            sink.next(JSONUtil.toJsonStr(new StageMessage("reviewing", "代码审查")));
+                        }
                         ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
                         sink.next(JSONUtil.toJsonStr(toolRequestMessage));
                     })
@@ -187,7 +204,9 @@ public class AiCodeGeneratorFacade {
                         sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
                     })
                     .onComplete(response -> {
-                        // 执行 Vue 项目构建（同步执行，确保预览时项目已就绪）
+                        if (!buildingEmitted.getAndSet(true)) {
+                            sink.next(JSONUtil.toJsonStr(new StageMessage("building", "项目构建")));
+                        }
                         VueProjectBuildResult buildResult = buildVueProjectWithAutoRepair(aiCodeGeneratorService, appId, sink);
                         if (!buildResult.isSuccess()) {
                             sink.error(new BusinessException(ErrorCode.SYSTEM_ERROR,

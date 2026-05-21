@@ -1,50 +1,41 @@
 package com.ws.codecraft.ai;
 
 import cn.hutool.core.util.StrUtil;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.ws.codecraft.ai.config.RoutingAiModelConfig;
-import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
-import com.ws.codecraft.ai.monitor.AiModelMonitorListener.SpringAiUsageTrace;
+import com.ws.codecraft.core.AiCallHelper;
 import com.ws.codecraft.model.enums.AiModelEnum;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.metadata.Usage;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.util.StreamUtils;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/**
- * AI 代码生成类型路由服务工厂。
- */
 @Slf4j
 @Configuration
 public class AiCodeGenTypeRoutingServiceFactory {
 
-    private static final String ROUTING_PROMPT = "prompt/codegen-routing-system-prompt.txt";
-
-    @Resource
-    private RoutingAiModelConfig routingAiModelConfig;
+    private static final String ROUTING_SYSTEM_PROMPT = """
+            你是一个代码生成类型路由专家。根据用户需求，判断应该使用哪种代码生成类型。
+            只需回复以下三个选项之一，不要输出任何其他内容：
+            - HTML：适合简单的静态页面，单个 HTML 文件，包含内联 CSS 和 JS
+            - MULTI_FILE：适合简单的多文件静态页面，分离 HTML、CSS、JS 代码
+            - VUE_PROJECT：适合复杂的现代化前端项目，涉及多页面、复杂交互、数据管理等
+            """;
 
     @Resource
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
 
     @Resource
-    private AiModelMonitorListener aiModelMonitorListener;
+    private RoutingAiModelConfig routingAiModelConfig;
 
     @Resource
     private AiModelFallbackRouter aiModelFallbackRouter;
+
+    @Resource
+    private AiCallHelper callHelper;
 
     public AiCodeGenTypeRoutingService createAiCodeGenTypeRoutingService() {
         return createAiCodeGenTypeRoutingService(routingAiModelConfig.getModelName());
@@ -61,15 +52,17 @@ public class AiCodeGenTypeRoutingServiceFactory {
     }
 
     private CodeGenTypeEnum routeWithFallback(String primaryModelKey, String userMessage) {
+        CodeGenTypeEnum deterministicResult = routeByExplicitUserIntent(userMessage);
+        if (deterministicResult != null) {
+            return deterministicResult;
+        }
+
         List<String> candidates = aiModelFallbackRouter.resolveCandidates(primaryModelKey);
         RuntimeException lastException = null;
         for (int i = 0; i < candidates.size(); i++) {
             String candidate = candidates.get(i);
-            DashScopeChatModel chatModel = aiCodeGeneratorServiceFactory.createChatModel(candidate);
-            DashScopeChatOptions options = aiCodeGeneratorServiceFactory.createOptions(candidate,
-                    routingAiModelConfig.getMaxTokens(), routingAiModelConfig.getTemperature(), false);
             try {
-                return route(chatModel, options, candidate, userMessage);
+                return routeWithChat(candidate, userMessage);
             } catch (RuntimeException e) {
                 lastException = e;
                 if (!aiModelFallbackRouter.isQuotaExceeded(e) || i == candidates.size() - 1) {
@@ -81,27 +74,43 @@ public class AiCodeGenTypeRoutingServiceFactory {
         throw lastException;
     }
 
-    private CodeGenTypeEnum route(DashScopeChatModel chatModel, DashScopeChatOptions options,
-                                  String modelName, String userMessage) {
-        List<Message> messages = List.of(
-                new SystemMessage(loadPrompt()),
-                new UserMessage(userMessage)
-        );
-        String promptText = messages.get(0).getText() + "\n\n" + userMessage;
-        SpringAiUsageTrace trace = aiModelMonitorListener.startSpringAiRequest(modelName, promptText);
-        try {
-            ChatResponse response = chatModel.call(new Prompt(messages, options));
-            String responseText = extractText(response);
-            Usage usage = response == null || response.getMetadata() == null ? null : response.getMetadata().getUsage();
-            aiModelMonitorListener.recordSpringAiSuccess(trace, responseText,
-                    usage == null ? null : usage.getPromptTokens(),
-                    usage == null ? null : usage.getCompletionTokens(),
-                    usage == null ? null : usage.getTotalTokens());
-            return parseCodeGenType(responseText);
-        } catch (RuntimeException e) {
-            aiModelMonitorListener.recordSpringAiError(trace, e);
-            throw e;
+    private CodeGenTypeEnum routeByExplicitUserIntent(String userMessage) {
+        String normalized = StrUtil.blankToDefault(userMessage, "").toLowerCase();
+        if (StrUtil.isBlank(normalized)) {
+            return null;
         }
+        if (StrUtil.containsAny(normalized, "vue项目", "vue 工程", "vue工程", "vue project",
+                "vue3", "vite", "单文件组件", ".vue", "sfc")) {
+            return CodeGenTypeEnum.VUE_PROJECT;
+        }
+        if (StrUtil.containsAny(normalized, "多文件", "分离 html css js", "分离html css js",
+                "html css js 分离", "css 和 js 分离")) {
+            return CodeGenTypeEnum.MULTI_FILE;
+        }
+        if (StrUtil.containsAny(normalized, "原生html", "原生 html", "单个html", "单个 html",
+                "一个html", "一个 html")) {
+            return CodeGenTypeEnum.HTML;
+        }
+        return null;
+    }
+
+    private CodeGenTypeEnum routeWithChat(String modelKey, String userMessage) {
+        String normalizedKey = AiModelEnum.normalize(modelKey);
+        ChatClient chatClient = aiCodeGeneratorServiceFactory.createChatClient(normalizedKey);
+
+        String response;
+        try {
+            response = callHelper.call(chatClient, ROUTING_SYSTEM_PROMPT, userMessage, normalizedKey);
+        } catch (Exception e) {
+            log.error("路由调用失败, model={}", normalizedKey, e);
+            throw new RuntimeException("代码类型路由失败: " + e.getMessage(), e);
+        }
+
+        if (StrUtil.isBlank(response)) {
+            log.warn("路由模型返回为空，默认使用 HTML");
+            return CodeGenTypeEnum.HTML;
+        }
+        return parseCodeGenType(response);
     }
 
     private CodeGenTypeEnum parseCodeGenType(String responseText) {
@@ -117,21 +126,5 @@ public class AiCodeGenTypeRoutingServiceFactory {
         }
         log.warn("路由模型返回无法识别，默认使用 HTML: {}", responseText);
         return CodeGenTypeEnum.HTML;
-    }
-
-    private String extractText(ChatResponse response) {
-        if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
-            return "";
-        }
-        return StrUtil.blankToDefault(response.getResult().getOutput().getText(), "");
-    }
-
-    private String loadPrompt() {
-        try {
-            return StreamUtils.copyToString(new ClassPathResource(ROUTING_PROMPT).getInputStream(),
-                    StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("读取路由系统提示词失败", e);
-        }
     }
 }

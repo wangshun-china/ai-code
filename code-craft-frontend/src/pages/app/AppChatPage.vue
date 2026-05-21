@@ -136,7 +136,8 @@
             </div>
             <div v-else-if="isGenerating" class="preview-loading">
               <a-spin size="large" />
-              <p>正在生成网站...</p>
+              <p v-if="currentStage">{{ currentStage.label }}中...</p>
+              <p v-else>正在生成网站...</p>
             </div>
             <div v-else class="iframe-wrapper">
               <iframe
@@ -164,7 +165,11 @@
         <div class="chat-window-header">
           <div>
             <div class="chat-window-title">AI 对话</div>
-            <small>{{ chatMode === 'maximized' ? '全屏专注模式' : '悬浮工作模式' }}</small>
+            <small v-if="currentStage" class="stage-indicator">
+              <span class="stage-dot"></span>
+              {{ currentStage.label }}
+            </small>
+            <small v-else>{{ chatMode === 'maximized' ? '全屏专注模式' : '悬浮工作模式' }}</small>
           </div>
           <div class="chat-window-actions">
             <a-button type="text" size="small" @click="toggleChatMaximize">
@@ -445,6 +450,7 @@ const {
   userInput,
   isGenerating,
   isPlanning,
+  currentStage,
   messageMode,
   messagesContainer,
   appAttachments,
@@ -1767,6 +1773,27 @@ onUnmounted(() => {
 
 .chat-window-header small {
   color: var(--muted-warm);
+}
+
+.stage-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary-dark);
+  font-weight: 500;
+}
+
+.stage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.75); }
 }
 
 .chat-window-actions {

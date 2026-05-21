@@ -1,36 +1,31 @@
 package com.ws.codecraft.ai;
 
 import cn.hutool.core.util.StrUtil;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
-import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
-import com.ws.codecraft.ai.monitor.AiModelMonitorListener.SpringAiUsageTrace;
+import com.alibaba.cloud.ai.graph.RunnableConfig;
+import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
+import com.alibaba.cloud.ai.graph.agent.Agent;
+import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
+import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
+import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.ws.codecraft.ai.stream.AiTokenStream;
 import com.ws.codecraft.ai.stream.AiToolCallRequest;
 import com.ws.codecraft.ai.stream.AiToolExecution;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.metadata.Usage;
-import org.springframework.ai.chat.prompt.Prompt;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/**
- * Tool-enabled stream backed by Spring AI Alibaba streaming calls.
- */
+@Slf4j
 public class SpringAiAlibabaTokenStream implements AiTokenStream {
 
-    private final DashScopeChatModel chatModel;
-    private final List<Message> messages;
-    private final DashScopeChatOptions baseOptions;
+    private final Agent agent;
+    private final String userMessage;
     private final long appId;
-    private final String modelName;
-    private final String promptText;
-    private final AiModelMonitorListener aiModelMonitorListener;
     private final SpringAiToolCallbackRegistry toolCallbackRegistry;
     private final AtomicBoolean ignoreErrors = new AtomicBoolean(false);
 
@@ -40,21 +35,13 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
     private Consumer<String> completeResponseHandler;
     private Consumer<Throwable> errorHandler;
 
-    public SpringAiAlibabaTokenStream(DashScopeChatModel chatModel,
-                                      List<Message> messages,
-                                      DashScopeChatOptions baseOptions,
+    public SpringAiAlibabaTokenStream(Agent agent,
+                                      String userMessage,
                                       long appId,
-                                      String modelName,
-                                      String promptText,
-                                      AiModelMonitorListener aiModelMonitorListener,
                                       SpringAiToolCallbackRegistry toolCallbackRegistry) {
-        this.chatModel = chatModel;
-        this.messages = messages;
-        this.baseOptions = baseOptions;
+        this.agent = agent;
+        this.userMessage = userMessage;
         this.appId = appId;
-        this.modelName = modelName;
-        this.promptText = promptText;
-        this.aiModelMonitorListener = aiModelMonitorListener;
         this.toolCallbackRegistry = toolCallbackRegistry;
     }
 
@@ -71,8 +58,8 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
     }
 
     @Override
-    public AiTokenStream onToolExecuted(Consumer<AiToolExecution> toolExecuteHandler) {
-        this.toolExecutionHandler = toolExecuteHandler;
+    public AiTokenStream onToolExecuted(Consumer<AiToolExecution> toolExecutionHandler) {
+        this.toolExecutionHandler = toolExecutionHandler;
         return this;
     }
 
@@ -99,48 +86,103 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
         if (partialResponseHandler == null) {
             throw new IllegalStateException("onPartialResponse must be configured before start");
         }
-        DashScopeChatOptions options = DashScopeChatOptions.fromOptions(baseOptions);
-        options.setToolCallbacks(toolCallbackRegistry.buildVueProjectToolCallbacks(appId,
-                toolRequestHandler, toolExecutionHandler));
-        options.setInternalToolExecutionEnabled(true);
-        options.setParallelToolCalls(false);
 
-        AtomicReference<SpringAiUsageTrace> traceRef = new AtomicReference<>();
-        AtomicReference<Usage> usageRef = new AtomicReference<>();
+        toolCallbackRegistry.registerHandlers(appId, toolRequestHandler, toolExecutionHandler);
+
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId("app_" + appId)
+                .build();
+
         StringBuilder responseBuilder = new StringBuilder();
-        Disposable ignored = chatModel.stream(new Prompt(messages, options))
-                .doOnSubscribe(subscription ->
-                        traceRef.set(aiModelMonitorListener.startSpringAiRequest(modelName, promptText)))
-                .subscribe(response -> {
-                    if (response != null && response.getMetadata() != null) {
-                        usageRef.set(response.getMetadata().getUsage());
+
+        Flux<NodeOutput> outputFlux;
+        try {
+            outputFlux = agent.stream(Map.<String, Object>of("input", userMessage), config);
+        } catch (GraphRunnerException e) {
+            toolCallbackRegistry.unregisterHandlers(appId);
+            throw new RuntimeException("Agent 流式调用失败", e);
+        }
+
+        Disposable ignored = outputFlux.subscribe(output -> {
+                    if (output instanceof InterruptionMetadata interruption) {
+                        handleInterruption(config, interruption, responseBuilder);
+                        return;
                     }
-                    String chunk = extractText(response);
-                    if (StrUtil.isNotBlank(chunk)) {
-                        responseBuilder.append(chunk);
-                        partialResponseHandler.accept(chunk);
+                    if (output instanceof StreamingOutput<?> streamingOutput) {
+                        String chunk = streamingOutput.chunk();
+                        if (StrUtil.isNotBlank(chunk)) {
+                            responseBuilder.append(chunk);
+                            partialResponseHandler.accept(chunk);
+                        }
                     }
                 }, error -> {
-                    aiModelMonitorListener.recordSpringAiError(traceRef.get(), error);
+                    toolCallbackRegistry.unregisterHandlers(appId);
                     if (!ignoreErrors.get() && errorHandler != null) {
                         errorHandler.accept(error);
                     }
                 }, () -> {
-                    Usage usage = usageRef.get();
-                    aiModelMonitorListener.recordSpringAiSuccess(traceRef.get(), responseBuilder.toString(),
-                            usage == null ? null : usage.getPromptTokens(),
-                            usage == null ? null : usage.getCompletionTokens(),
-                            usage == null ? null : usage.getTotalTokens());
+                    toolCallbackRegistry.unregisterHandlers(appId);
                     if (completeResponseHandler != null) {
                         completeResponseHandler.accept(responseBuilder.toString());
                     }
                 });
     }
 
-    private String extractText(org.springframework.ai.chat.model.ChatResponse response) {
-        if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
-            return "";
+    private void handleInterruption(RunnableConfig config,
+                                    InterruptionMetadata interruption,
+                                    StringBuilder responseBuilder) {
+        log.info("Human-in-the-Loop 中断: node={}, tools={}", interruption.node(),
+                interruption.toolFeedbacks().stream()
+                        .map(f -> f.getName() + "=" + f.getResult())
+                        .toList());
+
+        InterruptionMetadata approved = approveAll(interruption);
+        RunnableConfig resumedConfig = RunnableConfig.builder(config)
+                .resume()
+                .addHumanFeedback(approved)
+                .build();
+
+        try {
+            agent.stream((Map<String, Object>) null, resumedConfig)
+                .subscribe(output -> {
+                    if (output instanceof InterruptionMetadata nextInterruption) {
+                        handleInterruption(resumedConfig, nextInterruption, responseBuilder);
+                        return;
+                    }
+                    if (output instanceof StreamingOutput<?> streamingOutput) {
+                        String chunk = streamingOutput.chunk();
+                        if (StrUtil.isNotBlank(chunk)) {
+                            responseBuilder.append(chunk);
+                            partialResponseHandler.accept(chunk);
+                        }
+                    }
+                }, error -> {
+                    toolCallbackRegistry.unregisterHandlers(appId);
+                    if (!ignoreErrors.get() && errorHandler != null) {
+                        errorHandler.accept(error);
+                    }
+                }, () -> {
+                    toolCallbackRegistry.unregisterHandlers(appId);
+                    if (completeResponseHandler != null) {
+                        completeResponseHandler.accept(responseBuilder.toString());
+                    }
+                });
+        } catch (GraphRunnerException e) {
+            log.error("Agent 流式恢复执行失败", e);
+            toolCallbackRegistry.unregisterHandlers(appId);
+            if (errorHandler != null) {
+                errorHandler.accept(e);
+            }
         }
-        return StrUtil.blankToDefault(response.getResult().getOutput().getText(), "");
+    }
+
+    private InterruptionMetadata approveAll(InterruptionMetadata interruption) {
+        InterruptionMetadata.Builder builder = InterruptionMetadata.builder(
+                interruption.node(), interruption.state());
+        interruption.toolFeedbacks().forEach(toolFeedback ->
+                builder.addToolFeedback(InterruptionMetadata.ToolFeedback.builder(toolFeedback)
+                        .result(InterruptionMetadata.ToolFeedback.FeedbackResult.APPROVED)
+                        .build()));
+        return builder.build();
     }
 }

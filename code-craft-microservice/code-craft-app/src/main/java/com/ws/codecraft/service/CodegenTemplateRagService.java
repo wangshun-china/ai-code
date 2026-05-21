@@ -76,15 +76,16 @@ public class CodegenTemplateRagService {
 
     private int score(TemplateEntry template, String message, String codeGenType) {
         int score = 0;
-        if (template.getCodeGenTypes().stream().anyMatch(type -> type.equalsIgnoreCase(codeGenType))) {
-            score += 5;
-        }
+        boolean typeMatched = template.getCodeGenTypes().stream().anyMatch(type -> type.equalsIgnoreCase(codeGenType));
         for (String keyword : template.getKeywords()) {
             if (StrUtil.isNotBlank(keyword) && message.contains(keyword.toLowerCase())) {
                 score += 3;
             }
         }
-        return score;
+        if (score == 0) {
+            return 0;
+        }
+        return typeMatched ? score + 5 : score;
     }
 
     private String formatContext(List<ScoredTemplate> matches) {

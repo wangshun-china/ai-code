@@ -25,8 +25,8 @@ import java.util.zip.ZipInputStream;
 @Slf4j
 public class AttachmentAnalysisService {
 
-    private static final int MAX_TEXT_CHARS = 6000;
-    private static final int MAX_SUMMARY_CHARS = 4000;
+    private static final int MAX_DIRECT_TEXT_CHARS = 6000;
+    private static final int CHUNK_SIZE = 5000;
 
     @Resource
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
@@ -57,8 +57,8 @@ public class AttachmentAnalysisService {
                 5. 生成 Vue 页面时需要注意的还原点
                 文件名：%s
                 """.formatted(fileName);
-        return limitSummary(aiCodeGeneratorServiceFactory.chatWithImage(prompt, Files.readAllBytes(filePath),
-                StrUtil.blankToDefault(mimeType, "image/png"), fileName, AiModelEnum.DEFAULT_MODEL_KEY));
+        return aiCodeGeneratorServiceFactory.chatWithImage(prompt, Files.readAllBytes(filePath),
+                StrUtil.blankToDefault(mimeType,"image/png"), fileName, AiModelEnum.DEFAULT_MODEL_KEY);
     }
 
     private String analyzePdf(Path filePath, String fileName, String mimeType) throws IOException {
@@ -77,18 +77,39 @@ public class AttachmentAnalysisService {
 
     private String buildExtractedTextContext(String fileName, String text) {
         String normalized = StrUtil.blankToDefault(text, "").trim();
-        if (normalized.length() > MAX_TEXT_CHARS) {
-            normalized = normalized.substring(0, MAX_TEXT_CHARS);
-        }
         if (StrUtil.isBlank(normalized)) {
             return "附件 " + fileName + " 内容为空或无法提取文本。";
         }
+        String content = normalized.length() <= MAX_DIRECT_TEXT_CHARS
+                ? normalized
+                : summarizeLargeText(fileName, normalized);
         return """
                 以下是从附件 "%s" 中提取的文本内容。
                 后续生成方案和代码时，请优先识别其中的关键信息；如果是简历，重点提取个人简介、技能、经历、项目、教育背景和适合展示的亮点。
 
                 %s
-                """.formatted(fileName, normalized);
+                """.formatted(fileName, content);
+    }
+
+    private String summarizeLargeText(String fileName, String text) {
+        log.info("附件 {} 过大({} chars)，AI 自动提炼摘要", fileName, text.length());
+        StringBuilder summary = new StringBuilder();
+        for (int start = 0; start < text.length(); start += CHUNK_SIZE) {
+            int end = Math.min(start + CHUNK_SIZE, text.length());
+            String chunk = text.substring(start, end);
+            String prompt = String.format("""
+                    以下是文档 "%s" 的一部分内容（第 %d 段）。请用中文提炼其中的关键信息，
+                    保留具体名称、数字、技术栈和重要事实。压缩到 200 字以内。
+
+                    内容：
+                    %s
+                    """, fileName, summary.length() + 1, chunk);
+            String chunkSummary = aiCodeGeneratorServiceFactory.chatPlain(prompt, null);
+            summary.append(chunkSummary).append("\n");
+        }
+        String result = summary.toString().trim();
+        log.info("附件 {} 提炼完成: {} chars → {} chars", fileName, text.length(), result.length());
+        return result;
     }
 
     private String extractDocxText(Path filePath) throws IOException {
@@ -111,11 +132,4 @@ public class AttachmentAnalysisService {
         return "";
     }
 
-    private String limitSummary(String summary) {
-        String normalized = StrUtil.blankToDefault(summary, "").trim();
-        if (normalized.length() <= MAX_SUMMARY_CHARS) {
-            return normalized;
-        }
-        return normalized.substring(0, MAX_SUMMARY_CHARS) + "\n...（摘要已截断）";
-    }
 }

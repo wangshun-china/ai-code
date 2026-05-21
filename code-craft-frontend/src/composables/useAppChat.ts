@@ -71,6 +71,7 @@ export function useAppChat() {
   const userInput = ref('')
   const isGenerating = ref(false)
   const isPlanning = ref(false)
+  const currentStage = ref<{ stage: string; label: string } | null>(null)
   const messageMode = ref<AppChatMode>('chat')
   const messagesContainer = ref<HTMLElement>()
   const appAttachments = ref<API.AppAttachmentVO[]>([])
@@ -250,6 +251,13 @@ export function useAppChat() {
           const parsed = JSON.parse(event.data)
           const content = parsed.d
           if (content !== undefined && content !== null) {
+            if (content.startsWith('__STAGE__:')) {
+              const parts = content.split(':')
+              if (parts.length >= 3) {
+                currentStage.value = { stage: parts[1], label: parts.slice(2).join(':') }
+              }
+              return
+            }
             fullContent += content
             messages.value[aiMessageIndex].content = fullContent
             messages.value[aiMessageIndex].loading = false
@@ -265,6 +273,7 @@ export function useAppChat() {
         if (streamCompleted) return
         streamCompleted = true
         isGenerating.value = false
+        currentStage.value = null
         eventSource?.close()
         setTimeout(async () => {
           await fetchAppInfo()
@@ -283,6 +292,7 @@ export function useAppChat() {
           message.error(errorMessage)
           streamCompleted = true
           isGenerating.value = false
+          currentStage.value = null
           eventSource?.close()
         } catch (parseError) {
           console.error('解析错误事件失败:', parseError)
@@ -295,6 +305,7 @@ export function useAppChat() {
         if (eventSource?.readyState === EventSource.CONNECTING) {
           streamCompleted = true
           isGenerating.value = false
+          currentStage.value = null
           eventSource?.close()
           setTimeout(async () => {
             await fetchAppInfo()
@@ -317,6 +328,7 @@ export function useAppChat() {
     messages.value[aiMessageIndex].loading = false
     message.error('生成失败，请重试')
     isGenerating.value = false
+    currentStage.value = null
   }
 
   const requestGenerationPlan = async (messageContent: string) => {
@@ -327,12 +339,15 @@ export function useAppChat() {
     await nextTick()
     scrollToBottom()
     try {
-      const res = await generateAppPlan({
-        appId: appId.value as unknown as number,
-        message: messageContent,
-      }, {
-        timeout: AI_SLOW_REQUEST_TIMEOUT,
-      })
+      const res = await generateAppPlan(
+        {
+          appId: appId.value as unknown as number,
+          message: messageContent,
+        },
+        {
+          timeout: AI_SLOW_REQUEST_TIMEOUT,
+        },
+      )
       if (res.data.code === 0 && res.data.data) {
         const plan = res.data.data
         messages.value[aiMessageIndex] = {
@@ -381,7 +396,11 @@ export function useAppChat() {
       return false
     }
     const normalizedMessage = messageContent.toLowerCase()
-    if (DIRECT_GENERATION_KEYWORDS.some((keyword) => normalizedMessage.includes(keyword.toLowerCase()))) {
+    if (
+      DIRECT_GENERATION_KEYWORDS.some((keyword) =>
+        normalizedMessage.includes(keyword.toLowerCase()),
+      )
+    ) {
       return false
     }
     return true
@@ -389,12 +408,15 @@ export function useAppChat() {
 
   const requestPlainChat = async (messageContent: string, aiMessageIndex: number) => {
     try {
-      const res = await chatToAppMessage({
-        appId: appId.value as unknown as number,
-        message: messageContent,
-      }, {
-        timeout: AI_SLOW_REQUEST_TIMEOUT,
-      })
+      const res = await chatToAppMessage(
+        {
+          appId: appId.value as unknown as number,
+          message: messageContent,
+        },
+        {
+          timeout: AI_SLOW_REQUEST_TIMEOUT,
+        },
+      )
       if (res.data.code === 0) {
         messages.value[aiMessageIndex].content = res.data.data || '已收到。'
         messages.value[aiMessageIndex].loading = false
@@ -417,7 +439,9 @@ export function useAppChat() {
     const isGenerateMode = messageMode.value === 'generate' || !!selectedElementInfo
     let messageContent = userInput.value.trim()
     if (!messageContent) {
-      messageContent = isGenerateMode ? '请根据已上传附件生成网页。' : '请根据已上传附件进行需求分析。'
+      messageContent = isGenerateMode
+        ? '请根据已上传附件生成网页。'
+        : '请根据已上传附件进行需求分析。'
     }
     if (selectedElementInfo) {
       let elementContext = `\n\n选中元素信息：`
@@ -477,11 +501,9 @@ export function useAppChat() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await uploadAppAttachment(
-        { appId: appId.value as unknown as number },
-        formData,
-        { timeout: AI_SLOW_REQUEST_TIMEOUT }
-      )
+      const res = await uploadAppAttachment({ appId: appId.value as unknown as number }, formData, {
+        timeout: AI_SLOW_REQUEST_TIMEOUT,
+      })
       if (res.data.code === 0 && res.data.data) {
         appAttachments.value.push(res.data.data)
         hasNewAttachmentContext.value = true
@@ -643,8 +665,7 @@ export function useAppChat() {
         throw new Error(`下载失败: ${response.status}`)
       }
       const contentDisposition = response.headers.get('Content-Disposition')
-      const fileName =
-        contentDisposition?.match(/filename="(.+)"/)?.[1] || `app-${appId.value}.zip`
+      const fileName = contentDisposition?.match(/filename="(.+)"/)?.[1] || `app-${appId.value}.zip`
       const blob = await response.blob()
       const downloadUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -831,6 +852,7 @@ export function useAppChat() {
     userInput,
     isGenerating,
     isPlanning,
+    currentStage,
     messageMode,
     messagesContainer,
     appAttachments,

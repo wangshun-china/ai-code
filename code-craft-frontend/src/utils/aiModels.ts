@@ -10,6 +10,8 @@ export const AI_MODEL_OPTIONS = [
   { label: 'Kimi K2.6', value: 'kimi-k2.6' },
   { label: 'Kimi K2.5', value: 'kimi-k2.5' },
   { label: 'MiniMax M2.1', value: 'MiniMax-M2.1' },
+  { label: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro' },
+  { label: 'DeepSeek V4 Flash', value: 'deepseek-v4-flash' },
 ] as const
 
 export const formatAiModel = (modelKey?: string) => {

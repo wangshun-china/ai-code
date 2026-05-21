@@ -20,12 +20,10 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/**
- * Central Spring AI tool callback registry for Vue project generation.
- */
 @Component
 public class SpringAiToolCallbackRegistry {
 
@@ -63,11 +61,29 @@ public class SpringAiToolCallbackRegistry {
     @Resource
     private ToolManager toolManager;
 
+    private final ConcurrentHashMap<Long, HandlerPair> activeHandlers = new ConcurrentHashMap<>();
+
+    public void registerHandlers(long appId,
+                                  BiConsumer<Integer, AiToolCallRequest> toolRequestHandler,
+                                  Consumer<AiToolExecution> toolExecutionHandler) {
+        activeHandlers.put(appId, new HandlerPair(toolRequestHandler, toolExecutionHandler));
+    }
+
+    public void unregisterHandlers(long appId) {
+        activeHandlers.remove(appId);
+    }
+
     public List<ToolCallback> buildVueProjectToolCallbacks(long appId,
                                                            BiConsumer<Integer, AiToolCallRequest> toolRequestHandler,
                                                            Consumer<AiToolExecution> toolExecutionHandler) {
         return VUE_PROJECT_TOOLS.stream()
                 .map(definition -> toolCallback(definition, appId, toolRequestHandler, toolExecutionHandler))
+                .toList();
+    }
+
+    public List<ToolCallback> buildAgentToolCallbacks(long appId) {
+        return VUE_PROJECT_TOOLS.stream()
+                .map(definition -> agentToolCallback(definition, appId))
                 .toList();
     }
 
@@ -78,6 +94,23 @@ public class SpringAiToolCallbackRegistry {
         return FunctionToolCallback.<Map<String, Object>, String>builder(
                         definition.name(),
                         args -> executeTool(definition.name(), args, appId, toolRequestHandler, toolExecutionHandler))
+                .description(definition.description())
+                .inputSchema(definition.inputSchema())
+                .inputType(MAP_TYPE)
+                .build();
+    }
+
+    private ToolCallback agentToolCallback(ToolDefinition definition, long appId) {
+        return FunctionToolCallback.<Map<String, Object>, String>builder(
+                        definition.name(),
+                        args -> {
+                            HandlerPair handlers = activeHandlers.get(appId);
+                            if (handlers != null) {
+                                return executeTool(definition.name(), args, appId,
+                                        handlers.toolRequestHandler, handlers.toolExecutionHandler);
+                            }
+                            return doExecuteTool(definition.name(), new JSONObject(args == null ? Map.of() : args), appId);
+                        })
                 .description(definition.description())
                 .inputSchema(definition.inputSchema())
                 .inputType(MAP_TYPE)
@@ -133,5 +166,9 @@ public class SpringAiToolCallbackRegistry {
     }
 
     private record ToolDefinition(String name, String description, String inputSchema) {
+    }
+
+    private record HandlerPair(BiConsumer<Integer, AiToolCallRequest> toolRequestHandler,
+                               Consumer<AiToolExecution> toolExecutionHandler) {
     }
 }
