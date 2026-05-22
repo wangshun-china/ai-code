@@ -177,11 +177,12 @@ public class AiCodeGeneratorFacade {
         return Flux.create(sink -> {
             AtomicBoolean hasSeenToolCall = new AtomicBoolean(false);
             AtomicBoolean hasSeenAiTextAfterTools = new AtomicBoolean(false);
+            AtomicBoolean codingEmitted = new AtomicBoolean(true);
             AtomicBoolean reviewingEmitted = new AtomicBoolean(false);
             AtomicBoolean buildingEmitted = new AtomicBoolean(false);
 
-            // 初始阶段：规划
-            sink.next(JSONUtil.toJsonStr(new StageMessage("planning", "需求规划")));
+            // 方案已在正式生成前确认，这里直接进入流式编码阶段。
+            sink.next(JSONUtil.toJsonStr(new StageMessage("coding", "开始编码生成")));
 
             tokenStream.onPartialResponse((String partialResponse) -> {
                         if (hasSeenToolCall.get()) {
@@ -192,7 +193,9 @@ public class AiCodeGeneratorFacade {
                     })
                     .onToolRequest((index, toolExecutionRequest) -> {
                         if (!hasSeenToolCall.getAndSet(true)) {
-                            sink.next(JSONUtil.toJsonStr(new StageMessage("coding", "编码生成")));
+                            if (!codingEmitted.getAndSet(true)) {
+                                sink.next(JSONUtil.toJsonStr(new StageMessage("coding", "编码生成")));
+                            }
                         } else if (hasSeenAiTextAfterTools.get() && !reviewingEmitted.getAndSet(true)) {
                             sink.next(JSONUtil.toJsonStr(new StageMessage("reviewing", "代码审查")));
                         }

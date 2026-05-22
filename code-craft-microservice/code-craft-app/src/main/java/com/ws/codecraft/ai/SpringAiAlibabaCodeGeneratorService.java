@@ -1,6 +1,6 @@
 package com.ws.codecraft.ai;
 
-import com.alibaba.cloud.ai.graph.agent.Agent;
+import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.ws.codecraft.ai.model.HtmlCodeResult;
 import com.ws.codecraft.ai.model.MultiFileCodeResult;
 import com.ws.codecraft.ai.stream.AiTokenStream;
@@ -19,13 +19,13 @@ public class SpringAiAlibabaCodeGeneratorService implements AiCodeGeneratorServi
     private static final String PLAN_PROMPT = "prompt/codegen-plan-system-prompt.txt";
 
     private final ChatClient chatClient;
-    private final Agent codegenPipeline;
+    private final CompiledGraph codegenPipeline;
     private final String modelName;
     private final AiCallHelper callHelper;
     private final SpringAiToolCallbackRegistry toolCallbackRegistry;
 
     public SpringAiAlibabaCodeGeneratorService(ChatClient chatClient,
-                                               Agent codegenPipeline,
+                                               CompiledGraph codegenPipeline,
                                                String modelName,
                                                AiCallHelper callHelper,
                                                SpringAiToolCallbackRegistry toolCallbackRegistry) {

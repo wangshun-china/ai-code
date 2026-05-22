@@ -15,19 +15,19 @@ spring:
       max-request-size: 12MB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3307}/${DB_NAME:ai_code_gen}?serverTimezone=Asia/Shanghai&useLegacyDatetimeCode=false
-    username: ${DB_USER:ai_code_gen_user}
-    password: ${DB_PASSWORD:12345678}
+    url: jdbc:mysql://${CODE_CRAFT_MYSQL_HOST:localhost}:${CODE_CRAFT_MYSQL_PORT:3307}/${CODE_CRAFT_MYSQL_DATABASE:ai_code_gen}?serverTimezone=Asia/Shanghai&useLegacyDatetimeCode=false
+    username: ${CODE_CRAFT_MYSQL_USERNAME:ai_code_gen_user}
+    password: ${CODE_CRAFT_MYSQL_PASSWORD:}
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: ${CODE_CRAFT_REDIS_HOST:localhost}
+      port: ${CODE_CRAFT_REDIS_PORT:6379}
       database: 0
-      password: ${REDIS_PASSWORD:}
+      password: ${CODE_CRAFT_REDIS_PASSWORD:}
       ttl: 3600
   ai:
     dashscope:
-      api-key: ${AI_DASHSCOPE_API_KEY:}
+      api-key: ${DASHSCOPE_API_KEY:}
 
 server:
   port: 8126
@@ -40,29 +40,26 @@ server:
 spring-ai-alibaba:
   open-ai:
     streaming-chat-model:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      api-key: ${AI_DASHSCOPE_API_KEY:}
+      api-key: ${DASHSCOPE_API_KEY:}
       model-name: qwen3.6-plus
       max-tokens: 8192
-      log-requests: ${AI_LOG_REQUESTS:false}
-      log-responses: ${AI_LOG_RESPONSES:false}
+      log-requests: ${CODE_CRAFT_AI_LOG_REQUESTS:false}
+      log-responses: ${CODE_CRAFT_AI_LOG_RESPONSES:false}
     reasoning-streaming-chat-model:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      api-key: ${AI_DASHSCOPE_API_KEY:}
+      api-key: ${DASHSCOPE_API_KEY:}
       model-name: qwen3.6-plus
       max-tokens: 32768
       temperature: 0.1
-      log-requests: ${AI_LOG_REQUESTS:false}
-      log-responses: ${AI_LOG_RESPONSES:false}
+      log-requests: ${CODE_CRAFT_AI_LOG_REQUESTS:false}
+      log-responses: ${CODE_CRAFT_AI_LOG_RESPONSES:false}
     routing-chat-model:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      api-key: ${AI_DASHSCOPE_API_KEY:}
+      api-key: ${DASHSCOPE_API_KEY:}
       model-name: qwen3.6-plus
       max-tokens: 512
-      timeout: ${AI_ROUTING_TIMEOUT:60s}
-      max-retries: ${AI_ROUTING_MAX_RETRIES:1}
-      log-requests: ${AI_LOG_REQUESTS:false}
-      log-responses: ${AI_LOG_RESPONSES:false}
+      timeout: ${CODE_CRAFT_AI_ROUTING_TIMEOUT:60s}
+      max-retries: ${CODE_CRAFT_AI_ROUTING_MAX_RETRIES:1}
+      log-requests: ${CODE_CRAFT_AI_LOG_REQUESTS:false}
+      log-responses: ${CODE_CRAFT_AI_LOG_RESPONSES:false}
 
 springdoc:
   group-configs:
@@ -80,29 +77,29 @@ dubbo:
     qos-port: 55555
     qos-accept-foreign-ip: false
   registry:
-    address: nacos://${NACOS_HOST:localhost}:${NACOS_PORT:8848}?username=nacos&password=nacos
+    address: nacos://${CODE_CRAFT_NACOS_HOST:localhost}:${CODE_CRAFT_NACOS_PORT:8848}?username=${CODE_CRAFT_NACOS_USERNAME:nacos}&password=${CODE_CRAFT_NACOS_PASSWORD:}
     register-mode: instance
   protocol:
     name: tri
     port: 50053
-    host: ${DUBBO_HOST:localhost}
+    host: ${CODE_CRAFT_DUBBO_HOST:localhost}
   consumer:
     timeout: 120000
   provider:
     timeout: 120000
 
 code:
-  deploy-host: ${DEPLOY_HOST:http://localhost:8126}
-  node-builder-url: ${NODE_BUILDER_URL:http://localhost:8020/build}
-  build-mode: ${BUILD_MODE:local}
-  output-root-dir: ${CODE_OUTPUT_DIR:G:/project/code-craft/tmp/code_output}
-  deploy-root-dir: ${CODE_DEPLOY_DIR:G:/project/code-craft/tmp/code_deploy}
-  upload-root-dir: ${CODE_UPLOAD_DIR:G:/project/code-craft/tmp/uploads}
+  deploy-host: ${CODE_CRAFT_DEPLOY_HOST:http://localhost:8126}
+  node-builder-url: ${CODE_CRAFT_NODE_BUILDER_URL:http://localhost:8020/build}
+  build-mode: ${CODE_CRAFT_BUILD_MODE:local}
+  output-root-dir: ${CODE_CRAFT_CODE_OUTPUT_DIR:G:/project/code-craft/tmp/code_output}
+  deploy-root-dir: ${CODE_CRAFT_CODE_DEPLOY_DIR:G:/project/code-craft/tmp/code_deploy}
+  upload-root-dir: ${CODE_CRAFT_CODE_UPLOAD_DIR:G:/project/code-craft/tmp/uploads}
 
 app:
   database:
     init:
-      enabled: ${APP_DATABASE_INIT_ENABLED:true}
+      enabled: ${CODE_CRAFT_APP_DATABASE_INIT_ENABLED:true}
 
 management:
   endpoints:
@@ -115,12 +112,12 @@ management:
 
 cos:
   client:
-    host: ${COS_HOST:}
-    secretId: ${COS_SECRET_ID:}
-    secretKey: ${COS_SECRET_KEY:}
-    region: ${COS_REGION:}
-    bucket: ${COS_BUCKET:}
+    host: ${TENCENT_COS_HOST:}
+    secretId: ${TENCENT_COS_SECRET_ID:}
+    secretKey: ${TENCENT_COS_SECRET_KEY:}
+    region: ${TENCENT_COS_REGION:}
+    bucket: ${TENCENT_COS_BUCKET:}
 
 dashscope:
-  api-key: ${AI_DASHSCOPE_API_KEY:}
+  api-key: ${DASHSCOPE_API_KEY:}
   image-model: wan2.2-t2i-flash

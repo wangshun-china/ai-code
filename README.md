@@ -204,7 +204,7 @@ mvn clean install -DskipTests
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| MySQL | localhost:3307 | 用户: ai_code_gen_user, 密码: 12345678 |
+| MySQL | localhost:3307 | 用户和密码从环境变量配置 |
 | Redis | localhost:6379 | 无密码 |
 | Nacos | http://localhost:8848/nacos | 用户名/密码: nacos/nacos |
 | Node Builder | http://localhost:8020/health | Vue 项目构建服务 |

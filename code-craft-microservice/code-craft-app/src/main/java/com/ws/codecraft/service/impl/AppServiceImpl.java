@@ -369,9 +369,10 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             return planVO;
         }
         planVO.setRequirementSummary(planObject.getStr("requirementSummary"));
-        planVO.setPages(readStringList(planObject, "pages"));
-        planVO.setVisualStyle(planObject.getStr("visualStyle"));
-        planVO.setComponents(readStringList(planObject, "components"));
+        planVO.setPages(readPlanItemList(planObject, "pages"));
+        planVO.setVisualStyle(StrUtil.blankToDefault(planObject.getStr("visualStyle"),
+                planObject.getStr("designDirection")));
+        planVO.setComponents(readPlanItemList(planObject, "components"));
         planVO.setFilesToChange(readStringList(planObject, "filesToChange"));
         planVO.setInteractions(readStringList(planObject, "interactions"));
         planVO.setAcceptanceCriteria(readStringList(planObject, "acceptanceCriteria"));
@@ -386,11 +387,19 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             return null;
         }
         try {
-            return JSONUtil.parseObj(extractJsonObject(rawPlan));
+            return JSONUtil.parseObj(extractJsonObject(normalizeJsonLikeText(rawPlan)));
         } catch (Exception e) {
             log.warn("结构化方案解析失败，降级为原始方案文本: {}", e.getMessage());
             return null;
         }
+    }
+
+    private String normalizeJsonLikeText(String rawText) {
+        return StrUtil.blankToDefault(rawText, "")
+                .replace('“', '"')
+                .replace('”', '"')
+                .replace('‘', '\'')
+                .replace('’', '\'');
     }
 
     private String extractJsonObject(String rawText) {
@@ -412,6 +421,48 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 .map(String::valueOf)
                 .filter(StrUtil::isNotBlank)
                 .toList();
+    }
+
+    private List<String> readPlanItemList(JSONObject object, String key) {
+        JSONArray array = object.getJSONArray(key);
+        if (array == null) {
+            return List.of();
+        }
+        return array.stream()
+                .map(this::formatPlanItem)
+                .filter(StrUtil::isNotBlank)
+                .toList();
+    }
+
+    private String formatPlanItem(Object item) {
+        if (item == null) {
+            return "";
+        }
+        if (!(item instanceof JSONObject object)) {
+            return String.valueOf(item);
+        }
+        String name = object.getStr("name");
+        String route = object.getStr("route");
+        String layout = object.getStr("layout");
+        String purpose = object.getStr("purpose");
+        String content = object.getStr("content");
+        List<String> parts = new ArrayList<>();
+        if (StrUtil.isNotBlank(name)) parts.add(name);
+        if (StrUtil.isNotBlank(route)) parts.add("路由 " + route);
+        if (StrUtil.isNotBlank(layout)) parts.add(layout);
+        if (StrUtil.isNotBlank(purpose)) parts.add(purpose);
+        if (StrUtil.isNotBlank(content)) parts.add(content);
+        JSONArray sections = object.getJSONArray("sections");
+        if (sections != null && !sections.isEmpty()) {
+            List<String> sectionSummaries = sections.stream()
+                    .map(this::formatPlanItem)
+                    .filter(StrUtil::isNotBlank)
+                    .toList();
+            if (!sectionSummaries.isEmpty()) {
+                parts.add("区块：" + String.join("；", sectionSummaries));
+            }
+        }
+        return parts.isEmpty() ? object.toString() : String.join("，", parts);
     }
 
     private String buildPlanMarkdown(AppGenerationPlanVO planVO, String fallbackPlan) {
@@ -577,7 +628,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
 
         AiCodeGenTypeRoutingService routingService = aiCodeGenTypeRoutingServiceFactory
-                .createAiCodeGenTypeRoutingService(app.getModelKey());
+                .createAiCodeGenTypeRoutingService();
         CodeGenTypeEnum selectedCodeGenType;
         try {
             MonitorContextHolder.setContext(MonitorContext.builder()

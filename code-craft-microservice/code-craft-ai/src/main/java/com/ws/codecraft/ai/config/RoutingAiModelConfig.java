@@ -12,8 +12,6 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class RoutingAiModelConfig {
 
-    private String baseUrl;
-
     private String apiKey;
 
     private String modelName;

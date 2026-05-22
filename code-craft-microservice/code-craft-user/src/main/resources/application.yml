@@ -6,15 +6,15 @@ spring:
     timeout: 2592000
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3307}/${DB_NAME:ai_code_gen}?serverTimezone=Asia/Shanghai&useLegacyDatetimeCode=false
-    username: ${DB_USER:ai_code_gen_user}
-    password: ${DB_PASSWORD:12345678}
+    url: jdbc:mysql://${CODE_CRAFT_MYSQL_HOST:localhost}:${CODE_CRAFT_MYSQL_PORT:3307}/${CODE_CRAFT_MYSQL_DATABASE:ai_code_gen}?serverTimezone=Asia/Shanghai&useLegacyDatetimeCode=false
+    username: ${CODE_CRAFT_MYSQL_USERNAME:ai_code_gen_user}
+    password: ${CODE_CRAFT_MYSQL_PASSWORD:}
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: ${CODE_CRAFT_REDIS_HOST:localhost}
+      port: ${CODE_CRAFT_REDIS_PORT:6379}
       database: 0
-      password: ${REDIS_PASSWORD:}
+      password: ${CODE_CRAFT_REDIS_PASSWORD:}
 
 server:
   port: 8124
@@ -36,12 +36,12 @@ knife4j:
 
 dubbo:
   registry:
-    address: nacos://${NACOS_HOST:localhost}:${NACOS_PORT:8848}?username=nacos&password=nacos
+    address: nacos://${CODE_CRAFT_NACOS_HOST:localhost}:${CODE_CRAFT_NACOS_PORT:8848}?username=${CODE_CRAFT_NACOS_USERNAME:nacos}&password=${CODE_CRAFT_NACOS_PASSWORD:}
     register-mode: instance
   protocol:
     name: tri
     port: 50051
-    host: ${DUBBO_HOST:localhost}
+    host: ${CODE_CRAFT_DUBBO_HOST:localhost}
   consumer:
     timeout: 60000
   provider:

@@ -14,7 +14,7 @@ docker compose -f docker-compose.dev.yml logs -f nacos
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| MySQL | localhost:3306 | 用户: yu_ai_code_mother_user, 密码: 12345678 |
+| MySQL | localhost:3306 | 用户和密码从环境变量配置 |
 | Redis | localhost:6379 | 无密码 |
 | Nacos | http://localhost:8848/nacos | 用户名/密码: nacos/nacos |
 | Node Builder | http://localhost:8020 | Vue 项目构建服务 |

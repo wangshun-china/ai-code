@@ -11,8 +11,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.List;
-
 @Slf4j
 @Configuration
 public class AiCodeGenTypeRoutingServiceFactory {
@@ -20,9 +18,16 @@ public class AiCodeGenTypeRoutingServiceFactory {
     private static final String ROUTING_SYSTEM_PROMPT = """
             你是一个代码生成类型路由专家。根据用户需求，判断应该使用哪种代码生成类型。
             只需回复以下三个选项之一，不要输出任何其他内容：
-            - HTML：适合简单的静态页面，单个 HTML 文件，包含内联 CSS 和 JS
-            - MULTI_FILE：适合简单的多文件静态页面，分离 HTML、CSS、JS 代码
-            - VUE_PROJECT：适合复杂的现代化前端项目，涉及多页面、复杂交互、数据管理等
+
+            - HTML：单文件页面，所有代码内联在一个 HTML 中，可用 CDN 引入库。适用于：落地页、简单工具页、单功能页面。
+            - MULTI_FILE：多文件静态页面，HTML/CSS/JS 分离，可用 CDN。适用于：需要代码分离但无需构建的中小型页面。
+            - VUE_PROJECT：Vue 3 + Vite 工程化项目，使用 .vue 单文件组件、Vue Router、npm 依赖管理。适用于：只要提到 vue、组件、路由、多页面、工程化，都选此项。即便是"简单的 Vue"，也应走 VUE_PROJECT 而非 HTML+CDN。
+
+            判断优先级：
+            1. 提到 vue、vue3、vite、组件、路由 → VUE_PROJECT
+            2. 明确要求单个 HTML 文件、CDN、无构建 → HTML
+            3. 需要多文件但不用构建工具 → MULTI_FILE
+            4. 拿不准时默认 VUE_PROJECT（它是最灵活的方案，能覆盖 HTML 的所有能力）
             """;
 
     @Resource
@@ -30,9 +35,6 @@ public class AiCodeGenTypeRoutingServiceFactory {
 
     @Resource
     private RoutingAiModelConfig routingAiModelConfig;
-
-    @Resource
-    private AiModelFallbackRouter aiModelFallbackRouter;
 
     @Resource
     private AiCallHelper callHelper;
@@ -43,7 +45,7 @@ public class AiCodeGenTypeRoutingServiceFactory {
 
     public AiCodeGenTypeRoutingService createAiCodeGenTypeRoutingService(String modelKey) {
         String normalizedModelKey = AiModelEnum.normalize(modelKey);
-        return userMessage -> routeWithFallback(normalizedModelKey, userMessage);
+        return userMessage -> route(normalizedModelKey, userMessage);
     }
 
     @Bean
@@ -51,27 +53,18 @@ public class AiCodeGenTypeRoutingServiceFactory {
         return createAiCodeGenTypeRoutingService();
     }
 
-    private CodeGenTypeEnum routeWithFallback(String primaryModelKey, String userMessage) {
+    private CodeGenTypeEnum route(String modelKey, String userMessage) {
         CodeGenTypeEnum deterministicResult = routeByExplicitUserIntent(userMessage);
         if (deterministicResult != null) {
             return deterministicResult;
         }
 
-        List<String> candidates = aiModelFallbackRouter.resolveCandidates(primaryModelKey);
-        RuntimeException lastException = null;
-        for (int i = 0; i < candidates.size(); i++) {
-            String candidate = candidates.get(i);
-            try {
-                return routeWithChat(candidate, userMessage);
-            } catch (RuntimeException e) {
-                lastException = e;
-                if (!aiModelFallbackRouter.isQuotaExceeded(e) || i == candidates.size() - 1) {
-                    throw e;
-                }
-                log.warn("路由模型额度不足，自动切换备用模型: from={}, to={}", candidate, candidates.get(i + 1));
-            }
+        try {
+            return routeWithChat(modelKey, userMessage);
+        } catch (RuntimeException e) {
+            log.warn("路由模型调用失败，默认使用 VUE_PROJECT: model={}, reason={}", modelKey, e.getMessage());
+            return CodeGenTypeEnum.VUE_PROJECT;
         }
-        throw lastException;
     }
 
     private CodeGenTypeEnum routeByExplicitUserIntent(String userMessage) {
@@ -80,15 +73,15 @@ public class AiCodeGenTypeRoutingServiceFactory {
             return null;
         }
         if (StrUtil.containsAny(normalized, "vue项目", "vue 工程", "vue工程", "vue project",
-                "vue3", "vite", "单文件组件", ".vue", "sfc")) {
+                "vue3", "vite", "单文件组件", ".vue", "sfc", "vue")) {
             return CodeGenTypeEnum.VUE_PROJECT;
         }
         if (StrUtil.containsAny(normalized, "多文件", "分离 html css js", "分离html css js",
                 "html css js 分离", "css 和 js 分离")) {
             return CodeGenTypeEnum.MULTI_FILE;
         }
-        if (StrUtil.containsAny(normalized, "原生html", "原生 html", "单个html", "单个 html",
-                "一个html", "一个 html")) {
+        if (StrUtil.containsAny(normalized, "html", "html5", "原生html", "原生 html", "单个html", "单个 html",
+                "一个html", "一个 html", "简单html", "简单 html")) {
             return CodeGenTypeEnum.HTML;
         }
         return null;
@@ -96,7 +89,11 @@ public class AiCodeGenTypeRoutingServiceFactory {
 
     private CodeGenTypeEnum routeWithChat(String modelKey, String userMessage) {
         String normalizedKey = AiModelEnum.normalize(modelKey);
-        ChatClient chatClient = aiCodeGeneratorServiceFactory.createChatClient(normalizedKey);
+        ChatClient chatClient = aiCodeGeneratorServiceFactory.createChatClient(
+                normalizedKey,
+                routingAiModelConfig.getMaxTokens(),
+                routingAiModelConfig.getTemperature(),
+                false);
 
         String response;
         try {
@@ -107,8 +104,8 @@ public class AiCodeGenTypeRoutingServiceFactory {
         }
 
         if (StrUtil.isBlank(response)) {
-            log.warn("路由模型返回为空，默认使用 HTML");
-            return CodeGenTypeEnum.HTML;
+            log.warn("路由模型返回为空，默认使用 VUE_PROJECT");
+            return CodeGenTypeEnum.VUE_PROJECT;
         }
         return parseCodeGenType(response);
     }
@@ -124,7 +121,7 @@ public class AiCodeGenTypeRoutingServiceFactory {
         if (normalized.contains(CodeGenTypeEnum.HTML.name())) {
             return CodeGenTypeEnum.HTML;
         }
-        log.warn("路由模型返回无法识别，默认使用 HTML: {}", responseText);
-        return CodeGenTypeEnum.HTML;
+        log.warn("路由模型返回无法识别，默认使用 VUE_PROJECT: {}", responseText);
+        return CodeGenTypeEnum.VUE_PROJECT;
     }
 }

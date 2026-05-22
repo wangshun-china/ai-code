@@ -114,6 +114,7 @@ export function useAppChat() {
       status === 'deploying'
     )
   })
+  let activeEventSource: EventSource | null = null
   let deployPollTimer: number | undefined
 
   // 下载相关
@@ -243,6 +244,7 @@ export function useAppChat() {
       const url = `${baseURL}/app/chat/gen/code?${params}`
 
       eventSource = new EventSource(url, { withCredentials: true })
+      activeEventSource = eventSource
       let fullContent = ''
 
       eventSource.onmessage = function (event) {
@@ -275,6 +277,7 @@ export function useAppChat() {
         isGenerating.value = false
         currentStage.value = null
         eventSource?.close()
+        activeEventSource = null
         setTimeout(async () => {
           await fetchAppInfo()
           updatePreview()
@@ -294,6 +297,7 @@ export function useAppChat() {
           isGenerating.value = false
           currentStage.value = null
           eventSource?.close()
+          activeEventSource = null
         } catch (parseError) {
           console.error('解析错误事件失败:', parseError)
           handleError(new Error('服务器返回错误'), aiMessageIndex)
@@ -307,6 +311,7 @@ export function useAppChat() {
           isGenerating.value = false
           currentStage.value = null
           eventSource?.close()
+          activeEventSource = null
           setTimeout(async () => {
             await fetchAppInfo()
             updatePreview()
@@ -841,6 +846,8 @@ export function useAppChat() {
   }
 
   onUnmounted(() => {
+    activeEventSource?.close()
+    activeEventSource = null
     stopDeployPolling()
   })
 

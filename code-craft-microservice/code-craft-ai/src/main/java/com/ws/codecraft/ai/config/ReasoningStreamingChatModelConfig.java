@@ -9,8 +9,6 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class ReasoningStreamingChatModelConfig {
 
-    private String baseUrl;
-
     private String apiKey;
 
     private String modelName;

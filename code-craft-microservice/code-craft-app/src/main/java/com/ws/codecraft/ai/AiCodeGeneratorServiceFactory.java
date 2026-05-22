@@ -4,12 +4,15 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
+import com.alibaba.cloud.ai.graph.CompiledGraph;
+import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
+import com.alibaba.cloud.ai.graph.KeyStrategyFactoryBuilder;
+import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
-import com.alibaba.cloud.ai.graph.agent.flow.agent.SequentialAgent;
-import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
-import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.agent.hook.summarization.SummarizationHook;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
+import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
+import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.ws.codecraft.ai.config.ReasoningStreamingChatModelConfig;
@@ -52,6 +55,8 @@ import java.util.function.Consumer;
 public class AiCodeGeneratorServiceFactory {
 
     private static final String VUE_PROJECT_PROMPT = "prompt/codegen-vue-project-system-prompt.txt";
+    private static final String SCAFFOLD_PROMPT = "prompt/codegen-vue-scaffold-system-prompt.txt";
+    private static final String UI_PROMPT = "prompt/codegen-vue-ui-system-prompt.txt";
     private static final String PLAN_PROMPT = "prompt/codegen-plan-system-prompt.txt";
     private static final String REVIEW_PROMPT = "prompt/codegen-vue-review-system-prompt.txt";
     private static final int SUMMARY_TOKEN_THRESHOLD = 50000;
@@ -76,6 +81,9 @@ public class AiCodeGeneratorServiceFactory {
 
     @Resource
     private RedisSaver redisSaver;
+
+    @Resource
+    private UserAiConfigManager userAiConfigManager;
 
     @Resource
     private ChatMemoryRepository chatMemoryRepository;
@@ -149,16 +157,7 @@ public class AiCodeGeneratorServiceFactory {
                 streamingChatModelConfig.getMaxTokens(), streamingChatModelConfig.getTemperature(), false);
         ChatModel reasoningChatModel = buildReasoningChatModel(modelKey);
         List<ToolCallback> toolCallbacks = toolCallbackRegistry.buildAgentToolCallbacks(appId);
-
-        // 阶段1: 规划 Agent — 分析需求，输出项目结构规划
-        ReactAgent plannerAgent = ReactAgent.builder()
-                .name("planner")
-                .model(reasoningChatModel)
-                .description("分析用户需求，输出 Vue 项目结构规划")
-                .systemPrompt(AiCallHelper.loadPrompt(PLAN_PROMPT))
-                .instruction("用户需求：{input}")
-                .outputKey("plan")
-                .build();
+        List<ToolCallback> readOnlyToolCallbacks = toolCallbackRegistry.buildAgentReadOnlyToolCallbacks(appId);
 
         SummarizationHook summarizationHook = SummarizationHook.builder()
                 .model(reasoningChatModel)
@@ -166,43 +165,118 @@ public class AiCodeGeneratorServiceFactory {
                 .messagesToKeep(SUMMARY_KEEP_MESSAGES)
                 .build();
 
-        HumanInTheLoopHook humanHook = HumanInTheLoopHook.builder()
-                .approvalOn("deleteFile", ToolConfig.builder()
-                        .description("删除文件操作需要确认").build())
-                .approvalOn("modifyFile", ToolConfig.builder()
-                        .description("修改文件操作需要确认").build())
-                .build();
-
-        // 阶段2: 编码 Agent — 根据规划执行代码生成
-        ReactAgent coderAgent = ReactAgent.builder()
-                .name("vue_coder")
+        // 阶段2a: 脚手架编码 Agent — 并行生成配置文件、路由、布局
+        ReactAgent scaffoldCoderAgent = ReactAgent.builder()
+                .name("scaffold_coder")
                 .model(reasoningChatModel)
-                .description("Vue3 前端代码生成专家，根据规划生成代码")
-                .systemPrompt(AiCallHelper.loadPrompt(VUE_PROJECT_PROMPT))
-                .instruction("请根据以下项目规划生成代码：{plan}")
-                .tools(toolCallbacks)
-                .saver(redisSaver)
-                .hooks(List.of(humanHook, summarizationHook))
-                .build();
-
-        // 阶段3: 审查 Agent — 检查代码质量并修复问题
-        ReactAgent reviewerAgent = ReactAgent.builder()
-                .name("reviewer")
-                .model(reasoningChatModel)
-                .description("Vue3 代码审查专家，检查并修复代码问题")
-                .systemPrompt(AiCallHelper.loadPrompt(REVIEW_PROMPT))
-                .instruction("请审查刚生成的 Vue 项目代码，检查完整性和质量。项目规划：{plan}")
+                .description("Vue3 脚手架专家，并行生成项目配置、路由和布局")
+                .systemPrompt(AiCallHelper.loadPrompt(SCAFFOLD_PROMPT))
+                .instruction("请根据以下项目规划生成脚手架代码：{plan}")
                 .tools(toolCallbacks)
                 .saver(redisSaver)
                 .hooks(List.of(summarizationHook))
                 .build();
 
-        // 编排为顺序流水线：规划 → 编码 → 审查
-        SequentialAgent codegenPipeline = SequentialAgent.builder()
-                .name("vue_codegen_pipeline")
-                .description("Vue 项目生成流水线：规划 → 编码 → 审查")
-                .subAgents(List.of(plannerAgent, coderAgent, reviewerAgent))
+        // 阶段2b: UI编码 Agent — 并行生成页面和组件
+        ReactAgent uiCoderAgent = ReactAgent.builder()
+                .name("ui_coder")
+                .model(reasoningChatModel)
+                .description("Vue3 UI专家，并行生成页面和组件代码")
+                .systemPrompt(AiCallHelper.loadPrompt(UI_PROMPT))
+                .instruction("请根据以下项目规划生成页面和组件代码：{plan}")
+                .tools(toolCallbacks)
+                .saver(redisSaver)
+                .hooks(List.of(summarizationHook))
                 .build();
+
+        // 阶段2c: 修复编码 Agent — 审查不通过时统一修复
+        ReactAgent fixCoderAgent = ReactAgent.builder()
+                .name("fix_coder")
+                .model(reasoningChatModel)
+                .description("Vue3 代码修复专家，根据审查意见修复代码")
+                .systemPrompt(AiCallHelper.loadPrompt(VUE_PROJECT_PROMPT))
+                .instruction("""
+                        请根据审查意见修复代码。
+                        项目规划：{plan}
+
+                        审查意见：{review_result}
+
+                        要求：
+                        1. 先读取相关文件确认问题。
+                        2. 只修复审查意见指出的问题，不要重做整个项目。
+                        3. 修复完成后简要说明修改了哪些文件。
+                        """)
+                .tools(toolCallbacks)
+                .saver(redisSaver)
+                .hooks(List.of(summarizationHook))
+                .build();
+
+        // 阶段3: 审查 Agent — 只读检查代码质量，修复交给 fix_coder
+        ReactAgent reviewerAgent = ReactAgent.builder()
+                .name("reviewer")
+                .model(reasoningChatModel)
+                .description("Vue3 代码审查专家，只读检查代码质量并输出审查结论")
+                .systemPrompt(AiCallHelper.loadPrompt(REVIEW_PROMPT))
+                .instruction("""
+                        请审查刚生成的 Vue 项目代码，检查完整性和质量。项目规划：{plan}
+
+                        你只能读取文件和目录，不能修改、删除或重写文件。
+                        输出一份简洁的检查项结果，每个检查项一行。
+                        如果代码质量合格，请在最后单独输出一行：[REVIEW_PASS]
+                        如果发现问题，请列出必须修复的问题和建议，并在最后单独输出一行：[REVIEW_FAIL]
+                        不要重复输出同一份检查结果，不要同时输出 [REVIEW_PASS] 和 [REVIEW_FAIL]。
+                        """)
+                .outputKey("review_result")
+                .tools(readOnlyToolCallbacks)
+                .saver(redisSaver)
+                .hooks(List.of(summarizationHook))
+                .build();
+
+        // 使用 StateGraph 编排：编码 → 审查 → (审查不通过则修复后复审)。
+        // 正式生成前已经完成方案确认，userMessage 会作为 plan 注入状态，避免再次输出一遍方案 JSON。
+        AsyncEdgeAction reviewRouter = state -> {
+            Object raw = state.value("review_result", "");
+            String result = raw instanceof String s ? s : String.valueOf(raw);
+            int lastPass = result.lastIndexOf("[REVIEW_PASS]");
+            int lastFail = result.lastIndexOf("[REVIEW_FAIL]");
+            if (lastPass >= 0 && lastPass > lastFail) {
+                log.info("代码审查通过，进入构建阶段");
+                return java.util.concurrent.CompletableFuture.completedFuture("pass");
+            }
+            if (lastFail >= 0) {
+                log.info("代码审查未通过，进入修复节点");
+                return java.util.concurrent.CompletableFuture.completedFuture("fail");
+            }
+            log.warn("代码审查未输出明确结论，按未通过处理");
+            return java.util.concurrent.CompletableFuture.completedFuture("fail");
+        };
+
+        KeyStrategyFactory keyStrategyFactory = new KeyStrategyFactoryBuilder()
+                .addStrategy("input", new ReplaceStrategy())
+                .addStrategy("plan", new ReplaceStrategy())
+                .addStrategy("review_result", new ReplaceStrategy())
+                .build();
+
+        CompiledGraph codegenPipeline;
+        try {
+            codegenPipeline = new StateGraph("vue_codegen_pipeline", keyStrategyFactory)
+                    .addNode("scaffold_coder", scaffoldCoderAgent.asNode(true, true))
+                    .addNode("ui_coder", uiCoderAgent.asNode(true, true))
+                    .addNode("reviewer", reviewerAgent.asNode(true, true))
+                    .addNode("fix_coder", fixCoderAgent.asNode(true, true))
+                    .addEdge(StateGraph.START, "scaffold_coder")
+                    .addEdge("scaffold_coder", "ui_coder")
+                    .addEdge("ui_coder", "reviewer")
+                    .addConditionalEdges("reviewer", reviewRouter, java.util.Map.of(
+                            "pass", StateGraph.END,
+                            "fail", "fix_coder"
+                    ))
+                    .addEdge("fix_coder", "reviewer")
+                    .compile();
+            codegenPipeline.setMaxIterations(6);
+        } catch (com.alibaba.cloud.ai.graph.exception.GraphStateException e) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 流水线构建失败: " + e.getMessage());
+        }
 
         return switch (codeGenType) {
             case HTML, MULTI_FILE, VUE_PROJECT -> new SpringAiAlibabaCodeGeneratorService(
@@ -238,12 +312,13 @@ public class AiCodeGeneratorServiceFactory {
 
     private ChatModel buildReasoningChatModel(String modelKey) {
         String normalizedKey = AiModelEnum.normalize(modelKey);
+        String apiKey = resolveApiKey(normalizedKey);
         if (AiModelEnum.getEndpoint(normalizedKey) == ModelEndpoint.OPENAI_COMPATIBLE) {
             OpenAiChatOptions options = buildOpenAiOptions(normalizedKey,
                     reasoningStreamingChatModelConfig.getMaxTokens(),
                     reasoningStreamingChatModelConfig.getTemperature());
             options.setInternalToolExecutionEnabled(false);
-            return buildOpenAiChatModel(options);
+            return buildOpenAiChatModel(options, apiKey);
         }
         DashScopeChatOptions options = DashScopeChatOptions.builder()
                 .model(normalizedKey)
@@ -254,30 +329,41 @@ public class AiCodeGeneratorServiceFactory {
                 .build();
         options.setInternalToolExecutionEnabled(false);
         return DashScopeChatModel.builder()
-                .dashScopeApi(buildDashScopeApi(
-                        streamingChatModelConfig.getApiKey(), streamingChatModelConfig.getBaseUrl()))
+                .dashScopeApi(buildDashScopeApi(apiKey))
                 .defaultOptions(options)
                 .build();
     }
 
     private ChatModel buildChatModel(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
+        String apiKey = resolveApiKey(modelKey);
         if (AiModelEnum.getEndpoint(modelKey) == ModelEndpoint.OPENAI_COMPATIBLE) {
             OpenAiChatOptions options = buildOpenAiOptions(modelKey, maxTokens, temperature);
             options.setInternalToolExecutionEnabled(false);
-            return buildOpenAiChatModel(options);
+            return buildOpenAiChatModel(options, apiKey);
         }
+        var optionsBuilder = DashScopeChatOptions.builder()
+                .model(modelKey)
+                .incrementalOutput(streaming)
+                .multiModel(AiModelEnum.isMultimodal(modelKey));
+        if (maxTokens != null) optionsBuilder.maxToken(maxTokens);
+        if (temperature != null) optionsBuilder.temperature(temperature);
+        DashScopeChatOptions options = optionsBuilder.build();
+        options.setInternalToolExecutionEnabled(false);
         return DashScopeChatModel.builder()
-                .dashScopeApi(buildDashScopeApi(
-                        streamingChatModelConfig.getApiKey(), streamingChatModelConfig.getBaseUrl()))
+                .dashScopeApi(buildDashScopeApi(apiKey))
+                .defaultOptions(options)
                 .build();
     }
 
-    private static DashScopeApi buildDashScopeApi(String apiKey, String baseUrl) {
-        DashScopeApi.Builder builder = DashScopeApi.builder().apiKey(apiKey);
-        if (StrUtil.isNotBlank(baseUrl) && !baseUrl.contains("compatible-mode")) {
-            builder.baseUrl(baseUrl);
-        }
-        return builder.build();
+    private String resolveApiKey(String modelKey) {
+        String dynamicKey = AiModelEnum.getDynamicApiKey(modelKey);
+        return StrUtil.isNotBlank(dynamicKey) ? dynamicKey : streamingChatModelConfig.getApiKey();
+    }
+
+    private static DashScopeApi buildDashScopeApi(String apiKey) {
+        return DashScopeApi.builder()
+                .apiKey(apiKey)
+                .build();
     }
 
     private ChatOptions buildOptions(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
@@ -305,10 +391,10 @@ public class AiCodeGeneratorServiceFactory {
         return builder.build();
     }
 
-    private OpenAiChatModel buildOpenAiChatModel(OpenAiChatOptions options) {
+    private OpenAiChatModel buildOpenAiChatModel(OpenAiChatOptions options, String apiKey) {
         OpenAiApi openAiApi = new OpenAiApi(
-                resolveCompatibleBaseUrl(streamingChatModelConfig.getBaseUrl()),
-                new SimpleApiKey(streamingChatModelConfig.getApiKey()),
+                DASHSCOPE_COMPATIBLE_BASE_URL,
+                new SimpleApiKey(apiKey),
                 new LinkedMultiValueMap<>(),
                 "/chat/completions",
                 "/embeddings",
@@ -323,16 +409,6 @@ public class AiCodeGeneratorServiceFactory {
                 RetryTemplate.defaultInstance(),
                 ObservationRegistry.NOOP
         );
-    }
-
-    private static String resolveCompatibleBaseUrl(String configuredBaseUrl) {
-        if (StrUtil.isBlank(configuredBaseUrl)) {
-            return DASHSCOPE_COMPATIBLE_BASE_URL;
-        }
-        if (configuredBaseUrl.contains("compatible-mode")) {
-            return configuredBaseUrl;
-        }
-        return StrUtil.removeSuffix(configuredBaseUrl, "/") + "/compatible-mode/v1";
     }
 
     private String buildCacheKey(long appId, CodeGenTypeEnum codeGenType, String modelKey) {

@@ -58,19 +58,33 @@ public class SpringAiToolCallbackRegistry {
                             """)
     );
 
+    private static final List<ToolDefinition> VUE_PROJECT_READ_ONLY_TOOLS = VUE_PROJECT_TOOLS.stream()
+            .filter(tool -> "readFile".equals(tool.name())
+                    || "readDir".equals(tool.name())
+                    || "exit".equals(tool.name()))
+            .toList();
+
     @Resource
     private ToolManager toolManager;
 
     private final ConcurrentHashMap<Long, HandlerPair> activeHandlers = new ConcurrentHashMap<>();
 
+    private static final long HANDLER_TTL_MS = 30 * 60 * 1000;
+
     public void registerHandlers(long appId,
                                   BiConsumer<Integer, AiToolCallRequest> toolRequestHandler,
                                   Consumer<AiToolExecution> toolExecutionHandler) {
-        activeHandlers.put(appId, new HandlerPair(toolRequestHandler, toolExecutionHandler));
+        evictStaleHandlers();
+        activeHandlers.put(appId, new HandlerPair(toolRequestHandler, toolExecutionHandler, System.currentTimeMillis()));
     }
 
     public void unregisterHandlers(long appId) {
         activeHandlers.remove(appId);
+    }
+
+    private void evictStaleHandlers() {
+        long now = System.currentTimeMillis();
+        activeHandlers.entrySet().removeIf(e -> now - e.getValue().registeredAt > HANDLER_TTL_MS);
     }
 
     public List<ToolCallback> buildVueProjectToolCallbacks(long appId,
@@ -83,6 +97,12 @@ public class SpringAiToolCallbackRegistry {
 
     public List<ToolCallback> buildAgentToolCallbacks(long appId) {
         return VUE_PROJECT_TOOLS.stream()
+                .map(definition -> agentToolCallback(definition, appId))
+                .toList();
+    }
+
+    public List<ToolCallback> buildAgentReadOnlyToolCallbacks(long appId) {
+        return VUE_PROJECT_READ_ONLY_TOOLS.stream()
                 .map(definition -> agentToolCallback(definition, appId))
                 .toList();
     }
@@ -169,6 +189,7 @@ public class SpringAiToolCallbackRegistry {
     }
 
     private record HandlerPair(BiConsumer<Integer, AiToolCallRequest> toolRequestHandler,
-                               Consumer<AiToolExecution> toolExecutionHandler) {
+                               Consumer<AiToolExecution> toolExecutionHandler,
+                               long registeredAt) {
     }
 }
