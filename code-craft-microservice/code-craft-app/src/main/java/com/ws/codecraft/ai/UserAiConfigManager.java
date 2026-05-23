@@ -13,6 +13,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -73,6 +74,8 @@ public class UserAiConfigManager {
         credential.setModelNames(normalizedModels);
         credential.setIsDefault(1);
         credential.setSystemDefault(0);
+        credential.setCreateTime(LocalDateTime.now());
+        credential.setUpdateTime(LocalDateTime.now());
         aiModelCredentialMapper.insert(credential);
         clearOtherDefaults(userId, credential.getId());
         registerCredentialModels(credential);
@@ -283,6 +286,8 @@ public class UserAiConfigManager {
             credential.setSystemDefault(1);
             boolean hasAnyCredential = !listCredentialsNoEnsure(userId).isEmpty();
             credential.setIsDefault(hasAnyCredential ? 0 : 1);
+            credential.setCreateTime(LocalDateTime.now());
+            credential.setUpdateTime(LocalDateTime.now());
             aiModelCredentialMapper.insert(credential);
             return credential;
         }
