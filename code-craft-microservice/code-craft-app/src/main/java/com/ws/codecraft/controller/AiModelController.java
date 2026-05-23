@@ -41,7 +41,7 @@ public class AiModelController {
                                                                    HttpServletRequest request) {
         User loginUser = getAuthUser(request);
         long targetUserId = resolveTargetUserId(loginUser, userId);
-        return ResultUtils.success(userAiConfigManager.listCredentialVO(targetUserId, isAdmin(loginUser)));
+        return ResultUtils.success(userAiConfigManager.listCredentialVO(targetUserId, isAdmin(loginUser), loginUser.getId()));
     }
 
     @PostMapping("/credential")
@@ -127,10 +127,7 @@ public class AiModelController {
         return user;
     }
 
-    private long resolveTargetUserId(User loginUser, Long requestUserId) {
-        if (isAdmin(loginUser) && requestUserId != null) {
-            return requestUserId;
-        }
+    private long resolveTargetUserId(User loginUser, Long ignoredRequestUserId) {
         return loginUser.getId();
     }
 

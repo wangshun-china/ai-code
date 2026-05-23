@@ -143,12 +143,12 @@ public class UserAiConfigManager {
         }
     }
 
-    public List<AiModelCredentialVO> listCredentialVO(long userId, boolean admin) {
+    public List<AiModelCredentialVO> listCredentialVO(long userId, boolean admin, long viewerUserId) {
         ensureSystemCredential(userId);
         AiModelCredential active = getActiveCredential(userId);
         List<AiModelCredentialVO> result = new ArrayList<>();
         for (AiModelCredential credential : listCredentials(userId)) {
-            result.add(toVO(credential, admin, active));
+            result.add(toVO(credential, admin, viewerUserId, active));
         }
         return result;
     }
@@ -311,16 +311,28 @@ public class UserAiConfigManager {
         }
     }
 
-    private AiModelCredentialVO toVO(AiModelCredential credential, boolean admin, AiModelCredential active) {
+    private AiModelCredentialVO toVO(AiModelCredential credential, boolean admin, long viewerUserId,
+                                     AiModelCredential active) {
         boolean systemDefault = isSystemCredential(credential);
         return new AiModelCredentialVO(
                 credential.getId(),
                 credential.getName(),
-                admin ? credential.getApiKey() : (systemDefault ? DEFAULT_KEY_MASK : NORMAL_KEY_MASK),
+                visibleApiKey(credential, admin, viewerUserId),
                 credential.getBaseUrl(),
                 parseModelNames(credential.getModelNames()),
                 active != null && Objects.equals(active.getId(), credential.getId()),
                 systemDefault);
+    }
+
+    private String visibleApiKey(AiModelCredential credential, boolean admin, long viewerUserId) {
+        boolean systemDefault = isSystemCredential(credential);
+        if (systemDefault) {
+            return admin ? credential.getApiKey() : DEFAULT_KEY_MASK;
+        }
+        if (Objects.equals(credential.getUserId(), viewerUserId)) {
+            return credential.getApiKey();
+        }
+        return NORMAL_KEY_MASK;
     }
 
     private AiModelCredential ensureSystemCredential(long userId) {
