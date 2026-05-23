@@ -11,8 +11,9 @@ import {
   uploadAppAttachment,
 } from '@/api/appController'
 import { getDeployUrl } from '@/config/env'
-import { AI_MODEL_OPTIONS, DEFAULT_AI_MODEL } from '@/utils/aiModels'
+import { loadAiModelOptions, type AiModelOption } from '@/utils/aiModels'
 import AppCard from '@/components/AppCard.vue'
+import AiModelConfigModal from '@/components/AiModelConfigModal.vue'
 import { ThunderboltOutlined, AppstoreOutlined, StarOutlined, MailOutlined, GithubOutlined, HomeOutlined, SettingOutlined, BarChartOutlined, PaperClipOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { userLogout } from '@/api/userController'
 import { PlusOutlined } from '@ant-design/icons-vue'
@@ -24,7 +25,9 @@ const userPrompt = ref('')
 const creating = ref(false)
 const pendingAttachments = ref<File[]>([])
 const AI_SLOW_REQUEST_TIMEOUT = 180000
-const selectedModelKey = ref(DEFAULT_AI_MODEL)
+const selectedModelKey = ref('')
+const modelOptions = ref<AiModelOption[]>([])
+const modelConfigOpen = ref(false)
 
 const myApps = ref<API.AppVO[]>([])
 const myAppsPage = reactive({
@@ -91,6 +94,21 @@ const removePendingAttachment = (index: number) => {
   pendingAttachments.value.splice(index, 1)
 }
 
+const loadModels = async () => {
+  if (!loginUserStore.loginUser.id) {
+    await loginUserStore.fetchLoginUser()
+  }
+  if (!loginUserStore.loginUser.id) {
+    modelOptions.value = []
+    selectedModelKey.value = ''
+    return
+  }
+  modelOptions.value = await loadAiModelOptions()
+  if (!modelOptions.value.some((item) => item.value === selectedModelKey.value)) {
+    selectedModelKey.value = modelOptions.value[0]?.value || ''
+  }
+}
+
 const uploadPendingAttachments = async (appId: string) => {
   if (pendingAttachments.value.length === 0) {
     return
@@ -135,7 +153,7 @@ const createApp = async () => {
     const initPrompt = userPrompt.value.trim() || '请根据我上传的设计稿、简历或文档生成一个完整网页。'
     const res = await addApp({
       initPrompt,
-      modelKey: selectedModelKey.value,
+      modelKey: selectedModelKey.value || undefined,
     })
 
     if (res.data.code === 0 && res.data.data) {
@@ -219,6 +237,7 @@ const doLogout = async () => {
 }
 
 onMounted(() => {
+  loadModels()
   loadMyApps()
   loadFeaturedApps()
 })
@@ -353,9 +372,17 @@ onMounted(() => {
               <a-select
                 v-model:value="selectedModelKey"
                 class="home-model-select"
-                :options="AI_MODEL_OPTIONS"
+                :options="modelOptions"
                 :disabled="creating"
               />
+              <a-button
+                class="home-model-config-btn"
+                :disabled="creating"
+                @click="modelConfigOpen = true"
+              >
+                <template #icon><SettingOutlined /></template>
+                自定义模型
+              </a-button>
               <a-upload
                 :show-upload-list="false"
                 :before-upload="beforeAttachmentSelect"
@@ -493,6 +520,12 @@ onMounted(() => {
         </section>
       </div>
     </main>
+    <AiModelConfigModal
+      v-model:open="modelConfigOpen"
+      :user-id="loginUserStore.loginUser.id"
+      :is-admin="loginUserStore.loginUser.userRole === 'admin'"
+      @saved="loadModels"
+    />
   </div>
 </template>
 
@@ -890,6 +923,14 @@ onMounted(() => {
 
 .home-model-select {
   min-width: 220px;
+}
+
+.home-model-config-btn {
+  height: 40px;
+  border-radius: var(--radius-full);
+  border-color: rgba(56, 152, 236, 0.18);
+  color: var(--focus-blue);
+  font-weight: 600;
 }
 
 .home-attachment-btn {

@@ -7,16 +7,25 @@
         <a-tag v-if="appInfo?.codeGenType" color="blue" class="code-gen-type-tag">
           {{ formatCodeGenType(appInfo.codeGenType) }}
         </a-tag>
-        <a-select
-          v-if="isOwner"
-          class="model-select"
-          size="small"
-          :value="appInfo?.modelKey || DEFAULT_AI_MODEL"
-          :options="AI_MODEL_OPTIONS"
-          :loading="modelSwitching"
-          :disabled="isGenerating || isPlanning || modelSwitching"
-          @change="handleModelChange"
-        />
+        <div v-if="isOwner" class="model-control">
+          <a-select
+            class="model-select"
+            size="small"
+            :value="currentModelValue"
+            :options="modelOptions"
+            :loading="modelSwitching"
+            :disabled="isGenerating || isPlanning || modelSwitching"
+            @change="handleModelChange"
+          />
+          <a-button
+            size="small"
+            class="model-config-btn"
+            :disabled="isGenerating || isPlanning || modelSwitching"
+            @click="modelConfigOpen = true"
+          >
+            <template #icon><SettingOutlined /></template>
+          </a-button>
+        </div>
       </div>
       <div class="header-right">
         <a-button type="default" class="header-btn" @click="showAppDetail">
@@ -401,6 +410,12 @@
       :deploy-url="deployUrl"
       @open-site="openDeployedSite"
     />
+    <AiModelConfigModal
+      v-model:open="modelConfigOpen"
+      :user-id="loginUserStore.loginUser.id"
+      :is-admin="loginUserStore.loginUser.userRole === 'admin'"
+      @saved="loadModels"
+    />
 
     <transition name="deploy-terminal-fade">
       <div v-if="deployTerminalVisible" class="deploy-terminal">
@@ -423,13 +438,14 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { formatCodeGenType } from '@/utils/codeGenTypes'
-import { AI_MODEL_OPTIONS, DEFAULT_AI_MODEL } from '@/utils/aiModels'
+import { loadAiModelOptions, formatAiModel, type AiModelOption } from '@/utils/aiModels'
 import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
 import { useAppChat } from '@/composables/useAppChat'
 
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
+import AiModelConfigModal from '@/components/AiModelConfigModal.vue'
 import aiAvatar from '@/assets/aiAvatar.png'
 
 import {
@@ -440,6 +456,7 @@ import {
   DownloadOutlined,
   EditOutlined,
   PaperClipOutlined,
+  SettingOutlined,
 } from '@ant-design/icons-vue'
 
 const loginUserStore = useLoginUserStore()
@@ -500,6 +517,8 @@ const isEditMode = ref(false)
 const selectedElementInfo = ref<ElementInfo | null>(null)
 const workspaceShell = ref<HTMLElement>()
 const sourcePanelWidth = ref(46)
+const modelOptions = ref<AiModelOption[]>([])
+const modelConfigOpen = ref(false)
 const messageModeOptions = [
   { label: '聊天', value: 'chat' },
   { label: '改代码', value: 'generate' },
@@ -517,6 +536,14 @@ const chatWindowClass = computed(() => ({
   'chat-float-floating': chatMode.value === 'floating',
   'chat-float-maximized': chatMode.value === 'maximized',
 }))
+
+const currentModelValue = computed(() => {
+  const appModelKey = appInfo.value?.modelKey
+  if (appModelKey && modelOptions.value.some((item) => item.value === appModelKey)) {
+    return appModelKey
+  }
+  return modelOptions.value[0]?.value
+})
 
 const fileTreeData = computed(() => {
   const mapNode = (file: API.AppSourceFileNodeVO): any => ({
@@ -555,6 +582,13 @@ const handleModelChange = (value: unknown) => {
   if (typeof value === 'string') {
     switchModel(value)
   }
+}
+
+const loadModels = async () => {
+  if (!loginUserStore.loginUser.id) {
+    await loginUserStore.fetchLoginUser()
+  }
+  modelOptions.value = loginUserStore.loginUser.id ? await loadAiModelOptions() : []
 }
 
 const toggleChatMaximize = () => {
@@ -654,6 +688,7 @@ const handleWindowMessage = (event: MessageEvent) => {
 }
 
 onMounted(() => {
+  loadModels()
   fetchAppInfo()
   window.addEventListener('message', handleWindowMessage)
 })
@@ -696,8 +731,18 @@ onUnmounted(() => {
   border-radius: 12px;
 }
 
+.model-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .model-select {
   min-width: 210px;
+}
+
+.model-config-btn {
+  border-radius: 999px;
 }
 
 .app-name {

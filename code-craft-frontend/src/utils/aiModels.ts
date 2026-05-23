@@ -1,19 +1,36 @@
-export const DEFAULT_AI_MODEL = 'qwen3.6-plus'
+import { listAiModels } from '@/api/aiModelController'
 
-export const AI_MODEL_OPTIONS = [
-  { label: 'Qwen3.6 Plus', value: 'qwen3.6-plus' },
-  { label: 'Qwen3.6 Plus 2026-04-02', value: 'qwen3.6-plus-2026-04-02' },
-  { label: 'Qwen3.6 Max Preview', value: 'qwen3.6-max-preview' },
-  { label: 'Qwen3.6 Flash', value: 'qwen3.6-flash' },
-  { label: 'Qwen3.6 35B A3B', value: 'qwen3.6-35b-a3b' },
-  { label: 'Qwen3.5 Plus 2026-02-15', value: 'qwen3.5-plus-2026-02-15' },
-  { label: 'Kimi K2.6', value: 'kimi-k2.6' },
-  { label: 'Kimi K2.5', value: 'kimi-k2.5' },
-  { label: 'MiniMax M2.1', value: 'MiniMax-M2.1' },
-  { label: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro' },
-  { label: 'DeepSeek V4 Flash', value: 'deepseek-v4-flash' },
-] as const
+export type AiModelOption = {
+  label: string
+  value: string
+  endpoint?: string
+  baseUrl?: string
+  custom?: boolean
+}
 
-export const formatAiModel = (modelKey?: string) => {
-  return AI_MODEL_OPTIONS.find((item) => item.value === modelKey)?.label || modelKey || DEFAULT_AI_MODEL
+export const loadAiModelOptions = async (userId?: number): Promise<AiModelOption[]> => {
+  try {
+    const res = await listAiModels(userId ? { userId } : {})
+    if (res.data.code !== 0 || !res.data.data?.length) {
+      return []
+    }
+    return res.data.data
+      .filter((item) => item.value)
+      .map((item) => ({
+        label: item.text || item.value!,
+        value: item.value!,
+        endpoint: item.endpoint,
+        baseUrl: item.baseUrl,
+        custom: item.custom,
+      }))
+  } catch (error) {
+    console.warn('加载模型列表失败', error)
+    return []
+  }
+}
+
+export const formatAiModel = (modelKey?: string, options?: AiModelOption[]) => {
+  if (!modelKey) return '未选择模型'
+  const found = options?.find((item) => item.value === modelKey)
+  return found?.label || modelKey
 }

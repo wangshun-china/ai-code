@@ -3,7 +3,7 @@ package com.ws.codecraft.ai;
 import cn.hutool.core.util.StrUtil;
 import com.ws.codecraft.ai.config.RoutingAiModelConfig;
 import com.ws.codecraft.core.AiCallHelper;
-import com.ws.codecraft.model.enums.AiModelEnum;
+import com.ws.codecraft.model.ai.AiModelRegistry;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +44,7 @@ public class AiCodeGenTypeRoutingServiceFactory {
     }
 
     public AiCodeGenTypeRoutingService createAiCodeGenTypeRoutingService(String modelKey) {
-        String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        String normalizedModelKey = AiModelRegistry.normalize(modelKey);
         return userMessage -> route(normalizedModelKey, userMessage);
     }
 
@@ -88,7 +88,7 @@ public class AiCodeGenTypeRoutingServiceFactory {
     }
 
     private CodeGenTypeEnum routeWithChat(String modelKey, String userMessage) {
-        String normalizedKey = AiModelEnum.normalize(modelKey);
+        String normalizedKey = AiModelRegistry.normalize(modelKey);
         ChatClient chatClient = aiCodeGeneratorServiceFactory.createChatClient(
                 normalizedKey,
                 routingAiModelConfig.getMaxTokens(),

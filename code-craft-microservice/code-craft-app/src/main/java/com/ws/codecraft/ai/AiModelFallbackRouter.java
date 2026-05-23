@@ -1,9 +1,8 @@
 package com.ws.codecraft.ai;
 
-import com.ws.codecraft.model.enums.AiModelEnum;
+import com.ws.codecraft.model.ai.AiModelRegistry;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -13,15 +12,7 @@ import java.util.List;
 public class AiModelFallbackRouter {
 
     public List<String> resolveCandidates(String primaryModelKey) {
-        String primary = AiModelEnum.normalize(primaryModelKey);
-        List<String> candidates = new ArrayList<>();
-        candidates.add(primary);
-        for (AiModelEnum model : AiModelEnum.values()) {
-            if (!primary.equals(model.getValue())) {
-                candidates.add(model.getValue());
-            }
-        }
-        return candidates;
+        return List.of(AiModelRegistry.normalize(primaryModelKey));
     }
 
     public boolean isQuotaExceeded(Throwable error) {

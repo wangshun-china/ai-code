@@ -1,7 +1,7 @@
 package com.ws.codecraft.service;
 
 import com.ws.codecraft.ai.AiCodeGeneratorServiceFactory;
-import com.ws.codecraft.model.enums.AiModelEnum;
+import com.ws.codecraft.model.ai.AiModelRegistry;
 import cn.hutool.core.util.StrUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -58,7 +58,7 @@ public class AttachmentAnalysisService {
                 文件名：%s
                 """.formatted(fileName);
         return aiCodeGeneratorServiceFactory.chatWithImage(prompt, Files.readAllBytes(filePath),
-                StrUtil.blankToDefault(mimeType,"image/png"), fileName, AiModelEnum.DEFAULT_MODEL_KEY);
+                StrUtil.blankToDefault(mimeType,"image/png"), fileName, AiModelRegistry.DEFAULT_MODEL_KEY);
     }
 
     private String analyzePdf(Path filePath, String fileName, String mimeType) throws IOException {

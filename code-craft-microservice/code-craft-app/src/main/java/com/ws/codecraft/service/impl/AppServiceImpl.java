@@ -17,6 +17,7 @@ import com.ws.codecraft.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.ws.codecraft.ai.AiCodeGeneratorService;
 import com.ws.codecraft.ai.AiCodeGeneratorServiceFactory;
 import com.ws.codecraft.ai.AiModelFallbackRouter;
+import com.ws.codecraft.ai.UserAiConfigManager;
 import com.ws.codecraft.config.CodeProjectProperties;
 import com.ws.codecraft.constant.AppConstant;
 import com.ws.codecraft.core.AiCodeGeneratorFacade;
@@ -40,7 +41,7 @@ import com.ws.codecraft.model.enums.AppDeployTaskStatusEnum;
 import com.ws.codecraft.model.enums.AppGenerationTaskModeEnum;
 import com.ws.codecraft.model.enums.AppStatusEnum;
 import com.ws.codecraft.model.enums.AppVersionSourceTypeEnum;
-import com.ws.codecraft.model.enums.AiModelEnum;
+import com.ws.codecraft.model.ai.AiModelRegistry;
 import com.ws.codecraft.model.enums.ChatHistoryMessageTypeEnum;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import com.ws.codecraft.model.vo.AppDeployResultVO;
@@ -143,6 +144,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     @Resource
     private CodeProjectProperties codeProjectProperties;
 
+    @Resource
+    private UserAiConfigManager userAiConfigManager;
+
     @Override
     public Flux<String> chatToGenCode(Long appId, String message, String planId, User loginUser) {
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 错误");
@@ -153,6 +157,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         if (!app.getUserId().equals(loginUser.getId())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限访问该应用");
         }
+        userAiConfigManager.loadUserModelsToRegistry(loginUser.getId());
 
         CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(app.getCodeGenType());
         if (codeGenTypeEnum == null) {
@@ -183,7 +188,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         }
         updateAppStatus(appId, AppStatusEnum.GENERATING);
         appGenerationTaskService.markRunning(generationTask.getId());
-        AtomicReference<String> selectedModelKey = new AtomicReference<>(AiModelEnum.normalize(app.getModelKey()));
+        AtomicReference<String> selectedModelKey = new AtomicReference<>(AiModelRegistry.normalize(app.getModelKey()));
         Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStreamWithFallback(
                 generationMessage,
                 codeGenTypeEnum,
@@ -236,6 +241,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         if (!app.getUserId().equals(loginUser.getId())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限访问该应用");
         }
+        userAiConfigManager.loadUserModelsToRegistry(loginUser.getId());
 
         AppGenerationTask chatTask = appGenerationTaskService.createTask(app, loginUser.getId(),
                 AppGenerationTaskModeEnum.CHAT.getValue(), message);
@@ -274,6 +280,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         if (!app.getUserId().equals(loginUser.getId())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限访问该应用");
         }
+        userAiConfigManager.loadUserModelsToRegistry(loginUser.getId());
 
         CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(app.getCodeGenType());
         if (codeGenTypeEnum == null) {
@@ -623,7 +630,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
         App app = new App();
         BeanUtil.copyProperties(appAddRequest, app);
-        app.setModelKey(AiModelEnum.normalize(appAddRequest.getModelKey()));
+        userAiConfigManager.loadUserModelsToRegistry(loginUser.getId());
+        app.setModelKey(userAiConfigManager.resolveRequestedModelKey(loginUser.getId(), appAddRequest.getModelKey()));
         app.setUserId(loginUser.getId());
         app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
 

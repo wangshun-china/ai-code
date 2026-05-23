@@ -16,10 +16,10 @@ import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.exception.ThrowUtils;
 import com.ws.codecraft.innerservice.InnerUserService;
+import com.ws.codecraft.ai.UserAiConfigManager;
 import com.ws.codecraft.model.dto.app.*;
 import com.ws.codecraft.model.entity.AppDeployTask;
 import com.ws.codecraft.model.entity.User;
-import com.ws.codecraft.model.enums.AiModelEnum;
 import com.ws.codecraft.model.vo.AppDeployResultVO;
 import com.ws.codecraft.model.vo.AppDeployTaskVO;
 import com.ws.codecraft.model.vo.AppGenerationPlanVO;
@@ -66,6 +66,9 @@ public class AppController {
 
     @Resource
     private CodeProjectProperties codeProjectProperties;
+
+    @Resource
+    private UserAiConfigManager userAiConfigManager;
 
     @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @RateLimit(limitType = RateLimitType.USER, rate = 5, rateInterval = 60, message = "AI 对话请求过于频繁，请稍后再试")
@@ -274,7 +277,8 @@ public class AppController {
         app.setId(id);
         app.setAppName(appUpdateRequest.getAppName());
         if (appUpdateRequest.getModelKey() != null) {
-            ThrowUtils.throwIf(AiModelEnum.getEnumByValue(appUpdateRequest.getModelKey()) == null,
+            userAiConfigManager.loadUserModelsToRegistry(loginUser.getId());
+            ThrowUtils.throwIf(!userAiConfigManager.isAvailableModelKey(loginUser.getId(), appUpdateRequest.getModelKey()),
                     ErrorCode.PARAMS_ERROR, "不支持的 AI 模型");
             app.setModelKey(appUpdateRequest.getModelKey());
         }

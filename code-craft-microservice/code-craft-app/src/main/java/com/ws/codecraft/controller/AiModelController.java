@@ -1,71 +1,140 @@
 package com.ws.codecraft.controller;
 
 import com.ws.codecraft.ai.UserAiConfigManager;
-import com.ws.codecraft.annotation.AuthCheck;
 import com.ws.codecraft.common.BaseResponse;
 import com.ws.codecraft.common.ResultUtils;
-import com.ws.codecraft.model.enums.AiModelEnum;
-import com.ws.codecraft.model.enums.AiModelEnum.ModelEndpoint;
+import com.ws.codecraft.constant.UserConstant;
+import com.ws.codecraft.exception.BusinessException;
+import com.ws.codecraft.exception.ErrorCode;
+import com.ws.codecraft.innerservice.InnerUserService;
+import com.ws.codecraft.model.entity.User;
+import com.ws.codecraft.model.request.AiModelCredentialRequest;
+import com.ws.codecraft.model.vo.AiModelCredentialVO;
 import com.ws.codecraft.model.vo.AiModelVO;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
-@RequestMapping("/ai_model")
+@RequestMapping("/api/ai_model")
 public class AiModelController {
 
     @Resource
     private UserAiConfigManager userAiConfigManager;
 
+    @DubboReference
+    private InnerUserService innerUserService;
+
     @GetMapping("/list")
-    public BaseResponse<List<AiModelVO>> listModels(@RequestParam Long userId) {
-        userAiConfigManager.loadUserModelsToRegistry(userId);
-        List<AiModelVO> result = new ArrayList<>();
-        for (AiModelEnum model : AiModelEnum.values()) {
-            result.add(new AiModelVO(
-                    model.getValue(), model.getText(),
-                    model.getEndpoint().name(), model.isMultimodal(), false));
-        }
-        if (userId != null) {
-            for (AiModelEnum.DynamicModel dm : userAiConfigManager.getCustomModels(userId)) {
-                result.add(new AiModelVO(
-                        dm.name(), dm.displayName(),
-                        dm.endpoint().name(), dm.multimodal(), true));
-            }
-        }
-        return ResultUtils.success(result);
+    public BaseResponse<List<AiModelVO>> listModels(@RequestParam(required = false) Long userId,
+                                                    HttpServletRequest request) {
+        User loginUser = getAuthUser(request);
+        long targetUserId = resolveTargetUserId(loginUser, userId);
+        return ResultUtils.success(userAiConfigManager.listAvailableModels(targetUserId));
+    }
+
+    @GetMapping("/credentials")
+    public BaseResponse<List<AiModelCredentialVO>> listCredentials(@RequestParam(required = false) Long userId,
+                                                                   HttpServletRequest request) {
+        User loginUser = getAuthUser(request);
+        long targetUserId = resolveTargetUserId(loginUser, userId);
+        return ResultUtils.success(userAiConfigManager.listCredentialVO(targetUserId, isAdmin(loginUser)));
+    }
+
+    @PostMapping("/credential")
+    public BaseResponse<Boolean> saveCredential(@RequestParam(required = false) Long userId,
+                                                @RequestBody AiModelCredentialRequest request,
+                                                HttpServletRequest httpServletRequest) {
+        User loginUser = getAuthUser(httpServletRequest);
+        long targetUserId = resolveTargetUserId(loginUser, userId);
+        userAiConfigManager.saveCredential(targetUserId, request, isAdmin(loginUser));
+        return ResultUtils.success(true);
+    }
+
+    @PostMapping("/credential/select")
+    public BaseResponse<Boolean> selectCredential(@RequestParam(required = false) Long userId,
+                                                  @RequestParam Long credentialId,
+                                                  HttpServletRequest request) {
+        User loginUser = getAuthUser(request);
+        long targetUserId = resolveTargetUserId(loginUser, userId);
+        userAiConfigManager.selectCredential(targetUserId, credentialId);
+        return ResultUtils.success(true);
+    }
+
+    @DeleteMapping("/credential")
+    public BaseResponse<Boolean> removeCredential(@RequestParam(required = false) Long userId,
+                                                  @RequestParam Long credentialId,
+                                                  HttpServletRequest request) {
+        User loginUser = getAuthUser(request);
+        long targetUserId = resolveTargetUserId(loginUser, userId);
+        userAiConfigManager.removeCredential(targetUserId, credentialId);
+        return ResultUtils.success(true);
     }
 
     @PostMapping("/apikey")
-    public BaseResponse<Boolean> setApiKey(@RequestParam Long userId, @RequestBody String apiKey) {
-        userAiConfigManager.setApiKey(userId, apiKey);
-        userAiConfigManager.loadUserModelsToRegistry(userId);
+    public BaseResponse<Boolean> setApiKey(@RequestParam(required = false) Long userId,
+                                           @RequestBody String apiKey,
+                                           HttpServletRequest request) {
+        User loginUser = getAuthUser(request);
+        long targetUserId = resolveTargetUserId(loginUser, userId);
+        userAiConfigManager.setApiKey(targetUserId, apiKey);
+        userAiConfigManager.loadUserModelsToRegistry(targetUserId);
         return ResultUtils.success(true);
     }
 
     @GetMapping("/apikey")
-    public BaseResponse<Boolean> hasApiKey(@RequestParam Long userId) {
-        return ResultUtils.success(userAiConfigManager.hasCustomApiKey(userId));
+    public BaseResponse<Boolean> hasApiKey(@RequestParam(required = false) Long userId,
+                                           HttpServletRequest request) {
+        User loginUser = getAuthUser(request);
+        return ResultUtils.success(userAiConfigManager.hasCustomApiKey(resolveTargetUserId(loginUser, userId)));
     }
 
     @PostMapping("/custom_model")
-    public BaseResponse<?> addCustomModel(@RequestParam Long userId,
-                                           @RequestBody UserAiConfigManager.CustomModelRequest request) {
-        String apiKey = userAiConfigManager.getApiKey(userId);
+    public BaseResponse<?> addCustomModel(@RequestParam(required = false) Long userId,
+                                          @RequestBody UserAiConfigManager.CustomModelRequest request,
+                                          HttpServletRequest httpServletRequest) {
+        User loginUser = getAuthUser(httpServletRequest);
+        long targetUserId = resolveTargetUserId(loginUser, userId);
+        String apiKey = request.getApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            apiKey = userAiConfigManager.getApiKey(targetUserId);
+        }
         if (apiKey == null || apiKey.isBlank()) {
             return ResultUtils.error(40000, "请先设置 API Key");
         }
-        userAiConfigManager.addCustomModel(userId, request);
+        userAiConfigManager.addCustomModel(targetUserId, request);
         return ResultUtils.success(true);
     }
 
     @DeleteMapping("/custom_model")
-    public BaseResponse<Boolean> removeCustomModel(@RequestParam Long userId,
-                                                    @RequestParam String modelName) {
-        userAiConfigManager.removeCustomModel(userId, modelName);
+    public BaseResponse<Boolean> removeCustomModel(@RequestParam(required = false) Long userId,
+                                                   @RequestParam String modelName,
+                                                   HttpServletRequest request) {
+        User loginUser = getAuthUser(request);
+        userAiConfigManager.removeCustomModel(resolveTargetUserId(loginUser, userId), modelName);
         return ResultUtils.success(true);
+    }
+
+    private User getAuthUser(HttpServletRequest request) {
+        Long loginUserId = InnerUserService.getLoginUserId(request);
+        User user = innerUserService.getAuthUserById(loginUserId);
+        if (user == null || user.getId() == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+        }
+        return user;
+    }
+
+    private long resolveTargetUserId(User loginUser, Long requestUserId) {
+        if (isAdmin(loginUser) && requestUserId != null) {
+            return requestUserId;
+        }
+        return loginUser.getId();
+    }
+
+    private static boolean isAdmin(User user) {
+        return user != null && UserConstant.ADMIN_ROLE.equals(user.getUserRole());
     }
 }

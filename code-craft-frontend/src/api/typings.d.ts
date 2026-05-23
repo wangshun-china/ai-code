@@ -146,6 +146,33 @@ declare namespace API {
     modelKey?: string
   }
 
+  type AiModelVO = {
+    value?: string
+    text?: string
+    endpoint?: string
+    baseUrl?: string
+    multimodal?: boolean
+    custom?: boolean
+  }
+
+  type AiModelCredentialVO = {
+    id?: number
+    name?: string
+    apiKey?: string
+    baseUrl?: string
+    modelNames?: string[]
+    defaultSelected?: boolean
+    systemDefault?: boolean
+  }
+
+  type AiModelCredentialRequest = {
+    id?: number
+    name?: string
+    apiKey?: string
+    baseUrl?: string
+    modelNames?: string[]
+  }
+
   type AppVO = {
     id?: number
     appName?: string
@@ -214,6 +241,18 @@ declare namespace API {
   type BaseResponseBoolean = {
     code?: number
     data?: boolean
+    message?: string
+  }
+
+  type BaseResponseAiModelVOArray = {
+    code?: number
+    data?: AiModelVO[]
+    message?: string
+  }
+
+  type BaseResponseAiModelCredentialVOArray = {
+    code?: number
+    data?: AiModelCredentialVO[]
     message?: string
   }
 
@@ -338,6 +377,50 @@ declare namespace API {
 
   type getUserVOByIdParams = {
     id: number
+  }
+
+  type listAiModelsParams = {
+    userId?: number
+  }
+
+  type listAiModelCredentialsParams = {
+    userId?: number
+  }
+
+  type saveAiModelCredentialParams = {
+    userId?: number
+  }
+
+  type selectAiModelCredentialParams = {
+    userId?: number
+    credentialId?: number
+  }
+
+  type removeAiModelCredentialParams = {
+    userId?: number
+    credentialId?: number
+  }
+
+  type setAiApiKeyParams = {
+    userId?: number
+  }
+
+  type addCustomAiModelParams = {
+    userId?: number
+  }
+
+  type removeCustomAiModelParams = {
+    userId?: number
+    modelName?: string
+  }
+
+  type CustomAiModelRequest = {
+    modelName?: string
+    displayName?: string
+    apiKey?: string
+    baseUrl?: string
+    endpoint?: string
+    multimodal?: boolean
   }
 
   type listAppChatHistoryParams = {

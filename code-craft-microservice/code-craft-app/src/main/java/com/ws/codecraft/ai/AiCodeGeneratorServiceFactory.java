@@ -1,9 +1,6 @@
 package com.ws.codecraft.ai;
 
 import cn.hutool.core.util.StrUtil;
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
 import com.alibaba.cloud.ai.graph.KeyStrategyFactoryBuilder;
@@ -20,8 +17,7 @@ import com.ws.codecraft.ai.config.StreamingChatModelConfig;
 import com.ws.codecraft.core.AiCallHelper;
 import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
-import com.ws.codecraft.model.enums.AiModelEnum;
-import com.ws.codecraft.model.enums.AiModelEnum.ModelEndpoint;
+import com.ws.codecraft.model.ai.AiModelRegistry;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import io.micrometer.observation.ObservationRegistry;
 import jakarta.annotation.Resource;
@@ -105,7 +101,7 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     public AiCodeGeneratorService getAiCodeGeneratorService(long appId, CodeGenTypeEnum codeGenType, String modelKey) {
-        String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        String normalizedModelKey = AiModelRegistry.normalize(modelKey);
         String cacheKey = buildCacheKey(appId, codeGenType, normalizedModelKey);
         return serviceCache.get(cacheKey, key -> createAiCodeGeneratorService(appId, codeGenType, normalizedModelKey));
     }
@@ -115,7 +111,7 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     public String chatPlainWithFallback(String message, String modelKey, Consumer<String> modelSelectionHandler) {
-        String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        String normalizedModelKey = AiModelRegistry.normalize(modelKey);
         return callWithModelFallback(
                 aiModelFallbackRouter.resolveCandidates(normalizedModelKey),
                 modelSelectionHandler,
@@ -134,7 +130,7 @@ public class AiCodeGeneratorServiceFactory {
 
     public String chatWithImageWithFallback(String message, byte[] imageBytes, String mimeType, String fileName,
                                             String modelKey, Consumer<String> modelSelectionHandler) {
-        String normalizedModelKey = AiModelEnum.normalize(modelKey);
+        String normalizedModelKey = AiModelRegistry.normalize(modelKey);
         return callWithModelFallback(
                 aiModelFallbackRouter.resolveCandidates(normalizedModelKey),
                 modelSelectionHandler,
@@ -293,12 +289,12 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     public ChatClient createChatClient(String modelKey) {
-        return createChatClient(AiModelEnum.normalize(modelKey),
+        return createChatClient(AiModelRegistry.normalize(modelKey),
                 streamingChatModelConfig.getMaxTokens(), streamingChatModelConfig.getTemperature(), false);
     }
 
     public ChatClient createChatClient(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
-        String normalizedKey = AiModelEnum.normalize(modelKey);
+        String normalizedKey = AiModelRegistry.normalize(modelKey);
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
                 .maxMessages(CHAT_MEMORY_MAX_MESSAGES)
@@ -311,89 +307,51 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     private ChatModel buildReasoningChatModel(String modelKey) {
-        String normalizedKey = AiModelEnum.normalize(modelKey);
+        String normalizedKey = AiModelRegistry.normalize(modelKey);
         String apiKey = resolveApiKey(normalizedKey);
-        if (AiModelEnum.getEndpoint(normalizedKey) == ModelEndpoint.OPENAI_COMPATIBLE) {
-            OpenAiChatOptions options = buildOpenAiOptions(normalizedKey,
-                    reasoningStreamingChatModelConfig.getMaxTokens(),
-                    reasoningStreamingChatModelConfig.getTemperature());
-            options.setInternalToolExecutionEnabled(false);
-            return buildOpenAiChatModel(options, apiKey);
-        }
-        DashScopeChatOptions options = DashScopeChatOptions.builder()
-                .model(normalizedKey)
-                .maxToken(reasoningStreamingChatModelConfig.getMaxTokens())
-                .temperature(reasoningStreamingChatModelConfig.getTemperature())
-                .incrementalOutput(true)
-                .multiModel(AiModelEnum.isMultimodal(normalizedKey))
-                .build();
+        String baseUrl = resolveBaseUrl(normalizedKey);
+        OpenAiChatOptions options = buildOpenAiOptions(normalizedKey,
+                reasoningStreamingChatModelConfig.getMaxTokens(),
+                reasoningStreamingChatModelConfig.getTemperature());
         options.setInternalToolExecutionEnabled(false);
-        return DashScopeChatModel.builder()
-                .dashScopeApi(buildDashScopeApi(apiKey))
-                .defaultOptions(options)
-                .build();
+        return buildOpenAiChatModel(options, apiKey, baseUrl);
     }
 
     private ChatModel buildChatModel(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
         String apiKey = resolveApiKey(modelKey);
-        if (AiModelEnum.getEndpoint(modelKey) == ModelEndpoint.OPENAI_COMPATIBLE) {
-            OpenAiChatOptions options = buildOpenAiOptions(modelKey, maxTokens, temperature);
-            options.setInternalToolExecutionEnabled(false);
-            return buildOpenAiChatModel(options, apiKey);
-        }
-        var optionsBuilder = DashScopeChatOptions.builder()
-                .model(modelKey)
-                .incrementalOutput(streaming)
-                .multiModel(AiModelEnum.isMultimodal(modelKey));
-        if (maxTokens != null) optionsBuilder.maxToken(maxTokens);
-        if (temperature != null) optionsBuilder.temperature(temperature);
-        DashScopeChatOptions options = optionsBuilder.build();
+        String baseUrl = resolveBaseUrl(modelKey);
+        OpenAiChatOptions options = buildOpenAiOptions(modelKey, maxTokens, temperature);
         options.setInternalToolExecutionEnabled(false);
-        return DashScopeChatModel.builder()
-                .dashScopeApi(buildDashScopeApi(apiKey))
-                .defaultOptions(options)
-                .build();
+        return buildOpenAiChatModel(options, apiKey, baseUrl);
     }
 
     private String resolveApiKey(String modelKey) {
-        String dynamicKey = AiModelEnum.getDynamicApiKey(modelKey);
+        String dynamicKey = AiModelRegistry.getDynamicApiKey(modelKey);
         return StrUtil.isNotBlank(dynamicKey) ? dynamicKey : streamingChatModelConfig.getApiKey();
     }
 
-    private static DashScopeApi buildDashScopeApi(String apiKey) {
-        return DashScopeApi.builder()
-                .apiKey(apiKey)
-                .build();
+    private String resolveBaseUrl(String modelKey) {
+        String dynamicBaseUrl = AiModelRegistry.getDynamicBaseUrl(modelKey);
+        return StrUtil.blankToDefault(dynamicBaseUrl, DASHSCOPE_COMPATIBLE_BASE_URL);
     }
 
     private ChatOptions buildOptions(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
-        if (AiModelEnum.getEndpoint(modelKey) == ModelEndpoint.OPENAI_COMPATIBLE) {
-            OpenAiChatOptions options = buildOpenAiOptions(modelKey, maxTokens, temperature);
-            options.setInternalToolExecutionEnabled(false);
-            return options;
-        }
-        var builder = DashScopeChatOptions.builder()
-                .model(modelKey)
-                .incrementalOutput(streaming)
-                .multiModel(AiModelEnum.isMultimodal(modelKey));
-        if (maxTokens != null) builder.maxToken(maxTokens);
-        if (temperature != null) builder.temperature(temperature);
-        DashScopeChatOptions options = builder.build();
+        OpenAiChatOptions options = buildOpenAiOptions(modelKey, maxTokens, temperature);
         options.setInternalToolExecutionEnabled(false);
         return options;
     }
 
     private OpenAiChatOptions buildOpenAiOptions(String modelKey, Integer maxTokens, Double temperature) {
         var builder = OpenAiChatOptions.builder()
-                .model(modelKey);
+                .model(AiModelRegistry.getActualModelName(modelKey));
         if (maxTokens != null) builder.maxTokens(maxTokens);
         if (temperature != null) builder.temperature(temperature);
         return builder.build();
     }
 
-    private OpenAiChatModel buildOpenAiChatModel(OpenAiChatOptions options, String apiKey) {
+    private OpenAiChatModel buildOpenAiChatModel(OpenAiChatOptions options, String apiKey, String baseUrl) {
         OpenAiApi openAiApi = new OpenAiApi(
-                DASHSCOPE_COMPATIBLE_BASE_URL,
+                StrUtil.removeSuffix(baseUrl, "/"),
                 new SimpleApiKey(apiKey),
                 new LinkedMultiValueMap<>(),
                 "/chat/completions",
@@ -412,7 +370,7 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     private String buildCacheKey(long appId, CodeGenTypeEnum codeGenType, String modelKey) {
-        return appId + "_" + codeGenType.getValue() + "_" + AiModelEnum.normalize(modelKey);
+        return appId + "_" + codeGenType.getValue() + "_" + AiModelRegistry.normalize(modelKey);
     }
 
     private String callWithModelFallback(List<String> candidates,

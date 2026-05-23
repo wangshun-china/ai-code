@@ -7,11 +7,13 @@ import com.ws.codecraft.ai.AiCodeGeneratorServiceFactory;
 import com.ws.codecraft.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.ws.codecraft.ai.AiCodeGenTypeRoutingService;
 import com.ws.codecraft.ai.AiCodeGeneratorService;
+import com.ws.codecraft.ai.UserAiConfigManager;
 import com.ws.codecraft.ai.model.HtmlCodeResult;
 import com.ws.codecraft.ai.model.MultiFileCodeResult;
 import com.ws.codecraft.ai.stream.AiTokenStream;
-import com.ws.codecraft.model.enums.AiModelEnum;
+import com.ws.codecraft.model.ai.AiModelRegistry;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
+import com.ws.codecraft.model.vo.AiModelVO;
 import com.ws.codecraft.service.AttachmentAnalysisService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +31,6 @@ import reactor.core.publisher.Mono;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +45,7 @@ import java.util.UUID;
 public class AppAnonymousTestController {
 
     private static final long TEST_APP_ID = 999_000_001L;
+    private static final long TEST_USER_ID = 999_000_000L;
     private static final Set<String> TEXT_EXTENSIONS = Set.of(
             "txt", "md", "markdown", "json", "csv", "html", "htm", "css", "js", "ts", "vue", "xml", "yml", "yaml"
     );
@@ -57,6 +59,9 @@ public class AppAnonymousTestController {
     @Resource
     private AttachmentAnalysisService attachmentAnalysisService;
 
+    @Resource
+    private UserAiConfigManager userAiConfigManager;
+
     /**
      * 测试接口说明：不调用 AI，用于确认服务已启动、测试入口可访问。
      * GET /api/app/test/health
@@ -69,7 +74,7 @@ public class AppAnonymousTestController {
                 "testAppId", TEST_APP_ID,
                 "endpoints", List.of(
                         "GET /api/app/test/models",
-                        "GET /api/app/test/chat?message=你好&modelKey=qwen3.6-plus",
+                        "GET /api/app/test/chat?message=你好",
                         "GET /api/app/test/route?message=帮我做一个个人博客网站",
                         "GET /api/app/test/plan?message=帮我做一个课程主页&type=vue_project",
                         "GET /api/app/test/html?message=生成一个极简清单页面",
@@ -86,11 +91,11 @@ public class AppAnonymousTestController {
      */
     @GetMapping("/models")
     public List<Map<String, String>> testModels() {
-        return Arrays.stream(AiModelEnum.values())
+        return userAiConfigManager.listAvailableModels(TEST_USER_ID).stream()
                 .map(model -> Map.of(
                         "value", model.getValue(),
                         "text", model.getText(),
-                        "default", String.valueOf(AiModelEnum.DEFAULT_MODEL_KEY.equals(model.getValue()))
+                        "default", String.valueOf(AiModelRegistry.DEFAULT_MODEL_KEY.equals(model.getValue()))
                 ))
                 .toList();
     }
@@ -103,7 +108,7 @@ public class AppAnonymousTestController {
     public Map<String, String> testChat(
             @RequestParam(defaultValue = "你好，请用一句话介绍你自己") String message,
             @RequestParam(required = false) String modelKey) {
-        String normalizedKey = AiModelEnum.normalize(modelKey);
+        String normalizedKey = resolveTestModelKey(modelKey);
         log.info("[test-chat] message={}, model={}", message, normalizedKey);
         long start = System.currentTimeMillis();
         String response = aiCodeGeneratorServiceFactory.chatPlain(message, normalizedKey);
@@ -150,7 +155,7 @@ public class AppAnonymousTestController {
             @RequestParam(defaultValue = "vue_project") String type,
             @RequestParam(required = false) String modelKey) {
         CodeGenTypeEnum codeGenType = parseCodeGenType(type);
-        String normalizedKey = AiModelEnum.normalize(modelKey);
+        String normalizedKey = resolveTestModelKey(modelKey);
         log.info("[test-plan] type={}, model={}, message={}", codeGenType, normalizedKey, message);
         long start = System.currentTimeMillis();
         AiCodeGeneratorService service = aiCodeGeneratorServiceFactory
@@ -174,7 +179,7 @@ public class AppAnonymousTestController {
     public Map<String, Object> testHtml(
             @RequestParam(defaultValue = "生成一个极简清单页面，代码尽量短") String message,
             @RequestParam(required = false) String modelKey) {
-        String normalizedKey = AiModelEnum.normalize(modelKey);
+        String normalizedKey = resolveTestModelKey(modelKey);
         long start = System.currentTimeMillis();
         HtmlCodeResult result = aiCodeGeneratorServiceFactory
                 .getAiCodeGeneratorService(TEST_APP_ID, CodeGenTypeEnum.HTML, normalizedKey)
@@ -198,7 +203,7 @@ public class AppAnonymousTestController {
     public Map<String, Object> testMultiFile(
             @RequestParam(defaultValue = "生成一个极简清单页面，包含基础样式和添加待办交互") String message,
             @RequestParam(required = false) String modelKey) {
-        String normalizedKey = AiModelEnum.normalize(modelKey);
+        String normalizedKey = resolveTestModelKey(modelKey);
         long start = System.currentTimeMillis();
         MultiFileCodeResult result = aiCodeGeneratorServiceFactory
                 .getAiCodeGeneratorService(TEST_APP_ID, CodeGenTypeEnum.MULTI_FILE, normalizedKey)
@@ -267,7 +272,7 @@ public class AppAnonymousTestController {
     public Flux<ServerSentEvent<String>> testVue100Stream(
             @RequestParam(defaultValue = "生成一个100行以内的 Vue 极简清单应用，包含添加、完成、删除待办") String message,
             @RequestParam(required = false) String modelKey) {
-        String normalizedKey = AiModelEnum.normalize(modelKey);
+        String normalizedKey = resolveTestModelKey(modelKey);
         AiTokenStream tokenStream = aiCodeGeneratorServiceFactory
                 .getAiCodeGeneratorService(TEST_APP_ID, CodeGenTypeEnum.VUE_PROJECT, normalizedKey)
                 .generateVueProjectCodeStream(TEST_APP_ID, message);
@@ -318,6 +323,14 @@ public class AppAnonymousTestController {
             return "text";
         }
         return "";
+    }
+
+    private String resolveTestModelKey(String modelKey) {
+        if (StrUtil.isNotBlank(modelKey)) {
+            return AiModelRegistry.normalize(modelKey);
+        }
+        List<AiModelVO> models = userAiConfigManager.listAvailableModels(TEST_USER_ID);
+        return models.isEmpty() ? AiModelRegistry.DEFAULT_MODEL_KEY : models.get(0).getValue();
     }
 
     private ServerSentEvent<String> sse(String event, Map<String, Object> data) {

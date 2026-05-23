@@ -11,6 +11,11 @@ public class AiModelVO {
     private String value;
     private String text;
     private String endpoint;
+    private String baseUrl;
     private boolean multimodal;
     private boolean custom;
+
+    public AiModelVO(String value, String text, String endpoint, boolean multimodal, boolean custom) {
+        this(value, text, endpoint, null, multimodal, custom);
+    }
 }
