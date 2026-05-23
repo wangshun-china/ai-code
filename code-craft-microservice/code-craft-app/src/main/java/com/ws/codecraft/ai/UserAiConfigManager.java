@@ -10,7 +10,6 @@ import com.ws.codecraft.model.request.AiModelCredentialRequest;
 import com.ws.codecraft.model.vo.AiModelCredentialVO;
 import com.ws.codecraft.model.vo.AiModelVO;
 import jakarta.annotation.Resource;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -37,31 +36,6 @@ public class UserAiConfigManager {
 
     @Resource
     private StreamingChatModelConfig streamingChatModelConfig;
-
-    public void setApiKey(long userId, String apiKey) {
-        if (StrUtil.isBlank(apiKey)) {
-            selectCredential(userId, SYSTEM_CREDENTIAL_ID);
-            return;
-        }
-        AiModelCredentialRequest request = new AiModelCredentialRequest();
-        request.setName("自定义默认 Key");
-        request.setApiKey(apiKey);
-        request.setBaseUrl(DEFAULT_BASE_URL);
-        request.setModelNames(defaultModelNames());
-        saveCredential(userId, request);
-    }
-
-    public String getApiKey(long userId) {
-        AiModelCredential credential = getActiveCredential(userId);
-        if (credential == null || isSystemCredential(credential)) {
-            return null;
-        }
-        return credential.getApiKey();
-    }
-
-    public boolean hasCustomApiKey(long userId) {
-        return StrUtil.isNotBlank(getApiKey(userId));
-    }
 
     public AiModelCredential saveCredential(long userId, AiModelCredentialRequest request) {
         return saveCredential(userId, request, false);
@@ -143,12 +117,16 @@ public class UserAiConfigManager {
         }
     }
 
-    public List<AiModelCredentialVO> listCredentialVO(long userId, boolean admin, long viewerUserId) {
+    /**
+     * 只返回当前用户自己的模型凭据配置。
+     * 管理员只能看到系统默认配置和自己创建的配置，不能借管理员身份查看普通用户的自定义 Key。
+     */
+    public List<AiModelCredentialVO> listCredentialVO(long userId, boolean admin) {
         ensureSystemCredential(userId);
         AiModelCredential active = getActiveCredential(userId);
         List<AiModelCredentialVO> result = new ArrayList<>();
         for (AiModelCredential credential : listCredentials(userId)) {
-            result.add(toVO(credential, admin, viewerUserId, active));
+            result.add(toVO(credential, admin, active));
         }
         return result;
     }
@@ -198,32 +176,6 @@ public class UserAiConfigManager {
         return isAvailableModelKey(userId, normalized) ? normalized : resolveDefaultModelKey(userId);
     }
 
-    public void addCustomModel(long userId, CustomModelRequest request) {
-        AiModelCredentialRequest credentialRequest = new AiModelCredentialRequest();
-        credentialRequest.setName(StrUtil.blankToDefault(request.getDisplayName(), request.getModelName()));
-        credentialRequest.setApiKey(request.getApiKey());
-        credentialRequest.setBaseUrl(StrUtil.blankToDefault(request.getBaseUrl(), DEFAULT_BASE_URL));
-        credentialRequest.setModelNames(List.of(request.getModelName()));
-        saveCredential(userId, credentialRequest);
-    }
-
-    public List<AiModelRegistry.DynamicModel> getCustomModels(long userId) {
-        AiModelCredential active = getActiveCredential(userId);
-        if (active == null || isSystemCredential(active)) {
-            return List.of();
-        }
-        return parseModelNames(active.getModelNames()).stream()
-                .map(modelName -> new AiModelRegistry.DynamicModel(
-                        buildCredentialModelKey(active.getId(), modelName),
-                        modelName,
-                        AiModelRegistry.ENDPOINT_OPENAI_COMPATIBLE,
-                        true,
-                        active.getApiKey(),
-                        active.getBaseUrl(),
-                        modelName))
-                .toList();
-    }
-
     public void loadUserModelsToRegistry(long userId) {
         ensureSystemCredential(userId);
         for (AiModelCredential credential : listCredentials(userId)) {
@@ -231,23 +183,6 @@ public class UserAiConfigManager {
                 registerCredentialModels(credential);
             }
         }
-    }
-
-    public void removeCustomModel(long userId, String modelName) {
-        AiModelCredential active = getActiveCredential(userId);
-        if (active == null || isSystemCredential(active) || StrUtil.isBlank(modelName)) {
-            return;
-        }
-        List<String> names = new ArrayList<>(parseModelNames(active.getModelNames()));
-        names.removeIf(item -> Objects.equals(item, modelName));
-        if (names.isEmpty()) {
-            removeCredential(userId, active.getId());
-            return;
-        }
-        active.setModelNames(joinModelNames(names));
-        aiModelCredentialMapper.update(active);
-        AiModelRegistry.removeDynamicModelsByPrefix(buildCredentialPrefix(active.getId()));
-        registerCredentialModels(active);
     }
 
     public static String buildCredentialModelKey(long credentialId, String modelName) {
@@ -311,28 +246,24 @@ public class UserAiConfigManager {
         }
     }
 
-    private AiModelCredentialVO toVO(AiModelCredential credential, boolean admin, long viewerUserId,
-                                     AiModelCredential active) {
+    private AiModelCredentialVO toVO(AiModelCredential credential, boolean admin, AiModelCredential active) {
         boolean systemDefault = isSystemCredential(credential);
         return new AiModelCredentialVO(
                 credential.getId(),
                 credential.getName(),
-                visibleApiKey(credential, admin, viewerUserId),
+                visibleApiKey(credential, admin),
                 credential.getBaseUrl(),
                 parseModelNames(credential.getModelNames()),
                 active != null && Objects.equals(active.getId(), credential.getId()),
                 systemDefault);
     }
 
-    private String visibleApiKey(AiModelCredential credential, boolean admin, long viewerUserId) {
+    private String visibleApiKey(AiModelCredential credential, boolean admin) {
         boolean systemDefault = isSystemCredential(credential);
         if (systemDefault) {
             return admin ? credential.getApiKey() : DEFAULT_KEY_MASK;
         }
-        if (Objects.equals(credential.getUserId(), viewerUserId)) {
-            return credential.getApiKey();
-        }
-        return NORMAL_KEY_MASK;
+        return credential.getApiKey();
     }
 
     private AiModelCredential ensureSystemCredential(long userId) {
@@ -446,13 +377,4 @@ public class UserAiConfigManager {
         return String.join("\n", parseModelNames(String.join("\n", modelNames)));
     }
 
-    @Data
-    public static class CustomModelRequest {
-        private String modelName;
-        private String displayName;
-        private String apiKey;
-        private String baseUrl = DEFAULT_BASE_URL;
-        private String endpoint = AiModelRegistry.ENDPOINT_OPENAI_COMPATIBLE;
-        private boolean multimodal = false;
-    }
 }

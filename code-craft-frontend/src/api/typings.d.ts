@@ -401,28 +401,6 @@ declare namespace API {
     credentialId?: number
   }
 
-  type setAiApiKeyParams = {
-    userId?: number
-  }
-
-  type addCustomAiModelParams = {
-    userId?: number
-  }
-
-  type removeCustomAiModelParams = {
-    userId?: number
-    modelName?: string
-  }
-
-  type CustomAiModelRequest = {
-    modelName?: string
-    displayName?: string
-    apiKey?: string
-    baseUrl?: string
-    endpoint?: string
-    multimodal?: boolean
-  }
-
   type listAppChatHistoryParams = {
     appId: number
     pageSize?: number

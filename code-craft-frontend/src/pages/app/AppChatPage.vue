@@ -208,71 +208,18 @@
                   <a-avatar :src="aiAvatar" />
                 </div>
                 <div class="message-content">
-                  <div v-if="hasStructuredPlan(message.plan)" class="plan-card">
-                    <div class="plan-card-header">
-                      <div>
-                        <div class="plan-card-kicker">实现方案</div>
-                        <h4>{{ message.plan?.requirementSummary || '已生成结构化实现方案' }}</h4>
-                      </div>
-                      <a-tag v-if="message.plan?.matchedTemplates?.length" color="blue">
-                        {{ message.plan.matchedTemplates.length }} 个参考模板
-                      </a-tag>
-                    </div>
-                    <div v-if="message.plan?.visualStyle" class="plan-style">
-                      {{ message.plan.visualStyle }}
-                    </div>
-                    <div class="plan-grid">
-                      <div v-if="hasPlanItems(message.plan?.pages)" class="plan-section">
-                        <strong>页面规划</strong>
-                        <ul>
-                          <li v-for="item in message.plan?.pages" :key="item">{{ item }}</li>
-                        </ul>
-                      </div>
-                      <div v-if="hasPlanItems(message.plan?.components)" class="plan-section">
-                        <strong>组件拆分</strong>
-                        <ul>
-                          <li v-for="item in message.plan?.components" :key="item">{{ item }}</li>
-                        </ul>
-                      </div>
-                      <div v-if="hasPlanItems(message.plan?.interactions)" class="plan-section">
-                        <strong>关键交互</strong>
-                        <ul>
-                          <li v-for="item in message.plan?.interactions" :key="item">{{ item }}</li>
-                        </ul>
-                      </div>
-                      <div v-if="hasPlanItems(message.plan?.acceptanceCriteria)" class="plan-section">
-                        <strong>验收标准</strong>
-                        <ul>
-                          <li v-for="item in message.plan?.acceptanceCriteria" :key="item">{{ item }}</li>
-                        </ul>
-                      </div>
-                    </div>
-                    <div v-if="hasPlanItems(message.plan?.risks) || hasPlanItems(message.plan?.questions)" class="plan-notes">
-                      <a-alert
-                        type="warning"
-                        show-icon
-                        :message="[...(message.plan?.risks || []), ...(message.plan?.questions || [])].join('；')"
-                      />
-                    </div>
-                    <div v-if="hasPlanItems(message.plan?.filesToChange)" class="plan-files">
-                      <span v-for="file in message.plan?.filesToChange" :key="file">{{ file }}</span>
-                    </div>
-                  </div>
+                  <AppPlanCard
+                    v-if="message.plan"
+                    :plan="message.plan"
+                    :fallback-content="message.content"
+                    :plan-pending="message.planPending"
+                    :generating="isGenerating"
+                    @confirm="confirmGenerationPlan(message)"
+                  />
                   <MarkdownRenderer v-else-if="message.content" :content="message.content" />
                   <div v-if="message.loading" class="loading-indicator">
                     <a-spin size="small" />
                     <span>{{ isPlanning ? 'AI 正在生成方案...' : 'AI 正在思考...' }}</span>
-                  </div>
-                  <div v-if="message.planPending" class="plan-actions">
-                    <a-button
-                      type="primary"
-                      size="small"
-                      :loading="isGenerating"
-                      @click="confirmGenerationPlan(message)"
-                    >
-                      确认生成
-                    </a-button>
-                    <span>不满意可以继续补充需求，我会重新出方案。</span>
                   </div>
                 </div>
               </div>
@@ -446,6 +393,7 @@ import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import AiModelConfigModal from '@/components/AiModelConfigModal.vue'
+import AppPlanCard from './components/AppPlanCard.vue'
 import aiAvatar from '@/assets/aiAvatar.png'
 
 import {
@@ -555,21 +503,6 @@ const fileTreeData = computed(() => {
   })
   return sourceFiles.value.map(mapNode)
 })
-
-const hasPlanItems = (items?: string[]) => Array.isArray(items) && items.filter(Boolean).length > 0
-
-const hasStructuredPlan = (plan?: API.AppGenerationPlanVO) => {
-  if (!plan) return false
-  return Boolean(
-    plan.requirementSummary ||
-      plan.visualStyle ||
-      hasPlanItems(plan.pages) ||
-      hasPlanItems(plan.components) ||
-      hasPlanItems(plan.interactions) ||
-      hasPlanItems(plan.acceptanceCriteria) ||
-      hasPlanItems(plan.filesToChange),
-  )
-}
 
 const handleFileSelect = (_selectedKeys: string[], info: any) => {
   const fileNode = info?.node?.fileNode as API.AppSourceFileNodeVO | undefined
@@ -862,109 +795,6 @@ onUnmounted(() => {
   gap: 8px;
   color: #333333;
   font-weight: 500;
-}
-
-.plan-card {
-  padding: 16px;
-  border: 1px solid rgba(14, 116, 144, 0.18);
-  border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(236, 253, 245, 0.92), rgba(255, 251, 235, 0.86)),
-    #ffffff;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
-}
-
-.plan-card-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.plan-card-kicker {
-  color: #0f766e;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-}
-
-.plan-card h4 {
-  margin: 4px 0 0;
-  color: #172018;
-  font-size: 16px;
-  line-height: 1.5;
-}
-
-.plan-style {
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  color: #334155;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.plan-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.plan-section {
-  padding: 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.plan-section strong {
-  display: block;
-  margin-bottom: 8px;
-  color: #164e63;
-}
-
-.plan-section ul {
-  margin: 0;
-  padding-left: 18px;
-  color: #3f3b35;
-}
-
-.plan-section li + li {
-  margin-top: 4px;
-}
-
-.plan-notes {
-  margin-top: 12px;
-}
-
-.plan-files {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.plan-files span {
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: #0f766e;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.plan-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(20, 20, 19, 0.08);
-}
-
-.plan-actions span {
-  color: #5f5b52;
-  font-size: 13px;
 }
 
 .load-more-container {

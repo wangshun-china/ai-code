@@ -219,7 +219,7 @@ public class AiCodeGeneratorFacade {
                         sink.complete();
                     })
                     .onError((Throwable error) -> {
-                        error.printStackTrace();
+                        log.error("AI 代码生成流执行失败, appId={}", appId, error);
                         sink.error(error);
                     })
                     .start();

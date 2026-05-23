@@ -6,12 +6,17 @@ import org.springframework.stereotype.Component;
 
 /**
  * 代码生成与部署相关路径配置。
- * 默认值保持与当前主链路兼容。
+ * Docker 和线上环境优先通过环境变量覆盖，默认值用于本地开发。
  */
 @Data
 @Component
 @ConfigurationProperties(prefix = "code")
 public class CodeProjectProperties {
+
+    /**
+     * 项目工作目录。
+     */
+    private String workspaceDir = "G:/project/code-craft";
 
     /**
      * 应用生成目录。

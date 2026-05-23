@@ -41,7 +41,7 @@ public class AiModelController {
                                                                    HttpServletRequest request) {
         User loginUser = getAuthUser(request);
         long targetUserId = resolveTargetUserId(loginUser, userId);
-        return ResultUtils.success(userAiConfigManager.listCredentialVO(targetUserId, isAdmin(loginUser), loginUser.getId()));
+        return ResultUtils.success(userAiConfigManager.listCredentialVO(targetUserId, isAdmin(loginUser)));
     }
 
     @PostMapping("/credential")
@@ -71,50 +71,6 @@ public class AiModelController {
         User loginUser = getAuthUser(request);
         long targetUserId = resolveTargetUserId(loginUser, userId);
         userAiConfigManager.removeCredential(targetUserId, credentialId);
-        return ResultUtils.success(true);
-    }
-
-    @PostMapping("/apikey")
-    public BaseResponse<Boolean> setApiKey(@RequestParam(required = false) Long userId,
-                                           @RequestBody String apiKey,
-                                           HttpServletRequest request) {
-        User loginUser = getAuthUser(request);
-        long targetUserId = resolveTargetUserId(loginUser, userId);
-        userAiConfigManager.setApiKey(targetUserId, apiKey);
-        userAiConfigManager.loadUserModelsToRegistry(targetUserId);
-        return ResultUtils.success(true);
-    }
-
-    @GetMapping("/apikey")
-    public BaseResponse<Boolean> hasApiKey(@RequestParam(required = false) Long userId,
-                                           HttpServletRequest request) {
-        User loginUser = getAuthUser(request);
-        return ResultUtils.success(userAiConfigManager.hasCustomApiKey(resolveTargetUserId(loginUser, userId)));
-    }
-
-    @PostMapping("/custom_model")
-    public BaseResponse<?> addCustomModel(@RequestParam(required = false) Long userId,
-                                          @RequestBody UserAiConfigManager.CustomModelRequest request,
-                                          HttpServletRequest httpServletRequest) {
-        User loginUser = getAuthUser(httpServletRequest);
-        long targetUserId = resolveTargetUserId(loginUser, userId);
-        String apiKey = request.getApiKey();
-        if (apiKey == null || apiKey.isBlank()) {
-            apiKey = userAiConfigManager.getApiKey(targetUserId);
-        }
-        if (apiKey == null || apiKey.isBlank()) {
-            return ResultUtils.error(40000, "请先设置 API Key");
-        }
-        userAiConfigManager.addCustomModel(targetUserId, request);
-        return ResultUtils.success(true);
-    }
-
-    @DeleteMapping("/custom_model")
-    public BaseResponse<Boolean> removeCustomModel(@RequestParam(required = false) Long userId,
-                                                   @RequestParam String modelName,
-                                                   HttpServletRequest request) {
-        User loginUser = getAuthUser(request);
-        userAiConfigManager.removeCustomModel(resolveTargetUserId(loginUser, userId), modelName);
         return ResultUtils.success(true);
     }
 

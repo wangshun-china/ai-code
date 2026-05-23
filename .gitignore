@@ -45,3 +45,8 @@ AGENTS.md
 ### Node.js ###
 node_modules/
 *.log
+logs/
+*.sqlite
+cp.txt
+deps.txt
+*.backup

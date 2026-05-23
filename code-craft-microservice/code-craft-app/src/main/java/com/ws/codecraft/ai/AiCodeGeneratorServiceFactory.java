@@ -1,6 +1,5 @@
 package com.ws.codecraft.ai;
 
-import cn.hutool.core.util.StrUtil;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
 import com.alibaba.cloud.ai.graph.KeyStrategyFactoryBuilder;
@@ -12,35 +11,18 @@ import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
 import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.ws.codecraft.ai.config.ReasoningStreamingChatModelConfig;
-import com.ws.codecraft.ai.config.StreamingChatModelConfig;
 import com.ws.codecraft.core.AiCallHelper;
 import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.model.ai.AiModelRegistry;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
-import io.micrometer.observation.ObservationRegistry;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.ChatMemoryRepository;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.ChatOptions;
-import org.springframework.ai.model.SimpleApiKey;
-import org.springframework.ai.model.tool.ToolCallingManager;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.retry.RetryUtils;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.retry.support.RetryTemplate;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
 import java.util.List;
@@ -53,18 +35,12 @@ public class AiCodeGeneratorServiceFactory {
     private static final String VUE_PROJECT_PROMPT = "prompt/codegen-vue-project-system-prompt.txt";
     private static final String SCAFFOLD_PROMPT = "prompt/codegen-vue-scaffold-system-prompt.txt";
     private static final String UI_PROMPT = "prompt/codegen-vue-ui-system-prompt.txt";
-    private static final String PLAN_PROMPT = "prompt/codegen-plan-system-prompt.txt";
     private static final String REVIEW_PROMPT = "prompt/codegen-vue-review-system-prompt.txt";
     private static final int SUMMARY_TOKEN_THRESHOLD = 50000;
     private static final int SUMMARY_KEEP_MESSAGES = 30;
-    private static final int CHAT_MEMORY_MAX_MESSAGES = 20;
-    private static final String DASHSCOPE_COMPATIBLE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
     @Resource
-    private StreamingChatModelConfig streamingChatModelConfig;
-
-    @Resource
-    private ReasoningStreamingChatModelConfig reasoningStreamingChatModelConfig;
+    private AiChatClientFactory aiChatClientFactory;
 
     @Resource
     private SpringAiToolCallbackRegistry toolCallbackRegistry;
@@ -80,9 +56,6 @@ public class AiCodeGeneratorServiceFactory {
 
     @Resource
     private UserAiConfigManager userAiConfigManager;
-
-    @Resource
-    private ChatMemoryRepository chatMemoryRepository;
 
     private final Cache<String, AiCodeGeneratorService> serviceCache = Caffeine.newBuilder()
             .maximumSize(1000)
@@ -120,7 +93,7 @@ public class AiCodeGeneratorServiceFactory {
 
     private String chatPlainOnce(String message, String normalizedModelKey) {
         ChatClient client = createChatClient(normalizedModelKey,
-                streamingChatModelConfig.getMaxTokens(), streamingChatModelConfig.getTemperature(), false);
+                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature(), false);
         return callHelper.call(client, message, normalizedModelKey);
     }
 
@@ -140,7 +113,7 @@ public class AiCodeGeneratorServiceFactory {
     private String chatWithImageOnce(String message, byte[] imageBytes, String mimeType, String fileName,
                                      String normalizedModelKey) {
         ChatClient client = createChatClient(normalizedModelKey,
-                streamingChatModelConfig.getMaxTokens(), streamingChatModelConfig.getTemperature(), false);
+                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature(), false);
         return callHelper.callWithImage(client, message, imageBytes, mimeType, fileName, normalizedModelKey);
     }
 
@@ -150,8 +123,8 @@ public class AiCodeGeneratorServiceFactory {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成类型不能为空");
         }
         ChatClient chatClient = createChatClient(modelKey,
-                streamingChatModelConfig.getMaxTokens(), streamingChatModelConfig.getTemperature(), false);
-        ChatModel reasoningChatModel = buildReasoningChatModel(modelKey);
+                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature(), false);
+        ChatModel reasoningChatModel = aiChatClientFactory.buildReasoningChatModel(modelKey);
         List<ToolCallback> toolCallbacks = toolCallbackRegistry.buildAgentToolCallbacks(appId);
         List<ToolCallback> readOnlyToolCallbacks = toolCallbackRegistry.buildAgentReadOnlyToolCallbacks(appId);
 
@@ -289,84 +262,11 @@ public class AiCodeGeneratorServiceFactory {
     }
 
     public ChatClient createChatClient(String modelKey) {
-        return createChatClient(AiModelRegistry.normalize(modelKey),
-                streamingChatModelConfig.getMaxTokens(), streamingChatModelConfig.getTemperature(), false);
+        return aiChatClientFactory.createChatClient(AiModelRegistry.normalize(modelKey));
     }
 
     public ChatClient createChatClient(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
-        String normalizedKey = AiModelRegistry.normalize(modelKey);
-        MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
-                .chatMemoryRepository(chatMemoryRepository)
-                .maxMessages(CHAT_MEMORY_MAX_MESSAGES)
-                .build();
-        return ChatClient.builder(buildChatModel(normalizedKey, maxTokens, temperature, streaming))
-                .defaultAdvisors(
-                        MessageChatMemoryAdvisor.builder(chatMemory).build())
-                .defaultOptions(buildOptions(normalizedKey, maxTokens, temperature, streaming))
-                .build();
-    }
-
-    private ChatModel buildReasoningChatModel(String modelKey) {
-        String normalizedKey = AiModelRegistry.normalize(modelKey);
-        String apiKey = resolveApiKey(normalizedKey);
-        String baseUrl = resolveBaseUrl(normalizedKey);
-        OpenAiChatOptions options = buildOpenAiOptions(normalizedKey,
-                reasoningStreamingChatModelConfig.getMaxTokens(),
-                reasoningStreamingChatModelConfig.getTemperature());
-        options.setInternalToolExecutionEnabled(false);
-        return buildOpenAiChatModel(options, apiKey, baseUrl);
-    }
-
-    private ChatModel buildChatModel(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
-        String apiKey = resolveApiKey(modelKey);
-        String baseUrl = resolveBaseUrl(modelKey);
-        OpenAiChatOptions options = buildOpenAiOptions(modelKey, maxTokens, temperature);
-        options.setInternalToolExecutionEnabled(false);
-        return buildOpenAiChatModel(options, apiKey, baseUrl);
-    }
-
-    private String resolveApiKey(String modelKey) {
-        String dynamicKey = AiModelRegistry.getDynamicApiKey(modelKey);
-        return StrUtil.isNotBlank(dynamicKey) ? dynamicKey : streamingChatModelConfig.getApiKey();
-    }
-
-    private String resolveBaseUrl(String modelKey) {
-        String dynamicBaseUrl = AiModelRegistry.getDynamicBaseUrl(modelKey);
-        return StrUtil.blankToDefault(dynamicBaseUrl, DASHSCOPE_COMPATIBLE_BASE_URL);
-    }
-
-    private ChatOptions buildOptions(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
-        OpenAiChatOptions options = buildOpenAiOptions(modelKey, maxTokens, temperature);
-        options.setInternalToolExecutionEnabled(false);
-        return options;
-    }
-
-    private OpenAiChatOptions buildOpenAiOptions(String modelKey, Integer maxTokens, Double temperature) {
-        var builder = OpenAiChatOptions.builder()
-                .model(AiModelRegistry.getActualModelName(modelKey));
-        if (maxTokens != null) builder.maxTokens(maxTokens);
-        if (temperature != null) builder.temperature(temperature);
-        return builder.build();
-    }
-
-    private OpenAiChatModel buildOpenAiChatModel(OpenAiChatOptions options, String apiKey, String baseUrl) {
-        OpenAiApi openAiApi = new OpenAiApi(
-                StrUtil.removeSuffix(baseUrl, "/"),
-                new SimpleApiKey(apiKey),
-                new LinkedMultiValueMap<>(),
-                "/chat/completions",
-                "/embeddings",
-                RestClient.builder(),
-                WebClient.builder(),
-                RetryUtils.DEFAULT_RESPONSE_ERROR_HANDLER
-        );
-        return new OpenAiChatModel(
-                openAiApi,
-                options,
-                ToolCallingManager.builder().build(),
-                RetryTemplate.defaultInstance(),
-                ObservationRegistry.NOOP
-        );
+        return aiChatClientFactory.createChatClient(modelKey, maxTokens, temperature, streaming);
     }
 
     private String buildCacheKey(long appId, CodeGenTypeEnum codeGenType, String modelKey) {

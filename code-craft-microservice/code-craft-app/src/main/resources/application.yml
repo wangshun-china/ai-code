@@ -89,17 +89,17 @@ dubbo:
     timeout: 120000
 
 code:
+  workspace-dir: ${CODE_CRAFT_WORKSPACE_DIR:G:/project/code-craft}
   deploy-host: ${CODE_CRAFT_DEPLOY_HOST:http://localhost:8126}
   node-builder-url: ${CODE_CRAFT_NODE_BUILDER_URL:http://localhost:8020/build}
   build-mode: ${CODE_CRAFT_BUILD_MODE:local}
-  output-root-dir: ${CODE_CRAFT_CODE_OUTPUT_DIR:G:/project/code-craft/tmp/code_output}
-  deploy-root-dir: ${CODE_CRAFT_CODE_DEPLOY_DIR:G:/project/code-craft/tmp/code_deploy}
-  upload-root-dir: ${CODE_CRAFT_CODE_UPLOAD_DIR:G:/project/code-craft/tmp/uploads}
+  output-root-dir: ${CODE_CRAFT_CODE_OUTPUT_DIR:${code.workspace-dir}/tmp/code_output}
+  deploy-root-dir: ${CODE_CRAFT_CODE_DEPLOY_DIR:${code.workspace-dir}/tmp/code_deploy}
+  upload-root-dir: ${CODE_CRAFT_CODE_UPLOAD_DIR:${code.workspace-dir}/tmp/uploads}
 
 app:
-  database:
-    init:
-      enabled: ${CODE_CRAFT_APP_DATABASE_INIT_ENABLED:true}
+  test-api:
+    enabled: ${CODE_CRAFT_TEST_API_ENABLED:false}
 
 management:
   endpoints:

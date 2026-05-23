@@ -57,11 +57,10 @@ import com.ws.codecraft.service.AppService;
 import com.ws.codecraft.service.AppVersionService;
 import com.ws.codecraft.service.ChatHistoryService;
 import com.ws.codecraft.service.CodegenTemplateRagService;
+import com.ws.codecraft.service.GenerationLockService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.dubbo.config.annotation.DubboReference;
-import org.redisson.api.RBucket;
-import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -75,10 +74,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -124,7 +122,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     private AppGenerationTaskService appGenerationTaskService;
 
     @Resource
-    private RedissonClient redissonClient;
+    private GenerationLockService generationLockService;
 
     @Resource
     private StreamHandlerExecutor streamHandlerExecutor;
@@ -168,7 +166,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
         AppGenerationTask generationTask = appGenerationTaskService.createTask(app, loginUser.getId(),
                 AppGenerationTaskModeEnum.GENERATE.getValue(), message);
-        String lockToken = acquireGenerationLock(appId);
+        String lockToken = generationLockService.acquire(appId);
         if (lockToken == null) {
             String errorMessage = "当前应用正在生成中，请等待上一轮生成完成后再试";
             appGenerationTaskService.markFailed(generationTask.getId(), errorMessage);
@@ -226,7 +224,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                         chatHistoryService.addChatMessage(appId, "AI 回复中断：" + errorMessage,
                                 ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
                     }
-                    releaseGenerationLock(appId, lockToken);
+                    generationLockService.release(appId, lockToken);
                     MonitorContextHolder.clearContext();
                 });
     }
@@ -850,26 +848,6 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
 
     private String getErrorMessage(Exception e) {
         return StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
-    }
-
-    private String acquireGenerationLock(Long appId) {
-        String lockKey = "code-craft:app:generation-lock:" + appId;
-        String lockToken = UUID.randomUUID().toString();
-        RBucket<String> lockBucket = redissonClient.getBucket(lockKey);
-        boolean locked = lockBucket.trySet(lockToken, 30, TimeUnit.MINUTES);
-        return locked ? lockToken : null;
-    }
-
-    private void releaseGenerationLock(Long appId, String lockToken) {
-        if (appId == null || StrUtil.isBlank(lockToken)) {
-            return;
-        }
-        String lockKey = "code-craft:app:generation-lock:" + appId;
-        RBucket<String> lockBucket = redissonClient.getBucket(lockKey);
-        String currentToken = lockBucket.get();
-        if (lockToken.equals(currentToken)) {
-            lockBucket.delete();
-        }
     }
 
     private String truncateText(String text, int maxLength) {

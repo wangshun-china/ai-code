@@ -17,6 +17,7 @@ import com.ws.codecraft.model.vo.AiModelVO;
 import com.ws.codecraft.service.AttachmentAnalysisService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,6 +42,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
+@ConditionalOnProperty(prefix = "app.test-api", name = "enabled", havingValue = "true")
 @RequestMapping("/api/app/test")
 public class AppAnonymousTestController {
 

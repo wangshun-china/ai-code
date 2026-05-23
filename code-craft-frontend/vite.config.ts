@@ -9,6 +9,30 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 export default defineConfig({
   base: '/',
   plugins: [vue(), vueDevTools()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return
+          }
+          if (id.includes('ant-design-vue') || id.includes('@ant-design')) {
+            return 'vendor-antd'
+          }
+          if (id.includes('@antv')) {
+            return 'vendor-charts'
+          }
+          if (id.includes('markdown-it') || id.includes('highlight.js') || id.includes('github-markdown-css')) {
+            return 'vendor-markdown'
+          }
+          if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) {
+            return 'vendor-vue'
+          }
+          return 'vendor'
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
