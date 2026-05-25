@@ -20,6 +20,7 @@ import com.ws.codecraft.ai.AiModelFallbackRouter;
 import com.ws.codecraft.ai.UserAiConfigManager;
 import com.ws.codecraft.config.CodeProjectProperties;
 import com.ws.codecraft.constant.AppConstant;
+import com.ws.codecraft.core.AiCallHelper;
 import com.ws.codecraft.core.AiCodeGeneratorFacade;
 import com.ws.codecraft.core.builder.VueProjectBuilder;
 import com.ws.codecraft.core.builder.VueProjectBuilderProd;
@@ -214,7 +215,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 })
                 .doOnError(error -> {
                     updateAppStatus(appId, AppStatusEnum.GENERATE_FAILED);
-                    appGenerationTaskService.markFailed(generationTask.getId(), getAiFriendlyErrorMessage(error));
+                    appGenerationTaskService.markFailed(generationTask.getId(), AiCallHelper.toFriendlyErrorMessage(error));
                 })
                 .doFinally(signalType -> {
                     if (SignalType.CANCEL.equals(signalType)) {
@@ -255,7 +256,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             aiResponse = aiCodeGeneratorServiceFactory.chatPlainWithFallback(chatPrompt, app.getModelKey(),
                     modelKey -> appGenerationTaskService.updateModelKey(chatTask.getId(), modelKey));
         } catch (RuntimeException e) {
-            String errorMessage = getAiFriendlyErrorMessage(e);
+            String errorMessage = AiCallHelper.toFriendlyErrorMessage(e);
             appGenerationTaskService.markFailed(chatTask.getId(), errorMessage);
             chatHistoryService.addChatMessage(appId, "AI 回复失败：" + errorMessage,
                     ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
@@ -315,7 +316,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             plan = generateAppPlanWithModelFallback(appId, codeGenTypeEnum, app.getModelKey(), planPrompt,
                     modelKey -> appGenerationTaskService.updateModelKey(planTask.getId(), modelKey));
         } catch (RuntimeException e) {
-            String errorMessage = getAiFriendlyErrorMessage(e);
+            String errorMessage = AiCallHelper.toFriendlyErrorMessage(e);
             appGenerationTaskService.markFailed(planTask.getId(), errorMessage);
             chatHistoryService.addChatMessage(appId, "方案生成失败：" + errorMessage,
                     ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
@@ -643,7 +644,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             selectedCodeGenType = routingService.routeCodeGenType(initPrompt);
         } catch (RuntimeException e) {
             log.error("应用代码类型路由失败, model={}, prompt={}", app.getModelKey(), initPrompt, e);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, getAiFriendlyErrorMessage(e));
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, AiCallHelper.toFriendlyErrorMessage(e));
         } finally {
             MonitorContextHolder.clearContext();
         }
@@ -730,7 +731,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                         buildSuccess = vueProjectBuilder.buildProject(sourceDir.getName());
                     }
                 } catch (Exception e) {
-                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "node-builder 返回 " + getErrorMessage(e));
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "node-builder 返回 " + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
                 }
                 ThrowUtils.throwIf(!buildSuccess, ErrorCode.SYSTEM_ERROR, "node-builder 返回构建失败");
 
@@ -773,7 +774,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
             log.error("应用部署任务失败, appId={}, taskId={}, step={}, error={}",
                     appId, taskId, currentStep, e.getMessage(), e);
             updateAppStatus(appId, "build".equals(currentStep) ? AppStatusEnum.BUILD_FAILED : AppStatusEnum.DEPLOY_FAILED);
-            appDeployTaskService.markFailed(taskId, currentStep, getErrorMessage(e));
+            appDeployTaskService.markFailed(taskId, currentStep, StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         }
     }
 
@@ -797,7 +798,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
                 updateAppStatus(appId, AppStatusEnum.SCREENSHOT_FAILED);
             }
         } catch (Exception e) {
-            appDeployTaskService.appendLog(taskId, "截图失败：" + getErrorMessage(e));
+            appDeployTaskService.appendLog(taskId, "截图失败：" + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
             updateAppStatus(appId, AppStatusEnum.SCREENSHOT_FAILED);
         }
     }
@@ -846,10 +847,6 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         this.updateById(updateApp);
     }
 
-    private String getErrorMessage(Exception e) {
-        return StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
-    }
-
     private String truncateText(String text, int maxLength) {
         if (StrUtil.isBlank(text) || text.length() <= maxLength) {
             return StrUtil.blankToDefault(text, "");
@@ -864,7 +861,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         return text.replaceAll("(?m)^\\s*```[\\w.+-]*\\s*$", "[代码块边界已省略]");
     }
 
-    private String getAiFriendlyErrorMessage(Throwable e) {
+    private String AiCallHelper.toFriendlyErrorMessage(Throwable e) {
         String message = e == null ? "" : StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
         if (message.contains("AllocationQuota.FreeTierOnly") || message.contains("403")) {
             return "当前可用模型额度不足，系统已尝试自动切换备用模型但仍失败，请稍后重试或手动切换模型";
@@ -923,7 +920,8 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         Map<Long, UserVO> userVOMap = userService.listByIds(userIds).stream()
                 .collect(Collectors.toMap(User::getId, userService::getUserVO));
         return appList.stream().map(app -> {
-            AppVO appVO = getAppVO(app);
+            AppVO appVO = new AppVO();
+            BeanUtil.copyProperties(app, appVO);
             appVO.setUser(userVOMap.get(app.getUserId()));
             return appVO;
         }).toList();

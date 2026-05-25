@@ -190,119 +190,31 @@ declare namespace API {
     user?: UserVO
   }
 
-  type BaseResponseAppVO = {
+  type BaseResponse<T> = {
     code?: number
-    data?: AppVO
+    data?: T
     message?: string
   }
 
-  type BaseResponseAppDeployResultVO = {
-    code?: number
-    data?: AppDeployResultVO
-    message?: string
-  }
-
-  type BaseResponseAppDeployTaskVO = {
-    code?: number
-    data?: AppDeployTaskVO
-    message?: string
-  }
-
-  type BaseResponseAppGenerationPlanVO = {
-    code?: number
-    data?: AppGenerationPlanVO
-    message?: string
-  }
-
-  type BaseResponseAppAttachmentVO = {
-    code?: number
-    data?: AppAttachmentVO
-    message?: string
-  }
-
-  type BaseResponseAppAttachmentVOArray = {
-    code?: number
-    data?: AppAttachmentVO[]
-    message?: string
-  }
-
-  type BaseResponseAppSourceFileNodeVOArray = {
-    code?: number
-    data?: AppSourceFileNodeVO[]
-    message?: string
-  }
-
-  type BaseResponseAppSourceFileContentVO = {
-    code?: number
-    data?: AppSourceFileContentVO
-    message?: string
-  }
-
-  type BaseResponseBoolean = {
-    code?: number
-    data?: boolean
-    message?: string
-  }
-
-  type BaseResponseAiModelVOArray = {
-    code?: number
-    data?: AiModelVO[]
-    message?: string
-  }
-
-  type BaseResponseAiModelCredentialVOArray = {
-    code?: number
-    data?: AiModelCredentialVO[]
-    message?: string
-  }
-
-  type BaseResponseLoginUserVO = {
-    code?: number
-    data?: LoginUserVO
-    message?: string
-  }
-
-  type BaseResponseLong = {
-    code?: number
-    data?: number
-    message?: string
-  }
-
-  type BaseResponsePageAppVO = {
-    code?: number
-    data?: PageAppVO
-    message?: string
-  }
-
-  type BaseResponsePageChatHistory = {
-    code?: number
-    data?: PageChatHistory
-    message?: string
-  }
-
-  type BaseResponsePageUserVO = {
-    code?: number
-    data?: PageUserVO
-    message?: string
-  }
-
-  type BaseResponseString = {
-    code?: number
-    data?: string
-    message?: string
-  }
-
-  type BaseResponseUser = {
-    code?: number
-    data?: User
-    message?: string
-  }
-
-  type BaseResponseUserVO = {
-    code?: number
-    data?: UserVO
-    message?: string
-  }
+  type BaseResponseAppVO = BaseResponse<AppVO>
+  type BaseResponseAppDeployResultVO = BaseResponse<AppDeployResultVO>
+  type BaseResponseAppDeployTaskVO = BaseResponse<AppDeployTaskVO>
+  type BaseResponseAppGenerationPlanVO = BaseResponse<AppGenerationPlanVO>
+  type BaseResponseAppAttachmentVO = BaseResponse<AppAttachmentVO>
+  type BaseResponseAppAttachmentVOArray = BaseResponse<AppAttachmentVO[]>
+  type BaseResponseAppSourceFileNodeVOArray = BaseResponse<AppSourceFileNodeVO[]>
+  type BaseResponseAppSourceFileContentVO = BaseResponse<AppSourceFileContentVO>
+  type BaseResponseBoolean = BaseResponse<boolean>
+  type BaseResponseAiModelVOArray = BaseResponse<AiModelVO[]>
+  type BaseResponseAiModelCredentialVOArray = BaseResponse<AiModelCredentialVO[]>
+  type BaseResponseLoginUserVO = BaseResponse<LoginUserVO>
+  type BaseResponseLong = BaseResponse<number>
+  type BaseResponsePageAppVO = BaseResponse<PageResult<AppVO>>
+  type BaseResponsePageChatHistory = BaseResponse<PageResult<ChatHistory>>
+  type BaseResponsePageUserVO = BaseResponse<PageResult<UserVO>>
+  type BaseResponseString = BaseResponse<string>
+  type BaseResponseUser = BaseResponse<User>
+  type BaseResponseUserVO = BaseResponse<UserVO>
 
   type ChatHistory = {
     id?: number
@@ -418,8 +330,8 @@ declare namespace API {
     updateTime?: string
   }
 
-  type PageAppVO = {
-    records?: AppVO[]
+  type PageResult<T> = {
+    records?: T[]
     pageNumber?: number
     pageSize?: number
     totalPage?: number
@@ -427,23 +339,9 @@ declare namespace API {
     optimizeCountQuery?: boolean
   }
 
-  type PageChatHistory = {
-    records?: ChatHistory[]
-    pageNumber?: number
-    pageSize?: number
-    totalPage?: number
-    totalRow?: number
-    optimizeCountQuery?: boolean
-  }
-
-  type PageUserVO = {
-    records?: UserVO[]
-    pageNumber?: number
-    pageSize?: number
-    totalPage?: number
-    totalRow?: number
-    optimizeCountQuery?: boolean
-  }
+  type PageAppVO = PageResult<AppVO>
+  type PageChatHistory = PageResult<ChatHistory>
+  type PageUserVO = PageResult<UserVO>
 
   type ServerSentEventString = true
 

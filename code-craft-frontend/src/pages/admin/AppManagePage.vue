@@ -1,5 +1,5 @@
 <template>
-  <div id="appManagePage" class="admin-page-shell">
+  <div id="appManagePage" class="admin-page">
     <div class="page-header">
       <h2 class="page-title">应用管理</h2>
       <p class="page-desc">管理所有应用，支持编辑、精选和删除操作</p>
@@ -114,6 +114,7 @@ import { formatTime } from '@/utils/time'
 import UserInfo from '@/components/UserInfo.vue'
 import { useAdminTable } from '@/composables/useAdminTable'
 import { SearchOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue'
+import '@/assets/admin-common.css'
 
 const router = useRouter()
 
@@ -176,111 +177,6 @@ const deleteApp = async (id: number | undefined) => {
 </script>
 
 <style scoped>
-#appManagePage {
-  padding: 24px;
-  min-height: calc(100vh - 150px);
-}
-
-.page-header {
-  margin-bottom: 24px;
-}
-
-.page-title {
-  margin: 0 0 8px;
-  font-size: 24px;
-  font-weight: 600;
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.page-desc {
-  margin: 0;
-  color: #333333;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.search-card {
-  background: var(--glass-bg);
-  border-radius: var(--border-radius);
-  padding: 20px 24px;
-  margin-bottom: 20px;
-  box-shadow: var(--glass-shadow);
-}
-
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.search-input {
-  border-radius: 8px;
-  min-width: 150px;
-}
-
-.search-select {
-  min-width: 150px;
-}
-
-.search-input :deep(.ant-input),
-.search-select :deep(.ant-select-selector) {
-  border-radius: 8px;
-}
-
-.search-btn {
-  border-radius: 8px;
-  background: var(--primary-gradient);
-  border: none;
-  font-weight: 500;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-  transition: var(--transition);
-}
-
-.search-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-}
-
-.table-card {
-  background: var(--glass-bg);
-  border-radius: var(--border-radius);
-  padding: 20px;
-  box-shadow: var(--glass-shadow);
-  overflow-x: auto;
-}
-
-.data-table {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.data-table :deep(.ant-table-thead > tr > th) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
-  font-weight: 600;
-  color: #1a1a2e;
-  border-bottom: 2px solid rgba(102, 126, 234, 0.2);
-}
-
-.data-table :deep(.ant-table-tbody > tr > td) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-  vertical-align: middle;
-}
-
-.data-table :deep(.ant-table-tbody > tr:hover > td) {
-  background: rgba(102, 126, 234, 0.05);
-}
-
-.data-table :deep(.even-row) {
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.data-table :deep(.odd-row) {
-  background: rgba(248, 250, 252, 0.5);
-}
-
 .cover-image {
   border-radius: 8px;
   object-fit: cover;
@@ -289,7 +185,7 @@ const deleteApp = async (id: number | undefined) => {
 .no-cover {
   width: 80px;
   height: 60px;
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  background: var(--warm-sand);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -302,7 +198,7 @@ const deleteApp = async (id: number | undefined) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #333333;
+  color: var(--charcoal-warm);
   font-weight: 500;
 }
 
@@ -311,27 +207,13 @@ const deleteApp = async (id: number | undefined) => {
 }
 
 .priority-num {
-  color: #888;
-}
-
-.time-cell {
-  color: #666;
-  font-size: 13px;
+  color: var(--stone-gray);
 }
 
 .not-deployed {
-  color: #aaa;
+  color: var(--stone-gray);
   font-size: 13px;
   font-style: italic;
-}
-
-.action-btn {
-  border-radius: 8px;
-  transition: var(--transition);
-}
-
-.action-btn:hover {
-  transform: scale(1.05);
 }
 
 .featured-btn {
@@ -348,23 +230,5 @@ const deleteApp = async (id: number | undefined) => {
   background: linear-gradient(135deg, #faad14 0%, #d48806 100%);
   border-color: #faad14;
   color: white;
-}
-
-.delete-btn {
-  padding: 4px 8px;
-}
-
-@media (max-width: 768px) {
-  #appManagePage {
-    padding: 16px;
-  }
-
-  .search-form {
-    flex-direction: column;
-  }
-
-  .search-input, .search-select {
-    min-width: 100%;
-  }
 }
 </style>

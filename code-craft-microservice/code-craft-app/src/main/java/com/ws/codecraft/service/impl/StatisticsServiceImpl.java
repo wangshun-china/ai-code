@@ -289,16 +289,8 @@ public class StatisticsServiceImpl implements StatisticsService {
         return ((Number) value).longValue();
     }
 
-    private long getLongValue(JSONObject object, String key) {
-        Object value = object.get(key);
-        if (value == null) {
-            return 0L;
-        }
-        return ((Number) value).longValue();
-    }
-
-    private int getIntValue(JSONObject object, String key) {
-        Object value = object.get(key);
+    private int getIntValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
         if (value == null) {
             return 0;
         }

@@ -10,6 +10,7 @@ import com.ws.codecraft.common.BaseResponse;
 import com.ws.codecraft.common.DeleteRequest;
 import com.ws.codecraft.common.ResultUtils;
 import com.ws.codecraft.config.CodeProjectProperties;
+import com.ws.codecraft.core.AiCallHelper;
 import com.ws.codecraft.constant.AppConstant;
 import com.ws.codecraft.constant.UserConstant;
 import com.ws.codecraft.exception.BusinessException;
@@ -97,7 +98,7 @@ public class AppController {
                                 .data(JSONUtil.toJsonStr(Map.of(
                                         "error", true,
                                         "code", ErrorCode.SYSTEM_ERROR.getCode(),
-                                        "message", getAiFriendlyErrorMessage(error)
+                                        "message", AiCallHelper.toFriendlyErrorMessage(error)
                                 )))
                                 .build()
                 ))
@@ -124,17 +125,6 @@ public class AppController {
         ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "提示词不能为空");
         User loginUser = InnerUserService.getLoginUser(request);
         return ResultUtils.success(appService.chatToApp(appId, message, loginUser));
-    }
-
-    private String getAiFriendlyErrorMessage(Throwable error) {
-        String errorMessage = error == null ? "" : StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName());
-        if (errorMessage.contains("AllocationQuota.FreeTierOnly") || errorMessage.contains("403")) {
-            return "当前可用模型额度不足，系统已尝试自动切换备用模型但仍失败，请稍后重试或手动切换模型";
-        }
-        if (error instanceof BusinessException businessException) {
-            return businessException.getMessage();
-        }
-        return "AI 生成失败，请稍后重试";
     }
 
     /**

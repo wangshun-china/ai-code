@@ -3,6 +3,7 @@ package com.ws.codecraft.core;
 import cn.hutool.core.util.StrUtil;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener.SpringAiUsageTrace;
+import com.ws.codecraft.common.exception.BusinessException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -152,5 +153,22 @@ public class AiCallHelper {
             return "system: " + system + "\n\nuser: " + user;
         }
         return "user: " + user;
+    }
+
+    /**
+     * 将 AI 调用异常转为用户友好的中文提示。
+     */
+    public static String toFriendlyErrorMessage(Throwable error) {
+        if (error == null) {
+            return "";
+        }
+        if (error instanceof BusinessException ex) {
+            return ex.getMessage();
+        }
+        String message = StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName());
+        if (message.contains("AllocationQuota.FreeTierOnly") || message.contains("403")) {
+            return "当前可用模型额度不足，系统已尝试自动切换备用模型但仍失败，请稍后重试或手动切换模型";
+        }
+        return message;
     }
 }

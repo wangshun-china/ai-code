@@ -1,0 +1,143 @@
+/* Shared admin page styles — used by AppManage, ChatManage, UserManage */
+
+.admin-page {
+  padding: 24px;
+  min-height: calc(100vh - 150px);
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--near-black);
+}
+
+.page-desc {
+  margin: 0;
+  color: var(--olive-gray);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.search-card {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.search-input {
+  border-radius: 8px;
+  min-width: 150px;
+}
+
+.search-select {
+  min-width: 120px;
+}
+
+.search-input :deep(.ant-input),
+.search-select :deep(.ant-select-selector) {
+  border-radius: 8px;
+}
+
+.search-btn {
+  border-radius: 8px;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.search-btn:hover {
+  transform: translateY(-2px);
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+
+.table-card {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+
+.data-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.data-table :deep(.ant-table-thead > tr > th) {
+  background: var(--warm-sand);
+  font-weight: 600;
+  color: var(--near-black);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.data-table :deep(.ant-table-tbody > tr > td) {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  vertical-align: middle;
+}
+
+.data-table :deep(.ant-table-tbody > tr:hover > td) {
+  background: rgba(201, 100, 66, 0.04);
+}
+
+.data-table :deep(.even-row) {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.data-table :deep(.odd-row) {
+  background: var(--warm-sand);
+}
+
+.time-cell {
+  color: var(--olive-gray);
+  font-size: 13px;
+}
+
+.action-btn {
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.action-btn:hover {
+  transform: scale(1.05);
+}
+
+.delete-btn {
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.delete-btn:hover {
+  transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+  .admin-page {
+    padding: 16px;
+  }
+
+  .search-form {
+    flex-direction: column;
+  }
+
+  .search-input, .search-select {
+    min-width: 100%;
+  }
+}

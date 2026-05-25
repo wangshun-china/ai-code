@@ -1,5 +1,5 @@
 <template>
-  <div id="userManagePage" class="admin-page-shell">
+  <div id="userManagePage" class="admin-page">
     <div class="page-header">
       <h2 class="page-title">用户管理</h2>
       <p class="page-desc">管理系统用户，支持搜索和删除操作</p>
@@ -60,6 +60,7 @@ import { message } from 'ant-design-vue'
 import { formatTime } from '@/utils/time'
 import { useAdminTable } from '@/composables/useAdminTable'
 import { SearchOutlined, DeleteOutlined } from '@ant-design/icons-vue'
+import '@/assets/admin-common.css'
 
 const columns = [
   { title: 'ID', dataIndex: 'id', width: 80 },
@@ -93,109 +94,9 @@ const doDelete = async (id: string) => {
 </script>
 
 <style scoped>
-#userManagePage {
-  padding: 24px;
-  min-height: calc(100vh - 150px);
-}
-
-.page-header {
-  margin-bottom: 24px;
-}
-
-.page-title {
-  margin: 0 0 8px;
-  font-size: 24px;
-  font-weight: 600;
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.page-desc {
-  margin: 0;
-  color: #333333;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.search-card {
-  background: var(--glass-bg);
-  border-radius: var(--border-radius);
-  padding: 20px 24px;
-  margin-bottom: 20px;
-  box-shadow: var(--glass-shadow);
-}
-
-.search-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.search-input {
-  border-radius: 8px;
-  min-width: 180px;
-}
-
-.search-input :deep(.ant-input) {
-  border-radius: 8px;
-}
-
-.search-btn {
-  border-radius: 8px;
-  background: var(--primary-gradient);
-  border: none;
-  font-weight: 500;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-  transition: var(--transition);
-}
-
-.search-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-}
-
-.table-card {
-  background: var(--glass-bg);
-  border-radius: var(--border-radius);
-  padding: 20px;
-  box-shadow: var(--glass-shadow);
-  overflow-x: auto;
-}
-
-.data-table {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.data-table :deep(.ant-table-thead > tr > th) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
-  font-weight: 600;
-  color: #1a1a2e;
-  border-bottom: 2px solid rgba(102, 126, 234, 0.2);
-}
-
-.data-table :deep(.ant-table-tbody > tr > td) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-  transition: var(--transition-fast);
-}
-
-.data-table :deep(.ant-table-tbody > tr:hover > td) {
-  background: rgba(102, 126, 234, 0.05);
-}
-
-.data-table :deep(.even-row) {
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.data-table :deep(.odd-row) {
-  background: rgba(248, 250, 252, 0.5);
-}
-
 .user-avatar-cell {
   border: 2px solid transparent;
-  background: var(--primary-gradient);
+  background: var(--primary);
   padding: 2px;
 }
 
@@ -204,32 +105,7 @@ const doDelete = async (id: string) => {
   font-weight: 500;
 }
 
-.time-cell {
-  color: #333333;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.delete-btn {
-  border-radius: 8px;
-  transition: var(--transition);
-}
-
-.delete-btn:hover {
-  transform: scale(1.05);
-}
-
-@media (max-width: 768px) {
-  #userManagePage {
-    padding: 16px;
-  }
-
-  .search-form {
-    flex-direction: column;
-  }
-
-  .search-input {
-    min-width: 100%;
-  }
+.search-input {
+  min-width: 180px;
 }
 </style>
