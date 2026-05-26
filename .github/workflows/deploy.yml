@@ -28,7 +28,7 @@ env:
   ALIYUN_ACR_REGISTRY: ${{ vars.ALIYUN_ACR_REGISTRY }}
   ALIYUN_ACR_USERNAME: ${{ vars.ALIYUN_ACR_USERNAME }}
   ALIYUN_ACR_PASSWORD: ${{ secrets.ALIYUN_ACR_PASSWORD }}
-  CODE_CRAFT_IMAGE_NAMESPACE: ${{ vars.CODE_CRAFT_IMAGE_NAMESPACE }}
+  CODE_CRAFT_IMAGE_NAME: ${{ vars.CODE_CRAFT_IMAGE_NAME }}
 
   # 应用配置
   APP_NAME: code-craft
@@ -152,7 +152,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-user
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAMESPACE }}:user-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:user-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -162,7 +162,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-app
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAMESPACE }}:app-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:app-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -172,7 +172,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-screenshot
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAMESPACE }}:screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -182,7 +182,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-frontend
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAMESPACE }}:frontend-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:frontend-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -192,7 +192,7 @@ jobs:
           context: .
           file: ./Dockerfile.prod-node-builder
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAMESPACE }}:node-builder-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:node-builder-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -210,7 +210,7 @@ jobs:
       - name: Deploy Infrastructure
         env:
           ALIYUN_ACR_REGISTRY: ${{ env.ALIYUN_ACR_REGISTRY }}
-          CODE_CRAFT_IMAGE_NAMESPACE: ${{ env.CODE_CRAFT_IMAGE_NAMESPACE }}
+          CODE_CRAFT_IMAGE_NAME: ${{ env.CODE_CRAFT_IMAGE_NAME }}
           IMAGE_TAG_SUFFIX: ${{ needs.resolve-context.outputs.branch_slug }}-latest
           CODE_CRAFT_MYSQL_ROOT_PASSWORD: ${{ env.CODE_CRAFT_MYSQL_ROOT_PASSWORD }}
           CODE_CRAFT_MYSQL_DATABASE: ${{ env.CODE_CRAFT_MYSQL_DATABASE }}
@@ -244,7 +244,7 @@ jobs:
           # 生成环境文件
           cat > .env << EOF
           ALIYUN_ACR_REGISTRY=${ALIYUN_ACR_REGISTRY}
-          CODE_CRAFT_IMAGE_NAMESPACE=${CODE_CRAFT_IMAGE_NAMESPACE}
+          CODE_CRAFT_IMAGE_NAME=${CODE_CRAFT_IMAGE_NAME}
           IMAGE_TAG_SUFFIX=${IMAGE_TAG_SUFFIX}
           CODE_CRAFT_MYSQL_ROOT_PASSWORD=${CODE_CRAFT_MYSQL_ROOT_PASSWORD}
           CODE_CRAFT_MYSQL_DATABASE=${CODE_CRAFT_MYSQL_DATABASE}
@@ -370,7 +370,7 @@ jobs:
                 retries: 10
 
             user-service:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAMESPACE}:user-service-${IMAGE_TAG_SUFFIX}
+              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:user-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-user-service
               environment:
                 JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC"
@@ -400,7 +400,7 @@ jobs:
                   condition: service_started
 
             app-service:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAMESPACE}:app-service-${IMAGE_TAG_SUFFIX}
+              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:app-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-app-service
               environment:
                 JAVA_TOOL_OPTIONS: "-Xmx1024m -Xms512m -XX:+UseG1GC"
@@ -448,7 +448,7 @@ jobs:
                   condition: service_started
 
             screenshot-service:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAMESPACE}:screenshot-service-${IMAGE_TAG_SUFFIX}
+              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:screenshot-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-screenshot-service
               shm_size: '512mb'
               environment:
@@ -490,7 +490,7 @@ jobs:
                   condition: service_started
 
             node-builder:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAMESPACE}:node-builder-${IMAGE_TAG_SUFFIX}
+              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:node-builder-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-node-builder
               working_dir: /app
               volumes:
@@ -509,7 +509,7 @@ jobs:
                 retries: 3
 
             frontend:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAMESPACE}:frontend-${IMAGE_TAG_SUFFIX}
+              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:frontend-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-frontend
               restart: unless-stopped
               networks:
