@@ -28,8 +28,6 @@ import java.util.Set;
 @Slf4j
 public class UserAiConfigManager {
 
-    public static final long SYSTEM_CREDENTIAL_ID = 0L;
-    private static final long SYSTEM_USER_ID = 0L;
     public static final String DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
     private static final String DEFAULT_KEY_MASK = "*****";
     private static final String NORMAL_KEY_MASK = "***";
@@ -49,7 +47,7 @@ public class UserAiConfigManager {
             if (existing == null) {
                 throw new IllegalArgumentException("模型配置不存在");
             }
-            if (isSystemCredential(existing) && !allowSystemEdit) {
+            if (isDefaultCredential(existing) && !allowSystemEdit) {
                 throw new IllegalArgumentException("系统默认配置不能修改");
             }
             existing.setName(StrUtil.blankToDefault(request.getName(), existing.getName()));
@@ -83,7 +81,7 @@ public class UserAiConfigManager {
     }
 
     public void selectCredential(long userId, long credentialId) {
-        if (credentialId == SYSTEM_CREDENTIAL_ID || isGlobalSystemCredentialId(credentialId)) {
+        if (isSystemCredentialId(credentialId)) {
             for (AiModelCredential credential : listUserCredentials(userId)) {
                 AiModelRegistry.removeDynamicModelsByPrefix(buildCredentialPrefix(credential.getId()));
             }
@@ -105,14 +103,14 @@ public class UserAiConfigManager {
         if (credential == null) {
             return;
         }
-        if (isSystemCredential(credential)) {
+        if (isDefaultCredential(credential)) {
             return;
         }
         boolean wasDefault = Objects.equals(credential.getIsDefault(), 1);
         aiModelCredentialMapper.deleteById(credentialId);
         AiModelRegistry.removeDynamicModelsByPrefix(buildCredentialPrefix(credentialId));
         if (wasDefault) {
-            selectCredential(userId, SYSTEM_CREDENTIAL_ID);
+            clearOtherDefaults(userId, null);
         }
     }
 
@@ -123,9 +121,9 @@ public class UserAiConfigManager {
     public List<AiModelCredentialVO> listCredentialVO(long userId, boolean admin) {
         AiModelCredential active = getActiveCredential(userId);
         List<AiModelCredentialVO> result = new ArrayList<>();
-        AiModelCredential systemCredential = getSystemCredential();
-        if (systemCredential != null) {
-            result.add(toVO(systemCredential, admin, active));
+        AiModelCredential defaultCredential = getDefaultCredential();
+        if (defaultCredential != null) {
+            result.add(toVO(defaultCredential, admin, active));
         }
         for (AiModelCredential credential : listCredentials(userId)) {
             result.add(toVO(credential, admin, active));
@@ -138,8 +136,8 @@ public class UserAiConfigManager {
         if (active == null) {
             return List.of();
         }
-        boolean systemDefault = isSystemCredential(active);
-        if (!systemDefault || hasUsableKey(active.getApiKey())) {
+        boolean defaultCredential = isDefaultCredential(active);
+        if (!defaultCredential || hasUsableKey(active.getApiKey())) {
             registerCredentialModels(active);
         }
         return parseModelNames(active.getModelNames()).stream()
@@ -149,7 +147,7 @@ public class UserAiConfigManager {
                         AiModelRegistry.ENDPOINT_OPENAI_COMPATIBLE,
                         active.getBaseUrl(),
                         true,
-                        !systemDefault))
+                        !defaultCredential))
                 .toList();
     }
 
@@ -179,9 +177,9 @@ public class UserAiConfigManager {
     }
 
     public void loadUserModelsToRegistry(long userId) {
-        AiModelCredential systemCredential = getSystemCredential();
-        if (systemCredential != null && hasUsableKey(systemCredential.getApiKey())) {
-            registerCredentialModels(systemCredential);
+        AiModelCredential defaultCredential = getDefaultCredential();
+        if (defaultCredential != null && hasUsableKey(defaultCredential.getApiKey())) {
+            registerCredentialModels(defaultCredential);
         }
         for (AiModelCredential credential : listCredentials(userId)) {
             if (hasUsableKey(credential.getApiKey())) {
@@ -199,7 +197,7 @@ public class UserAiConfigManager {
     }
 
     private static String buildModelKey(AiModelCredential credential, String modelName) {
-        return isSystemCredential(credential) ? modelName : buildCredentialModelKey(credential.getId(), modelName);
+        return isDefaultCredential(credential) ? modelName : buildCredentialModelKey(credential.getId(), modelName);
     }
 
     private void registerCredentialModels(AiModelCredential credential) {
@@ -222,7 +220,7 @@ public class UserAiConfigManager {
                 .eq("isDefault", 1)
                 .orderBy("updateTime", false)
                 .limit(1));
-        return userDefault != null ? userDefault : getSystemCredential();
+        return userDefault != null ? userDefault : getDefaultCredential();
     }
 
     private AiModelCredential getCredential(long userId, long credentialId) {
@@ -258,7 +256,7 @@ public class UserAiConfigManager {
     }
 
     private AiModelCredentialVO toVO(AiModelCredential credential, boolean admin, AiModelCredential active) {
-        boolean systemDefault = isSystemCredential(credential);
+        boolean defaultCredential = isDefaultCredential(credential);
         return new AiModelCredentialVO(
                 credential.getId(),
                 credential.getName(),
@@ -266,20 +264,19 @@ public class UserAiConfigManager {
                 credential.getBaseUrl(),
                 parseModelNames(credential.getModelNames()),
                 active != null && Objects.equals(active.getId(), credential.getId()),
-                systemDefault);
+                defaultCredential);
     }
 
     private String visibleApiKey(AiModelCredential credential, boolean admin) {
-        boolean systemDefault = isSystemCredential(credential);
-        if (systemDefault) {
+        boolean defaultCredential = isDefaultCredential(credential);
+        if (defaultCredential) {
             return admin ? credential.getApiKey() : DEFAULT_KEY_MASK;
         }
         return credential.getApiKey();
     }
 
-    private AiModelCredential getSystemCredential() {
+    private AiModelCredential getDefaultCredential() {
         return aiModelCredentialMapper.selectOneByQuery(QueryWrapper.create()
-                .eq("userId", SYSTEM_USER_ID)
                 .eq("systemDefault", 1)
                 .orderBy("updateTime", false)
                 .limit(1));
@@ -292,19 +289,17 @@ public class UserAiConfigManager {
         }
         return aiModelCredentialMapper.selectOneByQuery(QueryWrapper.create()
                 .eq("id", credentialId)
-                .eq("userId", SYSTEM_USER_ID)
                 .eq("systemDefault", 1)
                 .limit(1));
     }
 
-    private boolean isGlobalSystemCredentialId(long credentialId) {
+    private boolean isSystemCredentialId(long credentialId) {
         return aiModelCredentialMapper.selectCountByQuery(QueryWrapper.create()
                 .eq("id", credentialId)
-                .eq("userId", SYSTEM_USER_ID)
                 .eq("systemDefault", 1)) > 0;
     }
 
-    private static boolean isSystemCredential(AiModelCredential credential) {
+    private static boolean isDefaultCredential(AiModelCredential credential) {
         return credential != null && Objects.equals(credential.getSystemDefault(), 1);
     }
 
