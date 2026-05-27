@@ -3,7 +3,7 @@ package com.ws.codecraft.core;
 import cn.hutool.core.util.StrUtil;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener.SpringAiUsageTrace;
-import com.ws.codecraft.common.exception.BusinessException;
+import com.ws.codecraft.exception.BusinessException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;

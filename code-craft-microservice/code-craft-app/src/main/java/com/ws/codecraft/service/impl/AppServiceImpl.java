@@ -861,14 +861,6 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         return text.replaceAll("(?m)^\\s*```[\\w.+-]*\\s*$", "[代码块边界已省略]");
     }
 
-    private String AiCallHelper.toFriendlyErrorMessage(Throwable e) {
-        String message = e == null ? "" : StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName());
-        if (message.contains("AllocationQuota.FreeTierOnly") || message.contains("403")) {
-            return "当前可用模型额度不足，系统已尝试自动切换备用模型但仍失败，请稍后重试或手动切换模型";
-        }
-        return message;
-    }
-
     @Override
     public void generateAppScreenshotAsync(Long appId, String appUrl) {
         Thread.startVirtualThread(() -> {

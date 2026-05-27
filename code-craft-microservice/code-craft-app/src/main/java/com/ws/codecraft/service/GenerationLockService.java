@@ -6,8 +6,8 @@ import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 应用代码生成互斥锁，避免同一应用并发写文件。
@@ -24,7 +24,7 @@ public class GenerationLockService {
     public String acquire(Long appId) {
         String lockToken = UUID.randomUUID().toString();
         RBucket<String> lockBucket = redissonClient.getBucket(LOCK_KEY_PREFIX + appId);
-        boolean locked = lockBucket.trySet(lockToken, LOCK_TTL_MINUTES, TimeUnit.MINUTES);
+        boolean locked = lockBucket.setIfAbsent(lockToken, Duration.ofMinutes(LOCK_TTL_MINUTES));
         return locked ? lockToken : null;
     }
 

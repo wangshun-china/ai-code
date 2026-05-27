@@ -3,7 +3,8 @@ package com.ws.codecraft.ai;
 import cn.hutool.core.util.StrUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.ws.codecraft.mapper.AiModelCredentialMapper;
-import com.ws.codecraft.ai.config.StreamingChatModelConfig;
+import com.ws.codecraft.exception.BusinessException;
+import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.model.ai.AiModelRegistry;
 import com.ws.codecraft.model.entity.AiModelCredential;
 import com.ws.codecraft.model.request.AiModelCredentialRequest;
@@ -28,15 +29,13 @@ import java.util.Set;
 public class UserAiConfigManager {
 
     public static final long SYSTEM_CREDENTIAL_ID = 0L;
+    private static final long SYSTEM_USER_ID = 0L;
     public static final String DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
     private static final String DEFAULT_KEY_MASK = "*****";
     private static final String NORMAL_KEY_MASK = "***";
 
     @Resource
     private AiModelCredentialMapper aiModelCredentialMapper;
-
-    @Resource
-    private StreamingChatModelConfig streamingChatModelConfig;
 
     public AiModelCredential saveCredential(long userId, AiModelCredentialRequest request) {
         return saveCredential(userId, request, false);
@@ -46,7 +45,7 @@ public class UserAiConfigManager {
         validateCredentialModels(request);
         String normalizedModels = joinModelNames(request.getModelNames());
         if (request.getId() != null && request.getId() > 0) {
-            AiModelCredential existing = getCredential(userId, request.getId());
+            AiModelCredential existing = getEditableCredential(userId, request.getId(), allowSystemEdit);
             if (existing == null) {
                 throw new IllegalArgumentException("模型配置不存在");
             }
@@ -84,14 +83,11 @@ public class UserAiConfigManager {
     }
 
     public void selectCredential(long userId, long credentialId) {
-        if (credentialId == SYSTEM_CREDENTIAL_ID) {
-            for (AiModelCredential credential : listCredentials(userId)) {
+        if (credentialId == SYSTEM_CREDENTIAL_ID || isGlobalSystemCredentialId(credentialId)) {
+            for (AiModelCredential credential : listUserCredentials(userId)) {
                 AiModelRegistry.removeDynamicModelsByPrefix(buildCredentialPrefix(credential.getId()));
             }
-            AiModelCredential systemCredential = ensureSystemCredential(userId);
-            systemCredential.setIsDefault(1);
-            aiModelCredentialMapper.update(systemCredential);
-            clearOtherDefaults(userId, systemCredential.getId());
+            clearOtherDefaults(userId, null);
             return;
         }
         AiModelCredential credential = getCredential(userId, credentialId);
@@ -125,9 +121,12 @@ public class UserAiConfigManager {
      * 管理员只能看到系统默认配置和自己创建的配置，不能借管理员身份查看普通用户的自定义 Key。
      */
     public List<AiModelCredentialVO> listCredentialVO(long userId, boolean admin) {
-        ensureSystemCredential(userId);
         AiModelCredential active = getActiveCredential(userId);
         List<AiModelCredentialVO> result = new ArrayList<>();
+        AiModelCredential systemCredential = getSystemCredential();
+        if (systemCredential != null) {
+            result.add(toVO(systemCredential, admin, active));
+        }
         for (AiModelCredential credential : listCredentials(userId)) {
             result.add(toVO(credential, admin, active));
         }
@@ -168,7 +167,7 @@ public class UserAiConfigManager {
         if (!models.isEmpty() && StrUtil.isNotBlank(models.get(0).getValue())) {
             return models.get(0).getValue();
         }
-        return AiModelRegistry.DEFAULT_MODEL_KEY;
+        throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统默认模型配置不存在或未配置可用模型，请管理员先配置 AI 模型");
     }
 
     public String resolveRequestedModelKey(long userId, String requestedModelKey) {
@@ -180,9 +179,12 @@ public class UserAiConfigManager {
     }
 
     public void loadUserModelsToRegistry(long userId) {
-        ensureSystemCredential(userId);
+        AiModelCredential systemCredential = getSystemCredential();
+        if (systemCredential != null && hasUsableKey(systemCredential.getApiKey())) {
+            registerCredentialModels(systemCredential);
+        }
         for (AiModelCredential credential : listCredentials(userId)) {
-            if (!isSystemCredential(credential) && hasUsableKey(credential.getApiKey())) {
+            if (hasUsableKey(credential.getApiKey())) {
                 registerCredentialModels(credential);
             }
         }
@@ -214,31 +216,37 @@ public class UserAiConfigManager {
     }
 
     private AiModelCredential getActiveCredential(long userId) {
-        ensureSystemCredential(userId);
-        return aiModelCredentialMapper.selectOneByQuery(QueryWrapper.create()
+        AiModelCredential userDefault = aiModelCredentialMapper.selectOneByQuery(QueryWrapper.create()
                 .eq("userId", userId)
+                .eq("systemDefault", 0)
                 .eq("isDefault", 1)
                 .orderBy("updateTime", false)
                 .limit(1));
+        return userDefault != null ? userDefault : getSystemCredential();
     }
 
     private AiModelCredential getCredential(long userId, long credentialId) {
         return aiModelCredentialMapper.selectOneByQuery(QueryWrapper.create()
                 .eq("id", credentialId)
                 .eq("userId", userId)
+                .eq("systemDefault", 0)
                 .limit(1));
     }
 
     private List<AiModelCredential> listCredentials(long userId) {
+        return listUserCredentials(userId);
+    }
+
+    private List<AiModelCredential> listUserCredentials(long userId) {
         return aiModelCredentialMapper.selectListByQuery(QueryWrapper.create()
                 .eq("userId", userId)
+                .eq("systemDefault", 0)
                 .orderBy("isDefault", false)
-                .orderBy("systemDefault", false)
                 .orderBy("updateTime", false));
     }
 
     private void clearOtherDefaults(long userId, Long keepId) {
-        for (AiModelCredential credential : listCredentials(userId)) {
+        for (AiModelCredential credential : listUserCredentials(userId)) {
             if (keepId != null && keepId.equals(credential.getId())) {
                 continue;
             }
@@ -269,48 +277,31 @@ public class UserAiConfigManager {
         return credential.getApiKey();
     }
 
-    private AiModelCredential ensureSystemCredential(long userId) {
-        AiModelCredential credential = aiModelCredentialMapper.selectOneByQuery(QueryWrapper.create()
-                .eq("userId", userId)
+    private AiModelCredential getSystemCredential() {
+        return aiModelCredentialMapper.selectOneByQuery(QueryWrapper.create()
+                .eq("userId", SYSTEM_USER_ID)
                 .eq("systemDefault", 1)
+                .orderBy("updateTime", false)
                 .limit(1));
-        String defaultApiKey = StrUtil.blankToDefault(streamingChatModelConfig.getApiKey(), DEFAULT_KEY_MASK);
-        String modelNames = joinModelNames(defaultModelNames());
-        if (credential == null) {
-            credential = new AiModelCredential();
-            credential.setUserId(userId);
-            credential.setName("系统默认额度");
-            credential.setApiKey(defaultApiKey);
-            credential.setBaseUrl(DEFAULT_BASE_URL);
-            credential.setModelNames(modelNames);
-            credential.setSystemDefault(1);
-            boolean hasAnyCredential = !listCredentialsNoEnsure(userId).isEmpty();
-            credential.setIsDefault(hasAnyCredential ? 0 : 1);
-            credential.setCreateTime(LocalDateTime.now());
-            credential.setUpdateTime(LocalDateTime.now());
-            aiModelCredentialMapper.insert(credential);
-            return credential;
-        }
-        credential.setName(StrUtil.blankToDefault(credential.getName(), "系统默认额度"));
-        if (StrUtil.isBlank(credential.getModelNames())) {
-            credential.setModelNames(modelNames);
-        }
-        credential.setSystemDefault(1);
-        if ((StrUtil.isBlank(credential.getApiKey()) || isMaskedKey(credential.getApiKey()))
-                && StrUtil.isNotBlank(defaultApiKey) && !DEFAULT_KEY_MASK.equals(defaultApiKey)) {
-            credential.setApiKey(defaultApiKey);
-            credential.setBaseUrl(DEFAULT_BASE_URL);
-        }
-        aiModelCredentialMapper.update(credential);
-        return credential;
     }
 
-    private List<AiModelCredential> listCredentialsNoEnsure(long userId) {
-        return aiModelCredentialMapper.selectListByQuery(QueryWrapper.create()
-                .eq("userId", userId)
-                .orderBy("isDefault", false)
-                .orderBy("systemDefault", false)
-                .orderBy("updateTime", false));
+    private AiModelCredential getEditableCredential(long userId, long credentialId, boolean allowSystemEdit) {
+        AiModelCredential credential = getCredential(userId, credentialId);
+        if (credential != null || !allowSystemEdit) {
+            return credential;
+        }
+        return aiModelCredentialMapper.selectOneByQuery(QueryWrapper.create()
+                .eq("id", credentialId)
+                .eq("userId", SYSTEM_USER_ID)
+                .eq("systemDefault", 1)
+                .limit(1));
+    }
+
+    private boolean isGlobalSystemCredentialId(long credentialId) {
+        return aiModelCredentialMapper.selectCountByQuery(QueryWrapper.create()
+                .eq("id", credentialId)
+                .eq("userId", SYSTEM_USER_ID)
+                .eq("systemDefault", 1)) > 0;
     }
 
     private static boolean isSystemCredential(AiModelCredential credential) {
@@ -328,33 +319,6 @@ public class UserAiConfigManager {
                 || request.getModelNames().stream().allMatch(StrUtil::isBlank)) {
             throw new IllegalArgumentException("请至少填写一个模型名称");
         }
-    }
-
-    private static final List<String> DEFAULT_MODEL_NAMES = List.of(
-            "qwen3.7-max-2026-05-20",
-            "qwen3.6-max-preview",
-            "qwen3.6-plus",
-            "qwen3.6-plus-2026-04-02",
-            "qwen3.5-plus",
-            "qwen3.5-plus-2026-04-20",
-            "qwen3.6-flash",
-            "qwen3.6-flash-2026-04-16",
-            "qwen3.5-flash",
-            "qwen3.5-flash-2026-02-23",
-            "qwen-flash-character-2026-05-20",
-            "qwen3.6-35b-a3b",
-            "qwen3.5-122b-a10b",
-            "qwen3.5-35b-a3b",
-            "qwen3.6-27b",
-            "qwen3.5-27b",
-            "glm-5.1",
-            "gui-plus-2026-02-26",
-            "deepseek-v4-pro",
-            "deepseek-v4-flash"
-    );
-
-    private static List<String> defaultModelNames() {
-        return DEFAULT_MODEL_NAMES;
     }
 
     private static boolean isMaskedKey(String apiKey) {

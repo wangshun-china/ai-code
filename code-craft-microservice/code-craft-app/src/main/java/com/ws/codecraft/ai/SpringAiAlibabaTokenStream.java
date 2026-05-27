@@ -11,6 +11,7 @@ import com.ws.codecraft.ai.stream.AiTokenStream;
 import com.ws.codecraft.ai.stream.AiToolCallRequest;
 import com.ws.codecraft.ai.stream.AiToolExecution;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.Message;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
@@ -108,7 +109,7 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
                         return;
                     }
                     if (output instanceof StreamingOutput<?> streamingOutput) {
-                        String chunk = streamingOutput.chunk();
+                        String chunk = extractStreamingText(streamingOutput);
                         if (StrUtil.isNotBlank(chunk)) {
                             responseBuilder.append(chunk);
                             partialResponseHandler.accept(chunk);
@@ -125,6 +126,11 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
                 }, () -> {
                     completeOneStream(responseBuilder, activeStreams, terminalDelivered);
                 });
+    }
+
+    private static String extractStreamingText(StreamingOutput<?> streamingOutput) {
+        Message message = streamingOutput.message();
+        return message == null ? "" : StrUtil.blankToDefault(message.getText(), "");
     }
 
     private static final int MAX_INTERRUPTION_DEPTH = 5;
@@ -167,7 +173,7 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
                     return;
                 }
                 if (output instanceof StreamingOutput<?> streamingOutput) {
-                    String chunk = streamingOutput.chunk();
+                    String chunk = extractStreamingText(streamingOutput);
                     if (StrUtil.isNotBlank(chunk)) {
                         responseBuilder.append(chunk);
                         partialResponseHandler.accept(chunk);

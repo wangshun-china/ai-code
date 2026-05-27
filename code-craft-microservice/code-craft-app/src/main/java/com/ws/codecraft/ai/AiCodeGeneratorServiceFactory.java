@@ -1,11 +1,13 @@
 package com.ws.codecraft.ai;
 
 import com.alibaba.cloud.ai.graph.CompiledGraph;
+import com.alibaba.cloud.ai.graph.CompileConfig;
 import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
 import com.alibaba.cloud.ai.graph.KeyStrategyFactoryBuilder;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.summarization.SummarizationHook;
+import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
 import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
@@ -241,8 +243,10 @@ public class AiCodeGeneratorServiceFactory {
                             "fail", "fix_coder"
                     ))
                     .addEdge("fix_coder", "reviewer")
-                    .compile();
-            codegenPipeline.setMaxIterations(6);
+                    .compile(CompileConfig.builder()
+                            .saverConfig(SaverConfig.builder().register(redisSaver).build())
+                            .recursionLimit(6)
+                            .build());
         } catch (com.alibaba.cloud.ai.graph.exception.GraphStateException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 流水线构建失败: " + e.getMessage());
         }

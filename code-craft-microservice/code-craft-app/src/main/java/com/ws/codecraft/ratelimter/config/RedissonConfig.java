@@ -2,11 +2,14 @@ package com.ws.codecraft.ratelimter.config;
 
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
+import org.redisson.config.ConstantDelay;
 import org.redisson.config.Config;
 import org.redisson.config.SingleServerConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.Duration;
 
 @Configuration
 public class RedissonConfig {
@@ -36,7 +39,7 @@ public class RedissonConfig {
                 .setConnectTimeout(5000)
                 .setTimeout(3000)
                 .setRetryAttempts(3)
-                .setRetryInterval(1500);
+                .setRetryDelay(new ConstantDelay(Duration.ofMillis(1500)));
         // 如果有密码则设置密码
         if (redisPassword != null && !redisPassword.isEmpty()) {
             singleServerConfig.setPassword(redisPassword);
