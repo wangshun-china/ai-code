@@ -28,7 +28,7 @@ import java.util.Set;
 @Slf4j
 public class UserAiConfigManager {
 
-    public static final String DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    public static final String DEFAULT_BASE_URL = AiChatClientFactory.DASHSCOPE_COMPATIBLE_BASE_URL;
     private static final String DEFAULT_KEY_MASK = "*****";
     private static final String NORMAL_KEY_MASK = "***";
 
@@ -69,12 +69,15 @@ public class UserAiConfigManager {
         credential.setApiKey(request.getApiKey().trim());
         credential.setBaseUrl(StrUtil.blankToDefault(request.getBaseUrl(), DEFAULT_BASE_URL).trim());
         credential.setModelNames(normalizedModels);
-        credential.setIsDefault(1);
+        boolean isOnlyCredential = listUserCredentials(userId).isEmpty();
+        credential.setIsDefault(isOnlyCredential ? 1 : 0);
         credential.setSystemDefault(0);
         credential.setCreateTime(LocalDateTime.now());
         credential.setUpdateTime(LocalDateTime.now());
         aiModelCredentialMapper.insert(credential);
-        clearOtherDefaults(userId, credential.getId());
+        if (isOnlyCredential) {
+            clearOtherDefaults(userId, credential.getId());
+        }
         registerCredentialModels(credential);
         log.info("用户 {} 保存了 AI 模型凭据配置: {}", userId, credential.getName());
         return credential;
@@ -269,10 +272,10 @@ public class UserAiConfigManager {
 
     private String visibleApiKey(AiModelCredential credential, boolean admin) {
         boolean defaultCredential = isDefaultCredential(credential);
-        if (defaultCredential) {
-            return admin ? credential.getApiKey() : DEFAULT_KEY_MASK;
+        if (defaultCredential && admin) {
+            return credential.getApiKey();
         }
-        return credential.getApiKey();
+        return DEFAULT_KEY_MASK;
     }
 
     private AiModelCredential getDefaultCredential() {

@@ -1,6 +1,7 @@
 package com.ws.codecraft.ai.config;
 
 import lombok.Data;
+import lombok.ToString;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -12,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class RoutingAiModelConfig {
 
+    @ToString.Exclude
     private String apiKey;
 
     private String modelName;
@@ -20,8 +22,8 @@ public class RoutingAiModelConfig {
 
     private Double temperature;
 
-    private Boolean logRequests = false;
+    private boolean logRequests;
 
-    private Boolean logResponses = false;
+    private boolean logResponses;
 
 }

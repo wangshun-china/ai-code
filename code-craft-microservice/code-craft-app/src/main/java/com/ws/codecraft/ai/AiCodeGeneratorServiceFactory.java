@@ -7,6 +7,8 @@ import com.alibaba.cloud.ai.graph.KeyStrategyFactoryBuilder;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.summarization.SummarizationHook;
+import com.alibaba.cloud.ai.graph.agent.hook.skills.SkillsAgentHook;
+import com.alibaba.cloud.ai.graph.skills.registry.classpath.ClasspathSkillRegistry;
 import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.redis.RedisSaver;
 import com.alibaba.cloud.ai.graph.action.AsyncEdgeAction;
@@ -40,6 +42,12 @@ public class AiCodeGeneratorServiceFactory {
     private static final String REVIEW_PROMPT = "prompt/codegen-vue-review-system-prompt.txt";
     private static final int SUMMARY_TOKEN_THRESHOLD = 50000;
     private static final int SUMMARY_KEEP_MESSAGES = 30;
+    private static final String SKILLS_BASE_PATH = "skills/";
+
+    private static final ClasspathSkillRegistry SKILL_REGISTRY = ClasspathSkillRegistry.builder()
+            .basePath(SKILLS_BASE_PATH)
+            .autoLoad(true)
+            .build();
 
     @Resource
     private AiChatClientFactory aiChatClientFactory;
@@ -95,7 +103,7 @@ public class AiCodeGeneratorServiceFactory {
 
     private String chatPlainOnce(String message, String normalizedModelKey) {
         ChatClient client = createChatClient(normalizedModelKey,
-                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature(), false);
+                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature());
         return callHelper.call(client, message, normalizedModelKey);
     }
 
@@ -115,7 +123,7 @@ public class AiCodeGeneratorServiceFactory {
     private String chatWithImageOnce(String message, byte[] imageBytes, String mimeType, String fileName,
                                      String normalizedModelKey) {
         ChatClient client = createChatClient(normalizedModelKey,
-                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature(), false);
+                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature());
         return callHelper.callWithImage(client, message, imageBytes, mimeType, fileName, normalizedModelKey);
     }
 
@@ -125,16 +133,10 @@ public class AiCodeGeneratorServiceFactory {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "生成类型不能为空");
         }
         ChatClient chatClient = createChatClient(modelKey,
-                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature(), false);
+                aiChatClientFactory.defaultMaxTokens(), aiChatClientFactory.defaultTemperature());
         ChatModel reasoningChatModel = aiChatClientFactory.buildReasoningChatModel(modelKey);
         List<ToolCallback> toolCallbacks = toolCallbackRegistry.buildAgentToolCallbacks(appId);
         List<ToolCallback> readOnlyToolCallbacks = toolCallbackRegistry.buildAgentReadOnlyToolCallbacks(appId);
-
-        SummarizationHook summarizationHook = SummarizationHook.builder()
-                .model(reasoningChatModel)
-                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
-                .messagesToKeep(SUMMARY_KEEP_MESSAGES)
-                .build();
 
         // 阶段2a: 脚手架编码 Agent — 并行生成配置文件、路由、布局
         ReactAgent scaffoldCoderAgent = ReactAgent.builder()
@@ -145,7 +147,12 @@ public class AiCodeGeneratorServiceFactory {
                 .instruction("请根据以下项目规划生成脚手架代码：{plan}")
                 .tools(toolCallbacks)
                 .saver(redisSaver)
-                .hooks(List.of(summarizationHook))
+                .hooks(List.of(
+                        SummarizationHook.builder().model(reasoningChatModel)
+                                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
+                                .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
+                        SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
+                                .autoReload(true).build()))
                 .build();
 
         // 阶段2b: UI编码 Agent — 并行生成页面和组件
@@ -157,7 +164,12 @@ public class AiCodeGeneratorServiceFactory {
                 .instruction("请根据以下项目规划生成页面和组件代码：{plan}")
                 .tools(toolCallbacks)
                 .saver(redisSaver)
-                .hooks(List.of(summarizationHook))
+                .hooks(List.of(
+                        SummarizationHook.builder().model(reasoningChatModel)
+                                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
+                                .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
+                        SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
+                                .autoReload(true).build()))
                 .build();
 
         // 阶段2c: 修复编码 Agent — 审查不通过时统一修复
@@ -179,7 +191,12 @@ public class AiCodeGeneratorServiceFactory {
                         """)
                 .tools(toolCallbacks)
                 .saver(redisSaver)
-                .hooks(List.of(summarizationHook))
+                .hooks(List.of(
+                        SummarizationHook.builder().model(reasoningChatModel)
+                                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
+                                .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
+                        SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
+                                .autoReload(true).build()))
                 .build();
 
         // 阶段3: 审查 Agent — 只读检查代码质量，修复交给 fix_coder
@@ -200,22 +217,38 @@ public class AiCodeGeneratorServiceFactory {
                 .outputKey("review_result")
                 .tools(readOnlyToolCallbacks)
                 .saver(redisSaver)
-                .hooks(List.of(summarizationHook))
+                .hooks(List.of(
+                        SummarizationHook.builder().model(reasoningChatModel)
+                                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
+                                .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
+                        SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
+                                .autoReload(true).build()))
                 .build();
 
         // 使用 StateGraph 编排：编码 → 审查 → (审查不通过则修复后复审)。
         // 正式生成前已经完成方案确认，userMessage 会作为 plan 注入状态，避免再次输出一遍方案 JSON。
+        // reviewCount 追踪修复-复审轮次，超过上限自动通过避免无限循环。
+        final int maxReviewRounds = 3;
         AsyncEdgeAction reviewRouter = state -> {
             Object raw = state.value("review_result", "");
             String result = raw instanceof String s ? s : String.valueOf(raw);
+            int reviewCount = 0;
+            Object countRaw = state.value("review_count", 0);
+            if (countRaw instanceof Number n) {
+                reviewCount = n.intValue();
+            }
             int lastPass = result.lastIndexOf("[REVIEW_PASS]");
             int lastFail = result.lastIndexOf("[REVIEW_FAIL]");
             if (lastPass >= 0 && lastPass > lastFail) {
                 log.info("代码审查通过，进入构建阶段");
                 return java.util.concurrent.CompletableFuture.completedFuture("pass");
             }
+            if (reviewCount >= maxReviewRounds) {
+                log.warn("代码审查已满 {} 轮，自动通过进入构建阶段", maxReviewRounds);
+                return java.util.concurrent.CompletableFuture.completedFuture("pass");
+            }
             if (lastFail >= 0) {
-                log.info("代码审查未通过，进入修复节点");
+                log.info("代码审查未通过(第{}/{}轮)，进入修复节点", reviewCount + 1, maxReviewRounds);
                 return java.util.concurrent.CompletableFuture.completedFuture("fail");
             }
             log.warn("代码审查未输出明确结论，按未通过处理");
@@ -226,6 +259,7 @@ public class AiCodeGeneratorServiceFactory {
                 .addStrategy("input", new ReplaceStrategy())
                 .addStrategy("plan", new ReplaceStrategy())
                 .addStrategy("review_result", new ReplaceStrategy())
+                .addStrategy("review_count", new ReplaceStrategy())
                 .build();
 
         CompiledGraph codegenPipeline;
@@ -245,7 +279,7 @@ public class AiCodeGeneratorServiceFactory {
                     .addEdge("fix_coder", "reviewer")
                     .compile(CompileConfig.builder()
                             .saverConfig(SaverConfig.builder().register(redisSaver).build())
-                            .recursionLimit(6)
+                            .recursionLimit(12)
                             .build());
         } catch (com.alibaba.cloud.ai.graph.exception.GraphStateException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 流水线构建失败: " + e.getMessage());
@@ -260,17 +294,12 @@ public class AiCodeGeneratorServiceFactory {
         };
     }
 
-    @Bean
-    public AiCodeGeneratorService aiCodeGeneratorService() {
-        return getAiCodeGeneratorService(0);
-    }
-
     public ChatClient createChatClient(String modelKey) {
         return aiChatClientFactory.createChatClient(AiModelRegistry.normalize(modelKey));
     }
 
-    public ChatClient createChatClient(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
-        return aiChatClientFactory.createChatClient(modelKey, maxTokens, temperature, streaming);
+    public ChatClient createChatClient(String modelKey, Integer maxTokens, Double temperature) {
+        return aiChatClientFactory.createChatClient(modelKey, maxTokens, temperature);
     }
 
     private String buildCacheKey(long appId, CodeGenTypeEnum codeGenType, String modelKey) {

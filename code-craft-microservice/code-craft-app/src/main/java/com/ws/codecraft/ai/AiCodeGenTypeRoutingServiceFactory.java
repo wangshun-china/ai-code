@@ -8,6 +8,7 @@ import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,9 +16,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AiCodeGenTypeRoutingServiceFactory {
 
+    private record RoutingResult(CodeGenTypeEnum codeGenType) {}
+    private static final BeanOutputConverter<RoutingResult> OUTPUT_CONVERTER =
+            new BeanOutputConverter<>(RoutingResult.class);
+
     private static final String ROUTING_SYSTEM_PROMPT = """
             你是一个代码生成类型路由专家。根据用户需求，判断应该使用哪种代码生成类型。
-            只需回复以下三个选项之一，不要输出任何其他内容：
 
             - HTML：单文件页面，所有代码内联在一个 HTML 中，可用 CDN 引入库。适用于：落地页、简单工具页、单功能页面。
             - MULTI_FILE：多文件静态页面，HTML/CSS/JS 分离，可用 CDN。适用于：需要代码分离但无需构建的中小型页面。
@@ -28,7 +32,9 @@ public class AiCodeGenTypeRoutingServiceFactory {
             2. 明确要求单个 HTML 文件、CDN、无构建 → HTML
             3. 需要多文件但不用构建工具 → MULTI_FILE
             4. 拿不准时默认 VUE_PROJECT（它是最灵活的方案，能覆盖 HTML 的所有能力）
-            """;
+
+            %s
+            """.formatted(OUTPUT_CONVERTER.getFormat());
 
     @Resource
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
@@ -92,8 +98,7 @@ public class AiCodeGenTypeRoutingServiceFactory {
         ChatClient chatClient = aiCodeGeneratorServiceFactory.createChatClient(
                 normalizedKey,
                 routingAiModelConfig.getMaxTokens(),
-                routingAiModelConfig.getTemperature(),
-                false);
+                routingAiModelConfig.getTemperature());
 
         String response;
         try {
@@ -107,10 +112,18 @@ public class AiCodeGenTypeRoutingServiceFactory {
             log.warn("路由模型返回为空，默认使用 VUE_PROJECT");
             return CodeGenTypeEnum.VUE_PROJECT;
         }
-        return parseCodeGenType(response);
+        try {
+            RoutingResult result = OUTPUT_CONVERTER.convert(response);
+            if (result != null && result.codeGenType() != null) {
+                return result.codeGenType();
+            }
+        } catch (Exception e) {
+            log.warn("结构化输出解析失败，回退字符串匹配: response={}", response, e);
+        }
+        return parseCodeGenTypeFallback(response);
     }
 
-    private CodeGenTypeEnum parseCodeGenType(String responseText) {
+    private CodeGenTypeEnum parseCodeGenTypeFallback(String responseText) {
         String normalized = StrUtil.blankToDefault(responseText, "").trim().toUpperCase();
         if (normalized.contains(CodeGenTypeEnum.VUE_PROJECT.name())) {
             return CodeGenTypeEnum.VUE_PROJECT;

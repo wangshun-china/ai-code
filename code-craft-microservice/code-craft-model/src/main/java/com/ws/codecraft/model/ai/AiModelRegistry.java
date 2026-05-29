@@ -1,5 +1,7 @@
 package com.ws.codecraft.model.ai;
 
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class AiModelRegistry {
 
+    private static final Logger log = System.getLogger(AiModelRegistry.class.getName());
+
     public static final String DEFAULT_MODEL_KEY = "qwen3.6-plus";
     public static final String ENDPOINT_OPENAI_COMPATIBLE = "OPENAI_COMPATIBLE";
 
@@ -22,6 +26,8 @@ public final class AiModelRegistry {
 
     public static String normalize(String value) {
         if (value == null || value.isBlank()) {
+            log.log(Level.WARNING, "Model key is null/blank, falling back to default: " + DEFAULT_MODEL_KEY,
+                    new IllegalArgumentException("normalize(null) caller"));
             return DEFAULT_MODEL_KEY;
         }
         return value.trim();

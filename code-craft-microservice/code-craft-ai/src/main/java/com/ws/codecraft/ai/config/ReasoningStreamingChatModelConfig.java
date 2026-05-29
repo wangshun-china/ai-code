@@ -1,6 +1,7 @@
 package com.ws.codecraft.ai.config;
 
 import lombok.Data;
+import lombok.ToString;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class ReasoningStreamingChatModelConfig {
 
+    @ToString.Exclude
     private String apiKey;
 
     private String modelName;

@@ -8,13 +8,10 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.util.StreamUtils;
+import org.springframework.ai.chat.prompt.PromptTemplate;
 import reactor.core.publisher.Flux;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -141,9 +138,21 @@ public class AiCallHelper {
     }
 
     public static String loadPrompt(String resourcePath) {
+        try (var is = new org.springframework.core.io.ClassPathResource(resourcePath).getInputStream()) {
+            return org.springframework.util.StreamUtils.copyToString(is, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IllegalStateException("读取系统提示词失败: " + resourcePath, e);
+        }
+    }
+
+    public static String loadPrompt(String resourcePath, Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return loadPrompt(resourcePath);
+        }
         try {
-            return StreamUtils.copyToString(new ClassPathResource(resourcePath).getInputStream(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
+            PromptTemplate template = new PromptTemplate(new org.springframework.core.io.ClassPathResource(resourcePath));
+            return template.render(variables);
+        } catch (Exception e) {
             throw new IllegalStateException("读取系统提示词失败: " + resourcePath, e);
         }
     }
@@ -166,9 +175,19 @@ public class AiCallHelper {
             return ex.getMessage();
         }
         String message = StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName());
-        if (message.contains("AllocationQuota.FreeTierOnly") || message.contains("403")) {
+        if (isQuotaRelatedError(message)) {
             return "当前可用模型额度不足，系统已尝试自动切换备用模型但仍失败，请稍后重试或手动切换模型";
         }
         return message;
+    }
+
+    public static boolean isQuotaRelatedError(String message) {
+        if (message == null) {
+            return false;
+        }
+        return message.contains("AllocationQuota.FreeTierOnly")
+                || message.contains("FreeTierOnly")
+                || (message.contains("insufficient_quota"))
+                || (message.contains("quota") && message.contains("exceeded"));
     }
 }

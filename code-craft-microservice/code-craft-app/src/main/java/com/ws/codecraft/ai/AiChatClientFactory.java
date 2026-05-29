@@ -24,6 +24,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * 统一创建 OpenAI-compatible ChatClient/ChatModel。
  */
@@ -31,7 +33,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class AiChatClientFactory {
 
     private static final int CHAT_MEMORY_MAX_MESSAGES = 20;
-    private static final String DASHSCOPE_COMPATIBLE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    static final String DASHSCOPE_COMPATIBLE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+    private static final ConcurrentHashMap<String, OpenAiApi> API_CACHE = new ConcurrentHashMap<>();
 
     @Resource
     private StreamingChatModelConfig streamingChatModelConfig;
@@ -52,10 +56,10 @@ public class AiChatClientFactory {
 
     public ChatClient createChatClient(String modelKey) {
         return createChatClient(AiModelRegistry.normalize(modelKey),
-                defaultMaxTokens(), defaultTemperature(), false);
+                defaultMaxTokens(), defaultTemperature());
     }
 
-    public ChatClient createChatClient(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
+    public ChatClient createChatClient(String modelKey, Integer maxTokens, Double temperature) {
         String normalizedKey = AiModelRegistry.normalize(modelKey);
         MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
@@ -63,7 +67,6 @@ public class AiChatClientFactory {
                 .build();
         return ChatClient.builder(buildChatModel(normalizedKey, maxTokens, temperature))
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                .defaultOptions(buildOptions(normalizedKey, maxTokens, temperature, streaming))
                 .build();
     }
 
@@ -96,12 +99,6 @@ public class AiChatClientFactory {
         return StrUtil.blankToDefault(dynamicBaseUrl, DASHSCOPE_COMPATIBLE_BASE_URL);
     }
 
-    private ChatOptions buildOptions(String modelKey, Integer maxTokens, Double temperature, boolean streaming) {
-        OpenAiChatOptions options = buildOpenAiOptions(modelKey, maxTokens, temperature);
-        options.setInternalToolExecutionEnabled(false);
-        return options;
-    }
-
     private OpenAiChatOptions buildOpenAiOptions(String modelKey, Integer maxTokens, Double temperature) {
         var builder = OpenAiChatOptions.builder()
                 .model(AiModelRegistry.getActualModelName(modelKey));
@@ -115,7 +112,8 @@ public class AiChatClientFactory {
     }
 
     private OpenAiChatModel buildOpenAiChatModel(OpenAiChatOptions options, String apiKey, String baseUrl) {
-        OpenAiApi openAiApi = new OpenAiApi(
+        String cacheKey = baseUrl + "|" + apiKey;
+        OpenAiApi openAiApi = API_CACHE.computeIfAbsent(cacheKey, k -> new OpenAiApi(
                 StrUtil.removeSuffix(baseUrl, "/"),
                 new SimpleApiKey(apiKey),
                 new LinkedMultiValueMap<>(),
@@ -124,7 +122,7 @@ public class AiChatClientFactory {
                 RestClient.builder(),
                 WebClient.builder(),
                 RetryUtils.DEFAULT_RESPONSE_ERROR_HANDLER
-        );
+        ));
         return new OpenAiChatModel(
                 openAiApi,
                 options,

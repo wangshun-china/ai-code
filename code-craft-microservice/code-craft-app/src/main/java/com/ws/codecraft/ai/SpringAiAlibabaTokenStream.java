@@ -4,7 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
-
+import com.alibaba.cloud.ai.graph.exception.GraphStateException;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.ws.codecraft.ai.stream.AiTokenStream;
@@ -16,6 +16,7 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -29,6 +30,7 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
     private final long appId;
     private final SpringAiToolCallbackRegistry toolCallbackRegistry;
     private final AtomicBoolean ignoreErrors = new AtomicBoolean(false);
+    private final CopyOnWriteArrayList<Disposable> subscriptions = new CopyOnWriteArrayList<>();
 
     private Consumer<String> partialResponseHandler;
     private BiConsumer<Integer, AiToolCallRequest> toolRequestHandler;
@@ -94,7 +96,7 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
                 .threadId("app_" + appId)
                 .build();
 
-        StringBuilder responseBuilder = new StringBuilder();
+        StringBuffer responseBuilder = new StringBuffer();
         AtomicInteger activeStreams = new AtomicInteger(1);
         AtomicBoolean terminalDelivered = new AtomicBoolean(false);
 
@@ -103,7 +105,7 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
                 "plan", userMessage
         ), config);
 
-        Disposable ignored = outputFlux.subscribe(output -> {
+        Disposable mainSub = outputFlux.subscribe(output -> {
                     if (output instanceof InterruptionMetadata interruption) {
                         handleInterruption(config, interruption, responseBuilder, activeStreams, terminalDelivered);
                         return;
@@ -121,11 +123,28 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
                         toolCallbackRegistry.unregisterHandlers(appId);
                     }
                     if (firstTerminal && !ignoreErrors.get() && errorHandler != null) {
-                        errorHandler.accept(error);
+                        if (error instanceof GraphStateException) {
+                            log.warn("图执行达到递归上限，视为完成: {}", error.getMessage());
+                            if (completeResponseHandler != null) {
+                                completeResponseHandler.accept(responseBuilder.toString());
+                            }
+                        } else {
+                            errorHandler.accept(error);
+                        }
                     }
                 }, () -> {
                     completeOneStream(responseBuilder, activeStreams, terminalDelivered);
                 });
+        subscriptions.add(mainSub);
+    }
+
+    /**
+     * Cancel all active stream subscriptions (e.g. when client disconnects).
+     */
+    public void cancel() {
+        subscriptions.forEach(Disposable::dispose);
+        subscriptions.clear();
+        toolCallbackRegistry.unregisterHandlers(appId);
     }
 
     private static String extractStreamingText(StreamingOutput<?> streamingOutput) {
@@ -137,7 +156,7 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
 
     private void handleInterruption(RunnableConfig config,
                                     InterruptionMetadata interruption,
-                                    StringBuilder responseBuilder,
+                                    StringBuffer responseBuilder,
                                     AtomicInteger activeStreams,
                                     AtomicBoolean terminalDelivered) {
         handleInterruption(config, interruption, responseBuilder, activeStreams, terminalDelivered, 0);
@@ -145,7 +164,7 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
 
     private void handleInterruption(RunnableConfig config,
                                     InterruptionMetadata interruption,
-                                    StringBuilder responseBuilder,
+                                    StringBuffer responseBuilder,
                                     AtomicInteger activeStreams,
                                     AtomicBoolean terminalDelivered,
                                     int depth) {
@@ -165,7 +184,7 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
                 .build();
 
         activeStreams.incrementAndGet();
-        compiledGraph.stream((Map<String, Object>) null, resumedConfig)
+        Disposable resumedSub = compiledGraph.stream((Map<String, Object>) null, resumedConfig)
             .subscribe(output -> {
                 if (output instanceof InterruptionMetadata nextInterruption) {
                     handleInterruption(resumedConfig, nextInterruption, responseBuilder,
@@ -190,9 +209,10 @@ public class SpringAiAlibabaTokenStream implements AiTokenStream {
             }, () -> {
                 completeOneStream(responseBuilder, activeStreams, terminalDelivered);
             });
+        subscriptions.add(resumedSub);
     }
 
-    private void completeOneStream(StringBuilder responseBuilder,
+    private void completeOneStream(StringBuffer responseBuilder,
                                    AtomicInteger activeStreams,
                                    AtomicBoolean terminalDelivered) {
         if (activeStreams.decrementAndGet() != 0) {
