@@ -11,6 +11,15 @@ on:
         options:
           - aliyun
           - wsl
+      deploy_ref:
+        description: '请选择要构建和部署的分支'
+        required: true
+        default: 'springaialibaba'
+        type: choice
+        options:
+          - springaialibaba
+          - edu
+          - main
 
 permissions:
   contents: read
@@ -75,7 +84,7 @@ jobs:
         id: resolve
         shell: bash
         run: |
-          DEPLOY_REF="springaialibaba"
+          DEPLOY_REF="${{ github.event.inputs.deploy_ref }}"
           TARGET_ENV="${{ github.event.inputs.target_env }}"
 
           BRANCH_SLUG=$(echo "${DEPLOY_REF}" | tr '[:upper:]' '[:lower:]' | sed 's#[^a-z0-9._-]#-#g')

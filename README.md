@@ -254,6 +254,7 @@ npm run preview  # 预览构建结果
 
 手动触发入口：
 - GitHub Actions -> `Build and Deploy` -> `Run workflow`
+- `deploy_ref`：选择要构建和部署的分支，默认 `springaialibaba`
 - `target_env=aliyun`：部署到阿里云 Runner
 - `target_env=wsl`：部署到本地/测试 Runner
 
