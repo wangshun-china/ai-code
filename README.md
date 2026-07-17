@@ -76,8 +76,6 @@ code-craft/
 ├── nginx/                         # Nginx 相关配置
 ├── grafana/                       # Grafana 监控配置
 ├── docs/                          # 项目文档
-├── .github/workflows/             # CI/CD 部署流程
-├── .github/workflows/deploy.yml   # 生产环境部署
 ├── docker-compose.dev.yml         # 开发环境部署
 ├── LOCAL_DEV.md                   # 本地开发指南
 ├── DESIGN.md                      # 当前前端视觉风格说明
@@ -250,7 +248,7 @@ npm run preview  # 预览构建结果
 
 ## Docker 部署
 
-生产环境不再维护根目录 `docker-compose.prod.yml`。当前做法是由 `.github/workflows/deploy.yml` 在目标服务器的部署目录内生成 `docker-compose.yml`，优先拉取 GHCR 镜像，失败时整组回退阿里云 ACR，然后启动服务。
+生产部署 workflow 只在 `springaialibaba` 分支维护。它会在目标服务器的部署目录内生成 `docker-compose.yml`，优先拉取 GHCR 镜像，失败时整组回退阿里云 ACR，然后启动服务。
 
 手动触发入口：
 - GitHub Actions -> `Build and Deploy` -> `Run workflow`
@@ -292,7 +290,7 @@ npm run preview  # 预览构建结果
 
 ## CI/CD 部署
 
-项目配置了 GitHub Actions 自动部署流程（`.github/workflows/deploy.yml`），支持：
+`springaialibaba` 分支配置了手动触发的 GitHub Actions 部署流程，支持：
 - 自动构建前后端
 - 构建 user/app/screenshot/frontend/node-builder 镜像
 - 同时推送镜像到 GHCR 和阿里云 ACR
