@@ -152,8 +152,8 @@ jobs:
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:user-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
             ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:user-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=user-service-${{ needs.resolve-context.outputs.branch_slug }}
+          cache-to: type=gha,mode=max,scope=user-service-${{ needs.resolve-context.outputs.branch_slug }}
 
       - name: Build and push App Service
         uses: docker/build-push-action@v5
@@ -164,8 +164,8 @@ jobs:
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:app-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
             ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:app-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=app-service-${{ needs.resolve-context.outputs.branch_slug }}
+          cache-to: type=gha,mode=max,scope=app-service-${{ needs.resolve-context.outputs.branch_slug }}
 
       - name: Build and push Screenshot Service
         uses: docker/build-push-action@v5
@@ -176,8 +176,8 @@ jobs:
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
             ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}
+          cache-to: type=gha,mode=max,scope=screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -188,8 +188,8 @@ jobs:
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:frontend-${{ needs.resolve-context.outputs.branch_slug }}-latest
             ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:frontend-${{ needs.resolve-context.outputs.branch_slug }}-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=frontend-${{ needs.resolve-context.outputs.branch_slug }}
+          cache-to: type=gha,mode=max,scope=frontend-${{ needs.resolve-context.outputs.branch_slug }}
 
       - name: Build and push Node Builder
         uses: docker/build-push-action@v5
@@ -200,8 +200,8 @@ jobs:
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:node-builder-${{ needs.resolve-context.outputs.branch_slug }}-latest
             ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:node-builder-${{ needs.resolve-context.outputs.branch_slug }}-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=node-builder-${{ needs.resolve-context.outputs.branch_slug }}
+          cache-to: type=gha,mode=max,scope=node-builder-${{ needs.resolve-context.outputs.branch_slug }}
 
   deploy:
     name: Deploy to ${{ needs.resolve-context.outputs.target_env }}
