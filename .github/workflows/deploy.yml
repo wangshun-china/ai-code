@@ -675,7 +675,7 @@ jobs:
           docker compose pull mysql redis nacos nginx
 
           echo "=== Step 2.1: Fix Writable Volume Permissions ==="
-          docker compose run --rm --no-deps --user root --entrypoint sh app-service -c "mkdir -p /tmp/code_output /tmp/code_deploy /tmp/uploads && chown -R spring:spring /tmp/code_output /tmp/code_deploy /tmp/uploads"
+          docker compose run --rm --no-deps --user root --entrypoint sh app-service -c "mkdir -p /tmp/code_output /tmp/code_deploy /tmp/uploads && chown spring:spring /tmp/code_output /tmp/code_deploy /tmp/uploads"
 
           echo "=== Step 3: Start Infrastructure ==="
           docker compose up -d mysql redis

@@ -85,6 +85,7 @@ function execBuild(projectPath) {
     // 防止 Windows/Linux 环境冲突，或者之前的缓存导致 vite 没装上
     const commands = [
       `cd "${projectPath}"`,
+      "trap 'rm -rf node_modules' 0",
       'rm -rf node_modules package-lock.json', // 🔥 第一步：核弹级清理（关键！）
       'npm install --include=dev --registry=https://registry.npmmirror.com --no-audit --no-fund', // 🔥 第二步：指定淘宝源重新装
       'npm run build' // 🔥 第三步：构建
