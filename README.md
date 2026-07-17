@@ -52,8 +52,8 @@
 | 技术 | 说明 |
 |------|------|
 | Docker Compose | 本地基础设施与生产容器编排 |
-| GitHub Actions | 构建镜像、推送阿里云 ACR、部署到自托管 Runner |
-| 阿里云 ACR | 生产镜像仓库 |
+| GitHub Actions | 构建镜像、双推 GHCR/ACR、部署到自托管 Runner |
+| GHCR / 阿里云 ACR | 主镜像仓库 / 备用镜像仓库 |
 | Node Builder | 独立 Node.js 构建服务，默认端口 8020 |
 | Nginx | 前端静态资源、API 反向代理、部署应用访问入口 |
 
@@ -250,7 +250,7 @@ npm run preview  # 预览构建结果
 
 ## Docker 部署
 
-生产环境不再维护根目录 `docker-compose.prod.yml`。当前做法是由 `.github/workflows/deploy.yml` 在目标服务器的部署目录内生成 `docker-compose.yml`，然后拉取阿里云 ACR 镜像并启动服务。
+生产环境不再维护根目录 `docker-compose.prod.yml`。当前做法是由 `.github/workflows/deploy.yml` 在目标服务器的部署目录内生成 `docker-compose.yml`，优先拉取 GHCR 镜像，失败时整组回退阿里云 ACR，然后启动服务。
 
 手动触发入口：
 - GitHub Actions -> `Build and Deploy` -> `Run workflow`
@@ -295,9 +295,9 @@ npm run preview  # 预览构建结果
 项目配置了 GitHub Actions 自动部署流程（`.github/workflows/deploy.yml`），支持：
 - 自动构建前后端
 - 构建 user/app/screenshot/frontend/node-builder 镜像
-- 推送镜像到阿里云 ACR
+- 同时推送镜像到 GHCR 和阿里云 ACR
 - 在目标 Runner 上生成生产 `docker-compose.yml`
-- 拉取最新镜像并按 MySQL、Redis、Nacos、后端、前端、Nginx 顺序启动
+- 优先拉取 GHCR，失败时回退 ACR，并按 MySQL、Redis、Nacos、后端、前端、Nginx 顺序启动
 
 当前部署策略是全量部署 latest 镜像；灰度、蓝绿、单服务回滚等能力尚未内置到工作流。
 

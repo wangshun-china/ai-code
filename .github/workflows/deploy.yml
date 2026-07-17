@@ -23,8 +23,14 @@ on:
           - edu
           - springaialibaba
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   # 镜像仓库配置 (Single Source of Truth)
+  GHCR_REGISTRY: ghcr.io
+  GHCR_IMAGE_NAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
   ALIYUN_ACR_REGISTRY: ${{ vars.ALIYUN_ACR_REGISTRY }}
   ALIYUN_ACR_USERNAME: ${{ vars.ALIYUN_ACR_USERNAME }}
   ALIYUN_ACR_PASSWORD: ${{ secrets.ALIYUN_ACR_PASSWORD }}
@@ -132,6 +138,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
       - name: Login to Aliyun ACR
         uses: docker/login-action@v3
         with:
@@ -152,7 +165,9 @@ jobs:
           context: .
           file: ./Dockerfile.prod-user
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:user-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: |
+            ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:user-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+            ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:user-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -162,7 +177,9 @@ jobs:
           context: .
           file: ./Dockerfile.prod-app
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:app-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: |
+            ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:app-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+            ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:app-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -172,7 +189,9 @@ jobs:
           context: .
           file: ./Dockerfile.prod-screenshot
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: |
+            ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
+            ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:screenshot-service-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -182,7 +201,9 @@ jobs:
           context: .
           file: ./Dockerfile.prod-frontend
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:frontend-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: |
+            ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:frontend-${{ needs.resolve-context.outputs.branch_slug }}-latest
+            ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:frontend-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -192,7 +213,9 @@ jobs:
           context: .
           file: ./Dockerfile.prod-node-builder
           push: true
-          tags: ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:node-builder-${{ needs.resolve-context.outputs.branch_slug }}-latest
+          tags: |
+            ${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:node-builder-${{ needs.resolve-context.outputs.branch_slug }}-latest
+            ${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}:node-builder-${{ needs.resolve-context.outputs.branch_slug }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -207,9 +230,45 @@ jobs:
         with:
           ref: ${{ needs.resolve-context.outputs.deploy_ref }}
 
+      - name: Resolve deployment image repository
+        shell: bash
+        env:
+          IMAGE_TAG_SUFFIX: ${{ needs.resolve-context.outputs.branch_slug }}-latest
+        run: |
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+
+          printf '%s' "${{ github.token }}" |
+            docker login "${{ env.GHCR_REGISTRY }}" -u "${{ github.actor }}" --password-stdin
+          printf '%s' "${{ env.ALIYUN_ACR_PASSWORD }}" |
+            docker login "${{ env.ALIYUN_ACR_REGISTRY }}" -u "${{ env.ALIYUN_ACR_USERNAME }}" --password-stdin
+
+          GHCR_REPOSITORY="${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}"
+          ACR_REPOSITORY="${{ env.ALIYUN_ACR_REGISTRY }}/${{ env.CODE_CRAFT_IMAGE_NAME }}"
+          SERVICES=(user-service app-service screenshot-service frontend node-builder)
+
+          pull_release() {
+            local repository="$1"
+            local service
+            for service in "${SERVICES[@]}"; do
+              docker pull "${repository}:${service}-${IMAGE_TAG_SUFFIX}" || return 1
+            done
+          }
+
+          if pull_release "$GHCR_REPOSITORY"; then
+            IMAGE_REPOSITORY="$GHCR_REPOSITORY"
+          elif pull_release "$ACR_REPOSITORY"; then
+            echo "GHCR pull failed; using Aliyun ACR fallback."
+            IMAGE_REPOSITORY="$ACR_REPOSITORY"
+          else
+            echo "Unable to pull the complete release from GHCR or Aliyun ACR." >&2
+            exit 1
+          fi
+
+          echo "IMAGE_REPOSITORY=${IMAGE_REPOSITORY}" >> "$GITHUB_ENV"
+
       - name: Deploy Infrastructure
         env:
-          ALIYUN_ACR_REGISTRY: ${{ env.ALIYUN_ACR_REGISTRY }}
           CODE_CRAFT_IMAGE_NAME: ${{ env.CODE_CRAFT_IMAGE_NAME }}
           IMAGE_TAG_SUFFIX: ${{ needs.resolve-context.outputs.branch_slug }}-latest
           CODE_CRAFT_MYSQL_ROOT_PASSWORD: ${{ env.CODE_CRAFT_MYSQL_ROOT_PASSWORD }}
@@ -243,8 +302,7 @@ jobs:
 
           # 生成环境文件
           cat > .env << EOF
-          ALIYUN_ACR_REGISTRY=${ALIYUN_ACR_REGISTRY}
-          CODE_CRAFT_IMAGE_NAME=${CODE_CRAFT_IMAGE_NAME}
+          IMAGE_REPOSITORY=${IMAGE_REPOSITORY}
           IMAGE_TAG_SUFFIX=${IMAGE_TAG_SUFFIX}
           CODE_CRAFT_MYSQL_ROOT_PASSWORD=${CODE_CRAFT_MYSQL_ROOT_PASSWORD}
           CODE_CRAFT_MYSQL_DATABASE=${CODE_CRAFT_MYSQL_DATABASE}
@@ -370,7 +428,7 @@ jobs:
                 retries: 10
 
             user-service:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:user-service-${IMAGE_TAG_SUFFIX}
+              image: ${IMAGE_REPOSITORY}:user-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-user-service
               environment:
                 JAVA_TOOL_OPTIONS: "-Xmx512m -Xms256m -XX:+UseG1GC"
@@ -400,7 +458,7 @@ jobs:
                   condition: service_started
 
             app-service:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:app-service-${IMAGE_TAG_SUFFIX}
+              image: ${IMAGE_REPOSITORY}:app-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-app-service
               environment:
                 JAVA_TOOL_OPTIONS: "-Xmx1024m -Xms512m -XX:+UseG1GC"
@@ -448,7 +506,7 @@ jobs:
                   condition: service_started
 
             screenshot-service:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:screenshot-service-${IMAGE_TAG_SUFFIX}
+              image: ${IMAGE_REPOSITORY}:screenshot-service-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-screenshot-service
               shm_size: '512mb'
               environment:
@@ -490,7 +548,7 @@ jobs:
                   condition: service_started
 
             node-builder:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:node-builder-${IMAGE_TAG_SUFFIX}
+              image: ${IMAGE_REPOSITORY}:node-builder-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-node-builder
               working_dir: /app
               volumes:
@@ -509,7 +567,7 @@ jobs:
                 retries: 3
 
             frontend:
-              image: ${ALIYUN_ACR_REGISTRY}/${CODE_CRAFT_IMAGE_NAME}:frontend-${IMAGE_TAG_SUFFIX}
+              image: ${IMAGE_REPOSITORY}:frontend-${IMAGE_TAG_SUFFIX}
               container_name: code-craft-frontend
               restart: unless-stopped
               networks:
@@ -580,10 +638,6 @@ jobs:
           echo "=== Generated docker-compose.yml ==="
           head -50 docker-compose.yml
 
-      - name: Login to Registry
-        run: |
-          echo "${{ env.ALIYUN_ACR_PASSWORD }}" | docker login ${{ env.ALIYUN_ACR_REGISTRY }} -u ${{ env.ALIYUN_ACR_USERNAME }} --password-stdin
-
       - name: Deploy Services
         working-directory: ${{ env.DEPLOY_DIR }}
         run: |
@@ -624,7 +678,7 @@ jobs:
           docker network prune -f 2>/dev/null || true
 
           echo "=== Step 2: Pull Latest Images ==="
-          docker compose pull
+          docker compose pull mysql redis nacos nginx
 
           echo "=== Step 2.1: Fix Writable Volume Permissions ==="
           docker compose run --rm --no-deps --user root --entrypoint sh app-service -c "mkdir -p /tmp/code_output /tmp/code_deploy /tmp/uploads && chown -R spring:spring /tmp/code_output /tmp/code_deploy /tmp/uploads"
