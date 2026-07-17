@@ -292,11 +292,11 @@ npm run preview  # 预览构建结果
 
 ## CI/CD 部署
 
-项目配置了 GitHub Actions 自动部署流程（`.github/workflows/deploy.yml`），支持：
+`springaialibaba` 分支配置了 GitHub Actions 构建与手动部署流程（`.github/workflows/deploy.yml`），支持：
 - 自动构建前后端
 - 构建 user/app/screenshot/frontend/node-builder 镜像
 - 同时推送镜像到 GHCR 和阿里云 ACR
-- 在目标 Runner 上生成生产 `docker-compose.yml`
+- 手动运行 workflow 后，在目标 Runner 上生成生产 `docker-compose.yml`
 - 优先拉取 GHCR，失败时回退 ACR，并按 MySQL、Redis、Nacos、后端、前端、Nginx 顺序启动
 
 当前部署策略是全量部署 latest 镜像；灰度、蓝绿、单服务回滚等能力尚未内置到工作流。
