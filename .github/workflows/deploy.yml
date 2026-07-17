@@ -1,8 +1,6 @@
 name: Build and Deploy
 
 on:
-  push:
-    branches: [springaialibaba]
   workflow_dispatch:
     inputs:
       target_env:
@@ -77,13 +75,8 @@ jobs:
         id: resolve
         shell: bash
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            DEPLOY_REF="springaialibaba"
-            TARGET_ENV="${{ github.event.inputs.target_env }}"
-          else
-            DEPLOY_REF="${{ github.ref_name }}"
-            TARGET_ENV="wsl"
-          fi
+          DEPLOY_REF="springaialibaba"
+          TARGET_ENV="${{ github.event.inputs.target_env }}"
 
           BRANCH_SLUG=$(echo "${DEPLOY_REF}" | tr '[:upper:]' '[:lower:]' | sed 's#[^a-z0-9._-]#-#g')
 
