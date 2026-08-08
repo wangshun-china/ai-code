@@ -6,6 +6,7 @@ import com.ws.codecraft.ai.config.ChatModelProperties;
 import com.ws.codecraft.ai.config.ReasoningStreamingChatModelConfig;
 import com.ws.codecraft.ai.config.StreamingChatModelConfig;
 import com.ws.codecraft.ai.guardrail.PromptSafetyInputGuardrail;
+import com.ws.codecraft.ai.guardrail.RetryOutputGuardrail;
 import com.ws.codecraft.ai.monitor.AiModelMonitorListener;
 import com.ws.codecraft.ai.tools.*;
 import com.ws.codecraft.exception.BusinessException;
@@ -145,8 +146,10 @@ public class AiCodeGeneratorServiceFactory {
                                         "Error: there is no tool called " + toolExecutionRequest.name())
                         )
                         .maxSequentialToolsInvocations(20)  // 最多连续调用 20 次工具
+                        // 工具失败时按逆序回滚已执行的写文件/改文件操作（@CompensateFor）
+                        .compensateOnToolErrors(true)
                         .inputGuardrails(new PromptSafetyInputGuardrail()) // 添加输入护轨
-//                        .outputGuardrails(new RetryOutputGuardrail()) // 添加输出护轨，为了流式输出，这里不使用
+                        .outputGuardrails(new RetryOutputGuardrail()) // 输出护轨：1.18 起流式输出会缓冲+重放，可安全启用
                         .build();
             }
             // HTML 和 多文件生成，使用流式对话模型
@@ -157,7 +160,7 @@ public class AiCodeGeneratorServiceFactory {
                         .streamingChatModel(openAiStreamingChatModel)
                         .chatMemory(chatMemory)
                         .inputGuardrails(new PromptSafetyInputGuardrail()) // 添加输入护轨
-//                        .outputGuardrails(new RetryOutputGuardrail()) // 添加输出护轨，为了流式输出，这里不使用
+                        .outputGuardrails(new RetryOutputGuardrail()) // 输出护轨：1.18 起流式输出会缓冲+重放，可安全启用
                         .build();
             }
             default ->

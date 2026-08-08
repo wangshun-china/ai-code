@@ -2,6 +2,7 @@ package com.ws.codecraft.ai.tools;
 
 import cn.hutool.json.JSONObject;
 import com.ws.codecraft.config.CodeProjectProperties;
+import dev.langchain4j.agent.tool.CompensateFor;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
@@ -68,6 +69,35 @@ public class FileModifyTool extends BaseTool {
             path = projectRoot.resolve(relativeFilePath);
         }
         return path;
+    }
+
+    /**
+     * 补偿动作：modifyFile 执行后若本轮其他工具失败，则将 newContent 回滚替换回 oldContent。
+     * 参数类型需与 modifyFile 一致（含 @ToolMemoryId）。
+     */
+    @CompensateFor("modifyFile")
+    public String compensateModifyFile(@P("文件的相对路径") String relativeFilePath,
+                                       @P("要替换的旧内容") String oldContent,
+                                       @P("替换后的新内容") String newContent,
+                                       @ToolMemoryId Long appId) {
+        try {
+            Path path = resolvePath(relativeFilePath, appId);
+            if (!Files.exists(path) || !Files.isRegularFile(path)) {
+                return "回滚跳过（文件不存在）: " + relativeFilePath;
+            }
+            String currentContent = Files.readString(path);
+            String cleanNewContent = stripMarkdownCodeFence(newContent);
+            if (!currentContent.contains(cleanNewContent)) {
+                return "回滚跳过（未找到已修改内容）: " + relativeFilePath;
+            }
+            String rolledBack = currentContent.replace(cleanNewContent, stripMarkdownCodeFence(oldContent));
+            Files.writeString(path, rolledBack, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            log.info("补偿动作：回滚文件修改, path={}", path.toAbsolutePath());
+            return "已回滚文件修改: " + relativeFilePath;
+        } catch (IOException e) {
+            log.error("补偿动作失败：无法回滚文件 {}，错误: {}", relativeFilePath, e.getMessage(), e);
+            return "补偿失败: " + relativeFilePath;
+        }
     }
 
     @Override

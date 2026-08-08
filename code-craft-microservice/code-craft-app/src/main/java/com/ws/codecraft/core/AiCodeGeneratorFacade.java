@@ -16,6 +16,7 @@ import com.ws.codecraft.exception.BusinessException;
 import com.ws.codecraft.exception.ErrorCode;
 import com.ws.codecraft.model.enums.CodeGenTypeEnum;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.PartialToolCall;
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
@@ -131,8 +132,8 @@ public class AiCodeGeneratorFacade {
                         AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
                         sink.next(JSONUtil.toJsonStr(aiResponseMessage));
                     })
-                    .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
-                        ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
+                    .onPartialToolCall((PartialToolCall partialToolCall) -> {
+                        ToolRequestMessage toolRequestMessage = new ToolRequestMessage(partialToolCall);
                         sink.next(JSONUtil.toJsonStr(toolRequestMessage));
                     })
                     .onToolExecuted((ToolExecution toolExecution) -> {
@@ -211,8 +212,8 @@ public class AiCodeGeneratorFacade {
         TokenStream repairStream = aiCodeGeneratorService.repairVueProjectBuildStream(appId,
                 buildRepairPrompt(repairAttempt, buildError));
         repairStream.onPartialResponse((String partialResponse) -> emitAiMessage(sink, partialResponse))
-                .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
-                    ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
+                .onPartialToolCall((PartialToolCall partialToolCall) -> {
+                    ToolRequestMessage toolRequestMessage = new ToolRequestMessage(partialToolCall);
                     sink.next(JSONUtil.toJsonStr(toolRequestMessage));
                 })
                 .onToolExecuted((ToolExecution toolExecution) -> {

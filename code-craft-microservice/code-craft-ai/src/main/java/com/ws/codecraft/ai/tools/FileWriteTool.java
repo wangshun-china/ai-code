@@ -3,9 +3,11 @@ package com.ws.codecraft.ai.tools;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.json.JSONObject;
 import com.ws.codecraft.config.CodeProjectProperties;
+import dev.langchain4j.agent.tool.CompensateFor;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
+import dev.langchain4j.service.tool.ToolExecution;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -57,6 +59,28 @@ public class FileWriteTool extends BaseTool {
             path = projectRoot.resolve(relativeFilePath);
         }
         return path;
+    }
+
+    /**
+     * 补偿动作：writeFile 执行后若本轮其他工具失败，则删除刚写入的文件回滚。
+     * 参数类型需与 writeFile 一致（含 @ToolMemoryId），框架会按相同参数反填调用。
+     */
+    @CompensateFor("writeFile")
+    public String compensateWriteFile(@P("文件的相对路径") String relativeFilePath,
+                                      @P("要写入文件的内容") String content,
+                                      @ToolMemoryId Long appId) {
+        try {
+            Path path = resolvePath(relativeFilePath, appId);
+            if (Files.exists(path) && Files.isRegularFile(path)) {
+                Files.delete(path);
+                log.info("补偿动作：删除已写入文件回滚, path={}", path.toAbsolutePath());
+                return "已回滚删除文件: " + relativeFilePath;
+            }
+            return "回滚跳过（文件不存在）: " + relativeFilePath;
+        } catch (IOException e) {
+            log.error("补偿动作失败：无法删除文件 {}，错误: {}", relativeFilePath, e.getMessage(), e);
+            return "补偿失败: " + relativeFilePath;
+        }
     }
 
     @Override

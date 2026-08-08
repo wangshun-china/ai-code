@@ -3,10 +3,10 @@ package com.ws.codecraft.ai.guardrail;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.guardrail.InputGuardrail;
 import dev.langchain4j.guardrail.InputGuardrailResult;
+import dev.langchain4j.guardrails.PatternBasedPromptInjectionGuardrail;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * Prompt 安全审查护轨
@@ -21,14 +21,8 @@ public class PromptSafetyInputGuardrail implements InputGuardrail {
             "破解", "hack", "绕过", "bypass", "越狱", "jailbreak"
     );
 
-    // 注入攻击模式
-    private static final List<Pattern> INJECTION_PATTERNS = Arrays.asList(
-            Pattern.compile("(?i)ignore\\s+(?:previous|above|all)\\s+(?:instructions?|commands?|prompts?)"),
-            Pattern.compile("(?i)(?:forget|disregard)\\s+(?:everything|all)\\s+(?:above|before)"),
-            Pattern.compile("(?i)(?:pretend|act|behave)\\s+(?:as|like)\\s+(?:if|you\\s+are)"),
-            Pattern.compile("(?i)system\\s*:\\s*you\\s+are"),
-            Pattern.compile("(?i)new\\s+(?:instructions?|commands?|prompts?)\\s*:")
-    );
+    // 基于 OWASP LLM01 的 Prompt 注入模式检测（框架内置）
+    private final PatternBasedPromptInjectionGuardrail frameworkGuardrail = new PatternBasedPromptInjectionGuardrail();
 
     @Override
     public InputGuardrailResult validate(UserMessage userMessage) {
@@ -48,11 +42,10 @@ public class PromptSafetyInputGuardrail implements InputGuardrail {
                 return fatal("输入包含不当内容，请修改后重试");
             }
         }
-        // 检查注入攻击模式
-        for (Pattern pattern : INJECTION_PATTERNS) {
-            if (pattern.matcher(input).find()) {
-                return fatal("检测到恶意输入，请求被拒绝");
-            }
+        // 使用框架内置的 OWASP 注入模式检测
+        InputGuardrailResult frameworkResult = frameworkGuardrail.validate(userMessage);
+        if (!frameworkResult.isSuccess()) {
+            return fatal("检测到恶意输入，请求被拒绝");
         }
         return success();
     }
