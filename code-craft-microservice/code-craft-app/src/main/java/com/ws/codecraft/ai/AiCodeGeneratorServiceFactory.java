@@ -6,6 +6,8 @@ import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
 import com.alibaba.cloud.ai.graph.KeyStrategyFactoryBuilder;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.hook.Hook;
+import com.alibaba.cloud.ai.graph.agent.hook.modelcalllimit.ModelCallLimitHook;
 import com.alibaba.cloud.ai.graph.agent.hook.summarization.SummarizationHook;
 import com.alibaba.cloud.ai.graph.agent.hook.skills.SkillsAgentHook;
 import com.alibaba.cloud.ai.graph.skills.registry.classpath.ClasspathSkillRegistry;
@@ -42,6 +44,7 @@ public class AiCodeGeneratorServiceFactory {
     private static final String REVIEW_PROMPT = "prompt/codegen-vue-review-system-prompt.txt";
     private static final int SUMMARY_TOKEN_THRESHOLD = 50000;
     private static final int SUMMARY_KEEP_MESSAGES = 30;
+    private static final int MAX_MODEL_CALLS_PER_AGENT = 40;
     private static final String SKILLS_BASE_PATH = "skills/";
 
     private static final ClasspathSkillRegistry SKILL_REGISTRY = ClasspathSkillRegistry.builder()
@@ -147,12 +150,7 @@ public class AiCodeGeneratorServiceFactory {
                 .instruction("请根据以下项目规划生成脚手架代码：{plan}")
                 .tools(toolCallbacks)
                 .saver(redisSaver)
-                .hooks(List.of(
-                        SummarizationHook.builder().model(reasoningChatModel)
-                                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
-                                .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
-                        SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
-                                .autoReload(true).build()))
+                .hooks(commonHooks(reasoningChatModel))
                 .build();
 
         // 阶段2b: UI编码 Agent — 并行生成页面和组件
@@ -164,12 +162,7 @@ public class AiCodeGeneratorServiceFactory {
                 .instruction("请根据以下项目规划生成页面和组件代码：{plan}")
                 .tools(toolCallbacks)
                 .saver(redisSaver)
-                .hooks(List.of(
-                        SummarizationHook.builder().model(reasoningChatModel)
-                                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
-                                .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
-                        SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
-                                .autoReload(true).build()))
+                .hooks(commonHooks(reasoningChatModel))
                 .build();
 
         // 阶段2c: 修复编码 Agent — 审查不通过时统一修复
@@ -191,12 +184,7 @@ public class AiCodeGeneratorServiceFactory {
                         """)
                 .tools(toolCallbacks)
                 .saver(redisSaver)
-                .hooks(List.of(
-                        SummarizationHook.builder().model(reasoningChatModel)
-                                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
-                                .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
-                        SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
-                                .autoReload(true).build()))
+                .hooks(commonHooks(reasoningChatModel))
                 .build();
 
         // 阶段3: 审查 Agent — 只读检查代码质量，修复交给 fix_coder
@@ -217,12 +205,7 @@ public class AiCodeGeneratorServiceFactory {
                 .outputKey("review_result")
                 .tools(readOnlyToolCallbacks)
                 .saver(redisSaver)
-                .hooks(List.of(
-                        SummarizationHook.builder().model(reasoningChatModel)
-                                .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
-                                .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
-                        SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
-                                .autoReload(true).build()))
+                .hooks(commonHooks(reasoningChatModel))
                 .build();
 
         // 使用 StateGraph 编排：编码 → 审查 → (审查不通过则修复后复审)。
@@ -296,6 +279,20 @@ public class AiCodeGeneratorServiceFactory {
 
     public ChatClient createChatClient(String modelKey) {
         return aiChatClientFactory.createChatClient(AiModelRegistry.normalize(modelKey));
+    }
+
+    /**
+     * 各 Agent 共用的模型级 Hook：上下文压缩 + Skills 渐进披露 + 单 Agent 模型调用上限。
+     * 上限触发时直接跳转 END 结束该 Agent，防止工具循环失控导致 token 成本爆炸。
+     */
+    private List<Hook> commonHooks(ChatModel reasoningChatModel) {
+        return List.of(
+                SummarizationHook.builder().model(reasoningChatModel)
+                        .maxTokensBeforeSummary(SUMMARY_TOKEN_THRESHOLD)
+                        .messagesToKeep(SUMMARY_KEEP_MESSAGES).build(),
+                SkillsAgentHook.builder().skillRegistry(SKILL_REGISTRY)
+                        .autoReload(true).build(),
+                ModelCallLimitHook.builder().runLimit(MAX_MODEL_CALLS_PER_AGENT).build());
     }
 
     public ChatClient createChatClient(String modelKey, Integer maxTokens, Double temperature) {
