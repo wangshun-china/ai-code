@@ -2,6 +2,7 @@ package com.ws.codecraft.ai.config;
 
 import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
+import dev.langchain4j.community.store.memory.chat.redis.StoreType;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -29,7 +30,9 @@ public class RedisChatMemoryStoreConfig {
                 .host(host)
                 .port(port)
                 .password(password)
-                .ttl(ttl);
+                .ttl(ttl)
+                // 生产 Redis 未启用 RedisJSON 模块，使用 STRING 序列化存储
+                .storeType(StoreType.STRING);
         if (StrUtil.isNotBlank(password)) {
             builder.user("default");
         }

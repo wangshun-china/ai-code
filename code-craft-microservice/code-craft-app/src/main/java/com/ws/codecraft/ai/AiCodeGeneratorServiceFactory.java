@@ -149,7 +149,7 @@ public class AiCodeGeneratorServiceFactory {
                         // 工具失败时按逆序回滚已执行的写文件/改文件操作（@CompensateFor）
                         .compensateOnToolErrors(true)
                         .inputGuardrails(new PromptSafetyInputGuardrail()) // 添加输入护轨
-                        .outputGuardrails(new RetryOutputGuardrail()) // 输出护轨：1.18 起流式输出会缓冲+重放，可安全启用
+//                        .outputGuardrails(new RetryOutputGuardrail()) // 输出护轨：代码生成最终消息常为简短总结，长度校验会误报过短导致重试失败，暂不启用
                         .build();
             }
             // HTML 和 多文件生成，使用流式对话模型
@@ -160,7 +160,7 @@ public class AiCodeGeneratorServiceFactory {
                         .streamingChatModel(openAiStreamingChatModel)
                         .chatMemory(chatMemory)
                         .inputGuardrails(new PromptSafetyInputGuardrail()) // 添加输入护轨
-                        .outputGuardrails(new RetryOutputGuardrail()) // 输出护轨：1.18 起流式输出会缓冲+重放，可安全启用
+//                        .outputGuardrails(new RetryOutputGuardrail()) // 输出护轨：代码生成最终消息常为简短总结，长度校验会误报过短导致重试失败，暂不启用
                         .build();
             }
             default ->

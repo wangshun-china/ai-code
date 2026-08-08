@@ -10,6 +10,10 @@ import java.util.Arrays;
 @Getter
 public enum AiModelEnum {
 
+    QWEN_3_7_MAX_PREVIEW("qwen3.7-max-preview", "Qwen3.7 Max Preview"),
+    QWEN_3_7_MAX_20260517("qwen3.7-max-2026-05-17", "Qwen3.7 Max 2026-05-17"),
+    QWEN_3_7_PLUS_20260526("qwen3.7-plus-2026-05-26", "Qwen3.7 Plus 2026-05-26"),
+    QWEN_3_7_PLUS("qwen3.7-plus", "Qwen3.7 Plus"),
     QWEN_3_6_PLUS("qwen3.6-plus", "Qwen3.6 Plus"),
     QWEN_3_6_PLUS_20260402("qwen3.6-plus-2026-04-02", "Qwen3.6 Plus 2026-04-02"),
     QWEN_3_6_MAX_PREVIEW("qwen3.6-max-preview", "Qwen3.6 Max Preview"),
@@ -20,7 +24,7 @@ public enum AiModelEnum {
     KIMI_K2_5("kimi-k2.5", "Kimi K2.5"),
     MINIMAX_M2_1("MiniMax-M2.1", "MiniMax M2.1");
 
-    public static final String DEFAULT_MODEL_KEY = "qwen3.6-plus";
+    public static final String DEFAULT_MODEL_KEY = "qwen3.7-plus-2026-05-26";
 
     private final String value;
 
