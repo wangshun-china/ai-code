@@ -15,7 +15,7 @@ import java.util.List;
 public class AiModelFallbackRouter {
 
     private static final String[] FALLBACK_MODEL_ORDER = {
-            "qwen3.6-plus", "qwen-plus", "qwen-turbo"
+            "qwen3.7-plus-2026-05-26", "qwen3.7-plus", "qwen3.7-max-2026-05-17"
     };
 
     public List<String> resolveCandidates(String primaryModelKey) {
