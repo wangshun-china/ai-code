@@ -231,7 +231,7 @@ jobs:
       - name: Prepare deployment files
         shell: bash
         run: |
-          DEPLOY_DIR="$HOME/deployments/code-craft-prod"
+          DEPLOY_DIR="${HOME:-/root}/deployments/code-craft-prod"
           mkdir -p "$DEPLOY_DIR"
           cd "$GITHUB_WORKSPACE"
           cp nginx.conf nginx.frontend.conf "$DEPLOY_DIR"/
@@ -330,7 +330,7 @@ jobs:
               tr '[:upper:]' '[:lower:]' |
               sed 's/[^a-z0-9_-]/-/g')"
           fi
-          DEPLOY_DIR="$HOME/deployments/$PROJECT_NAME"
+          DEPLOY_DIR="${HOME:-/root}/deployments/$PROJECT_NAME"
           mkdir -p "$DEPLOY_DIR"
           chmod 700 "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
