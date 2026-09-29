@@ -247,12 +247,14 @@ services:
         condition: service_started
       user-service:
         condition: service_started
+    # 镜像内建 HEALTHCHECK 用 localhost/--no-verbose 在容器内恒失败,
+    # 这里覆盖为 127.0.0.1 + busybox 安全参数
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
-      interval: 30s
+      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 15s
       timeout: 10s
       start_period: 10s
-      retries: 3
+      retries: 5
 
   nginx:
     image: nginx:alpine
