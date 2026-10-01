@@ -3,8 +3,8 @@
 # database=none (mysql/redis/nacos owned by deploy/prod-services.yaml
 # with pinned code-craft-prod_* volumes), PROJECT_NAME pinned to
 # code-craft-prod, credentials moved to GitHub Secrets.
-# Note: push-to-main auto deploy removed; run manually (workflow_dispatch).
-# Multi-branch deploys: gh workflow run deploy.yml --ref <branch>.
+# Default deploy_ref: springaialibaba (primary line); override per run.
+# Always dispatch with 'Use workflow from: main'.
 name: Build and Deploy
 
 on:
@@ -27,6 +27,11 @@ on:
           - mysql
           - postgres
           - none
+      deploy_ref:
+        description: Branch/ref to build and deploy (workflow file always comes from the branch you run it from)
+        required: false
+        default: springaialibaba
+        type: string
 
 # Registry strategy: Aliyun ACR only. One cross-border leg (GitHub runner
 # pushes ACR); deployment machines pull domestically. GHCR is not used.
@@ -41,6 +46,8 @@ on:
 #   DEPLOY_IMAGES         - JSON image list, defaults to single ./Dockerfile image
 #                           [{"name":"user","dockerfile":"Dockerfile.user"},...]
 #                           tag becomes <name><sha>; single default keeps plain <sha>
+#   deploy_ref            - branch/ref to build and deploy (input, default main);
+#                           deploy/prod-services.yaml falls back to origin/main
 #   PROJECT_NAME          - docker compose project name, defaults to <repository>;
 #                           set it when migrating a stack that already runs under
 #                           a different project name (volumes are project-scoped)
@@ -58,10 +65,9 @@ on:
 env:
   ALIYUN_ACR_REGISTRY: ${{ vars.ALIYUN_ACR_REGISTRY }}
   ALIYUN_ACR_USERNAME: ${{ vars.ALIYUN_ACR_USERNAME }}
-  ALIYUN_ACR_IMAGE_NAME: wangshun_build/code-craft-ai
-  DEPLOY_IMAGES: '[{"name":"user-service","dockerfile":"./Dockerfile.prod-user"},{"name":"app-service","dockerfile":"./Dockerfile.prod-app"},{"name":"screenshot-service","dockerfile":"./Dockerfile.prod-screenshot"},{"name":"frontend","dockerfile":"./Dockerfile.prod-frontend"},{"name":"node-builder","dockerfile":"./Dockerfile.prod-node-builder"}]'
-  # 固定旧项目名:compose 卷和容器名的连续性(code-craft-prod_*)
-  PROJECT_NAME: code-craft-prod
+  ALIYUN_ACR_IMAGE_NAME: ${{ vars.ALIYUN_ACR_IMAGE_NAME || format('wangshun_build/{0}', github.event.repository.name) }}
+  DEPLOY_IMAGES: ${{ vars.DEPLOY_IMAGES }}
+  PROJECT_NAME: ${{ vars.PROJECT_NAME }}
   DATABASE_NAME: ${{ vars.DATABASE_NAME || 'app' }}
   DATABASE_USERNAME: ${{ vars.DATABASE_USERNAME || 'app' }}
   APP_PORT: ${{ vars.APP_PORT || '8080' }}
@@ -77,6 +83,8 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.deploy_ref || 'springaialibaba' }}
 
       # ---------------------------------------------------------------------
       # PROJECT PRE-BUILD: maven backend + pnpm frontend, artifacts to root
@@ -219,17 +227,17 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.deploy_ref || 'springaialibaba' }}
 
-      - name: Prepare deployment files
+      - name: Restore prod-services from main when the deployed ref lacks it
         shell: bash
         run: |
-          DEPLOY_DIR="${HOME:-/root}/deployments/code-craft-prod"
-          mkdir -p "$DEPLOY_DIR"
-          cd "$GITHUB_WORKSPACE"
-          cp nginx.conf nginx.frontend.conf "$DEPLOY_DIR"/
-          cp -r sql "$DEPLOY_DIR"/
-          cp -r mysql-init "$DEPLOY_DIR"/
-          cp -r node-builder "$DEPLOY_DIR"/
+          if [[ ! -f "$GITHUB_WORKSPACE/deploy/prod-services.yaml" ]]; then
+            git fetch origin main --depth 1
+            git checkout origin/main -- deploy/prod-services.yaml
+            echo "deploy/prod-services.yaml restored from origin/main (absent on the deployed ref)"
+          fi
 
       - name: Deploy from Aliyun ACR
         shell: bash
