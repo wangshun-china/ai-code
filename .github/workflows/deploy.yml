@@ -154,13 +154,29 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-codecraft-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-codecraft-
+
       - name: Build Backend
         run: cd code-craft-microservice && mvn clean package -DskipTests
+
+      - name: Install pnpm
+        run: npm install -g pnpm@12
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: code-craft-frontend/pnpm-lock.yaml
 
       - name: Build Frontend
         run: |
           cd code-craft-frontend
-          npm install -g pnpm
           pnpm install
           pnpm build
 
