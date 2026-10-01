@@ -65,9 +65,10 @@ on:
 env:
   ALIYUN_ACR_REGISTRY: ${{ vars.ALIYUN_ACR_REGISTRY }}
   ALIYUN_ACR_USERNAME: ${{ vars.ALIYUN_ACR_USERNAME }}
-  ALIYUN_ACR_IMAGE_NAME: ${{ vars.ALIYUN_ACR_IMAGE_NAME || format('wangshun_build/{0}', github.event.repository.name) }}
-  DEPLOY_IMAGES: ${{ vars.DEPLOY_IMAGES }}
-  PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+  ALIYUN_ACR_IMAGE_NAME: wangshun_build/code-craft-ai
+  DEPLOY_IMAGES: '[{"name":"user-service","dockerfile":"./Dockerfile.prod-user"},{"name":"app-service","dockerfile":"./Dockerfile.prod-app"},{"name":"screenshot-service","dockerfile":"./Dockerfile.prod-screenshot"},{"name":"frontend","dockerfile":"./Dockerfile.prod-frontend"},{"name":"node-builder","dockerfile":"./Dockerfile.prod-node-builder"}]'
+  # 固定旧项目名:compose 卷和容器名的连续性(code-craft-prod_*)
+  PROJECT_NAME: code-craft-prod
   DATABASE_NAME: ${{ vars.DATABASE_NAME || 'app' }}
   DATABASE_USERNAME: ${{ vars.DATABASE_USERNAME || 'app' }}
   APP_PORT: ${{ vars.APP_PORT || '8080' }}
