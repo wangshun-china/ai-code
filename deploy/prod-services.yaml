@@ -135,6 +135,14 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
+    # 镜像内建 HEALTHCHECK 打的是网关路径 /api/actuator/health(容器内 404),
+    # 与 screenshot 同款病灶,覆盖为容器内真实路径
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:8124/actuator/health || wget -q -T 5 --spider http://127.0.0.1:8124/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
 
   app-service:
     image: ${IMAGE_APP_SERVICE:?required}
