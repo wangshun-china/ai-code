@@ -188,6 +188,13 @@ services:
         condition: service_started
       node-builder:
         condition: service_started
+    # springaialibaba 启动含 Nacos 注册+AI 初始化,镜像内建 60s 宽限不够
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:8126/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      start_period: 180s
+      retries: 8
 
   screenshot-service:
     image: ${IMAGE_SCREENSHOT_SERVICE:?required}

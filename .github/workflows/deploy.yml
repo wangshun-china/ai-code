@@ -321,6 +321,16 @@ jobs:
             echo "deploy/prod-services.yaml restored from origin/$WORKFLOW_REF"
           fi
 
+      - name: Dump service logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          docker ps -a --filter name=code-craft --format '{{.Names}}	{{.Status}}' || true
+          for c in code-craft-app-service code-craft-user-service code-craft-screenshot-service; do
+            echo "==== $c ===="
+            docker logs "$c" --tail 40 2>&1 | tail -40 || true
+          done
+
       - name: Deploy from Aliyun ACR
         shell: bash
         run: |
