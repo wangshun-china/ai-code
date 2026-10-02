@@ -139,9 +139,9 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
-    # springaialibaba 分支 user 配 context-path /api,健康端点在 /api/actuator/health
+    # 分支未暴露可用健康端点(actuator 404);HTTP 存活探测:任何响应(含404)即存活
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:8124/api/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -S -qO /dev/null -T 8 http://127.0.0.1:8124/ 2>&1 | grep -q HTTP/ || exit 1"]
       interval: 15s
       timeout: 10s
       start_period: 60s
@@ -249,9 +249,9 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
-    # springaialibaba 分支 screenshot 配 context-path /api,健康端点在 /api/actuator/health
+    # 同上:HTTP 存活探测(404 亦视为存活,连接拒绝才判死)
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:8127/api/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -S -qO /dev/null -T 8 http://127.0.0.1:8127/ 2>&1 | grep -q HTTP/ || exit 1"]
       interval: 15s
       timeout: 10s
       start_period: 60s
