@@ -1,0 +1,17 @@
+name: CC App Diagnostics
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    name: Read code-craft container states and app-service logs
+    runs-on: [self-hosted, wsl]
+    steps:
+      - name: Container states
+        shell: bash
+        run: docker ps -a --filter name=code-craft --format '{{.Names}}\t{{.Status}}' | sort
+
+      - name: app-service logs (last 60 lines)
+        shell: bash
+        run: docker logs code-craft-app-service --tail 60 2>&1 | tail -60
