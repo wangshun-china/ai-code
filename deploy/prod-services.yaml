@@ -154,12 +154,21 @@ services:
       DB_NAME: ${DB_NAME:?required}
       DB_USER: ${DB_USER:?required}
       DB_PASSWORD: ${DB_PASSWORD:?required}
+      # springaialibaba 分支改用 CODE_CRAFT_* 命名(application.yml),同名双份注入
+      CODE_CRAFT_MYSQL_HOST: mysql
+      CODE_CRAFT_MYSQL_PORT: "3306"
+      CODE_CRAFT_MYSQL_DATABASE: ${DB_NAME:?required}
+      CODE_CRAFT_MYSQL_USERNAME: ${DB_USER:?required}
+      CODE_CRAFT_MYSQL_PASSWORD: ${DB_PASSWORD:?required}
+      CODE_CRAFT_REDIS_HOST: redis
+      CODE_CRAFT_REDIS_PORT: "6379"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ""
       NACOS_HOST: nacos
       NACOS_PORT: "8848"
       AI_DASHSCOPE_API_KEY: ${AI_DASHSCOPE_API_KEY}
+      DASHSCOPE_API_KEY: ${AI_DASHSCOPE_API_KEY}
       AI_CHAT_TIMEOUT: ${AI_CHAT_TIMEOUT:-45s}
       AI_CHAT_MAX_RETRIES: ${AI_CHAT_MAX_RETRIES:-0}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
