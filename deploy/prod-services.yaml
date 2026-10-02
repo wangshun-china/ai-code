@@ -139,10 +139,9 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
-    # 镜像内建 HEALTHCHECK 打的是网关路径 /api/actuator/health(容器内 404),
-    # 与 screenshot 同款病灶,覆盖为容器内真实路径
+    # springaialibaba 分支 user 配 context-path /api,健康端点在 /api/actuator/health
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:8124/actuator/health || wget -q -T 5 --spider http://127.0.0.1:8124/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:8124/api/actuator/health || exit 1"]
       interval: 15s
       timeout: 10s
       start_period: 60s
@@ -250,10 +249,9 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
-    # 镜像内建 HEALTHCHECK 打的是网关路径 /api/actuator/health(容器内 404),
-    # 覆盖为容器内真实路径;两个路径兜底
+    # springaialibaba 分支 screenshot 配 context-path /api,健康端点在 /api/actuator/health
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:8127/actuator/health || wget -q -T 5 --spider http://127.0.0.1:8127/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -T 5 --spider http://127.0.0.1:8127/api/actuator/health || exit 1"]
       interval: 15s
       timeout: 10s
       start_period: 60s
