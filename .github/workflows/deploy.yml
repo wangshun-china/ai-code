@@ -370,6 +370,8 @@ jobs:
               volumes:
                 - ./sql/create_table.sql:/docker-entrypoint-initdb.d/1_create_table.sql
                 - ./mysql-init/mysql-schema.sql:/docker-entrypoint-initdb.d/2_nacos_schema.sql
+              tmpfs:
+                - /var/lib/mysql
               networks:
                 - code-craft-network
               restart: "no"
