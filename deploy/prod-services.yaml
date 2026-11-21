@@ -329,19 +329,54 @@ services:
 
 volumes:
   mysql_data:
-    name: code-craft-prod_mysql_data
+    name: ${PROJECT_NAME}_host_mysql_data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/mysql_data"
   redis_data:
-    name: code-craft-prod_redis_data
+    name: ${PROJECT_NAME}_host_redis_data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/redis_data"
   nacos_logs:
-    name: code-craft-prod_nacos_logs
+    name: ${PROJECT_NAME}_host_nacos_logs
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/nacos_logs"
   nacos_data:
-    name: code-craft-prod_nacos_data
+    name: ${PROJECT_NAME}_host_nacos_data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/nacos_data"
   code_deploy:
-    name: code-craft-prod_code_deploy
+    name: ${PROJECT_NAME}_host_code_deploy
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/code_deploy"
   code_output:
-    name: code-craft-prod_code_output
+    name: ${PROJECT_NAME}_host_code_output
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/code_output"
   code_upload:
-    name: code-craft-prod_code_upload
+    name: ${PROJECT_NAME}_host_code_upload
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/code_upload"
 
 networks:
   code-craft-network:
