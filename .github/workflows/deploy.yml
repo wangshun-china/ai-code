@@ -37,6 +37,7 @@ env:
   # 应用配置
   APP_NAME: code-craft
   DEPLOY_DIR: code-craft-prod
+  PROJECT_DATA_DIR: /data/code-craft-prod-data
 
   # 数据库配置
   CODE_CRAFT_MYSQL_ROOT_PASSWORD: ${{ secrets.CODE_CRAFT_MYSQL_ROOT_PASSWORD }}
@@ -314,6 +315,8 @@ jobs:
           NODE_BUILDER_PORT=${NODE_BUILDER_PORT}
           CODE_CRAFT_DEPLOY_PUBLIC_HOST=${CODE_CRAFT_DEPLOY_PUBLIC_HOST}
           EOF
+
+          mkdir -p "$PROJECT_DATA_DIR"/{mysql_data,redis_data,nacos_logs,nacos_data,code_deploy,code_output,code_upload}
 
           # 生成 docker-compose.yml (Infrastructure as Code)
           cat > docker-compose.yml << 'COMPOSE_EOF'
@@ -610,19 +613,54 @@ jobs:
 
           volumes:
             mysql_data:
-              name: code-craft-prod_mysql_data
+              name: ${DEPLOY_DIR}_host_mysql_data
+              driver: local
+              driver_opts:
+                type: none
+                o: bind
+                device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/mysql_data"
             redis_data:
-              name: code-craft-prod_redis_data
+              name: ${DEPLOY_DIR}_host_redis_data
+              driver: local
+              driver_opts:
+                type: none
+                o: bind
+                device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/redis_data"
             nacos_logs:
-              name: code-craft-prod_nacos_logs
+              name: ${DEPLOY_DIR}_host_nacos_logs
+              driver: local
+              driver_opts:
+                type: none
+                o: bind
+                device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/nacos_logs"
             nacos_data:
-              name: code-craft-prod_nacos_data
+              name: ${DEPLOY_DIR}_host_nacos_data
+              driver: local
+              driver_opts:
+                type: none
+                o: bind
+                device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/nacos_data"
             code_deploy:
-              name: code-craft-prod_code_deploy
+              name: ${DEPLOY_DIR}_host_code_deploy
+              driver: local
+              driver_opts:
+                type: none
+                o: bind
+                device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/code_deploy"
             code_output:
-              name: code-craft-prod_code_output
+              name: ${DEPLOY_DIR}_host_code_output
+              driver: local
+              driver_opts:
+                type: none
+                o: bind
+                device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/code_output"
             code_upload:
-              name: code-craft-prod_code_upload
+              name: ${DEPLOY_DIR}_host_code_upload
+              driver: local
+              driver_opts:
+                type: none
+                o: bind
+                device: "${PROJECT_DATA_DIR:?PROJECT_DATA_DIR is required}/code_upload"
 
           networks:
             code-craft-network:
